@@ -1,8 +1,13 @@
 use glfw::{Context as _, WindowEvent};
+
 use luminance_glfw::GlfwSurface;
 use luminance_windowing::{WindowDim, WindowOpt};
 use luminance::context::GraphicsContext as _;
 use luminance::pipeline::PipelineState;
+
+use cgmath::Vector4;
+use cgmath::prelude::*;
+
 use std::process::exit;
 use std::time::Instant;
 
@@ -44,13 +49,13 @@ fn main_loop(surface: GlfwSurface) {
         }
 
         let t = start_t.elapsed().as_millis() as f32 * 1e-3;
-        let color = [t.cos(), t.sin(), 0.5, 1.];
+        let color = Vector4::new(t.cos(), t.sin(), 0.5, 1.);
 
         let render = context
             .new_pipeline_gate()
             .pipeline(
                 &back_buffer,
-                &PipelineState::default().set_clear_color(color),
+                &PipelineState::default().set_clear_color(color.into()),
                 |_, _| Ok(()),
             )
             .assume();
