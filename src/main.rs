@@ -1,7 +1,10 @@
-use glfw::{Action, Context as _, Key, WindowEvent};
+use glfw::{Context as _, WindowEvent};
 use luminance_glfw::GlfwSurface;
 use luminance_windowing::{WindowDim, WindowOpt};
+use luminance::context::GraphicsContext as _;
+use luminance::pipeline::PipelineState;
 use std::process::exit;
+use std::time::Instant;
 
 fn main() {
     let dim = WindowDim::Windowed {
@@ -13,7 +16,7 @@ fn main() {
 
     match surface {
         Ok(surface) => {
-            eprintln!("graphics surface created");
+            eprintln!("Graphics surface created");
             main_loop(surface);
         }
         Err(e) => {
@@ -23,10 +26,12 @@ fn main() {
     }
 }
 
-fn main_loop(mut surface: GlfwSurface) {
+fn main_loop(surface: GlfwSurface) {
     let mut context = surface.context;
     let events = surface.events_rx;
     let back_buffer = context.back_buffer().expect("back buffer");
+
+    let start_t = Instant::now();
 
     'app: loop {
         context.window.glfw.poll_events();
@@ -38,6 +43,22 @@ fn main_loop(mut surface: GlfwSurface) {
             }
         }
 
-        context.window.swap_buffers();
+        let t = start_t.elapsed().as_millis() as f32 * 1e-3;
+        let color = [t.cos(), t.sin(), 0.5, 1.];
+
+        let render = context
+            .new_pipeline_gate()
+            .pipeline(
+                &back_buffer,
+                &PipelineState::default().set_clear_color(color),
+                |_, _| Ok(()),
+            )
+            .assume();
+        
+        if render.is_ok() {
+            context.window.swap_buffers();
+        } else {
+            break 'app;
+        }
     }
 }
