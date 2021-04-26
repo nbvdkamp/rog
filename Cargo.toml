@@ -1,0 +1,19 @@
+[package]
+name = "rustexperiment"
+version = "0.1.0"
+authors = ["kamp <nbvdkamp@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+impl_ops = "0.1.1"
+cgmath = "0.18.0"
+
+glfw = "0.41.0"
+
+luminance = "0.43.2"
+luminance-derive = "0.6.3"
+luminance-front = "0.3.1"
+luminance-glfw = "0.15.0"
+luminance-windowing = "0.9.3"
