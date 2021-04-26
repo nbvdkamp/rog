@@ -2,9 +2,15 @@ use glfw::{Context as _, WindowEvent};
 
 use luminance_glfw::GlfwSurface;
 use luminance_windowing::{WindowDim, WindowOpt};
+use luminance_derive::{Semantics, Vertex};
 use luminance::context::GraphicsContext as _;
 use luminance::pipeline::PipelineState;
+use luminance::tess::Mode;
+use luminance::shader::Program;
+use luminance::render_state::RenderState;
 
+use cgmath::Vector2;
+use cgmath::Vector3;
 use cgmath::Vector4;
 use cgmath::prelude::*;
 
@@ -31,12 +37,61 @@ fn main() {
     }
 }
 
+#[derive(Copy, Clone, Debug, Semantics)]
+pub enum VertexSemantics {
+    #[sem(name = "position", repr = "[f32; 2]", wrapper = "VertexPosition")]
+    Position,   
+    #[sem(name = "color", repr = "[u8; 3]", wrapper = "VertexRGB")]
+    Color,
+}
+
+#[derive(Copy, Clone, Vertex)]
+#[vertex(sem = "VertexSemantics")]
+pub struct Vertex {
+    #[allow(dead_code)]
+    position: VertexPosition,
+    #[allow(dead_code)]
+    #[vertex(normalized = "true")]
+    color: VertexRGB
+}
+
+const VS_STR: &str = include_str!("passthrough.vs");
+const FS_STR: &str = include_str!("color.fs");
+
+const VERTICES: [Vertex; 3] = [
+  Vertex::new(
+    VertexPosition::new([-0.5, -0.5]),
+    VertexRGB::new([255, 0, 0]),
+  ),
+  Vertex::new(
+    VertexPosition::new([0.5, -0.5]),
+    VertexRGB::new([0, 255, 0]),
+  ),
+  Vertex::new(
+    VertexPosition::new([0., 0.5]),
+    VertexRGB::new([0, 0, 255])
+  ),
+];
+
 fn main_loop(surface: GlfwSurface) {
     let mut context = surface.context;
     let events = surface.events_rx;
     let back_buffer = context.back_buffer().expect("back buffer");
 
     let start_t = Instant::now();
+
+    let triangle = context
+        .new_tess()
+        .set_vertices(&VERTICES[..])
+        .set_mode(Mode::Triangle)
+        .build()
+        .unwrap();
+    
+    let mut program = context
+        .new_shader_program::<VertexSemantics, (), ()>()
+        .from_strings(VS_STR, None, None, FS_STR)
+        .unwrap()
+        .ignore_warnings();
 
     'app: loop {
         context.window.glfw.poll_events();
@@ -56,7 +111,13 @@ fn main_loop(surface: GlfwSurface) {
             .pipeline(
                 &back_buffer,
                 &PipelineState::default().set_clear_color(color.into()),
-                |_, _| Ok(()),
+                |_, mut shd_gate| {
+                    shd_gate.shade(&mut program, |_, _, mut rdr_gate| {
+                        rdr_gate.render(&RenderState::default(), |mut tess_gate| {
+                            tess_gate.render(&triangle)
+                        })
+                    })
+                },
             )
             .assume();
         
