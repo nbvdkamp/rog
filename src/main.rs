@@ -3,15 +3,20 @@ use glfw::{Context as _, WindowEvent};
 use luminance_glfw::GlfwSurface;
 use luminance_windowing::{WindowDim, WindowOpt};
 use luminance_derive::{Semantics, Vertex};
-use luminance::context::GraphicsContext as _;
 use luminance::pipeline::PipelineState;
 use luminance::tess::Mode;
 use luminance::render_state::RenderState;
+use luminance_front::context::GraphicsContext;
+use luminance_front::tess::{Tess, TessError, Interleaved};
+use luminance_front::Backend;
+
+//use gltf::*;
 
 use cgmath::Vector4;
 
 use std::process::exit;
 use std::time::Instant;
+use std::path::Path;
 
 fn main() {
     let dim = WindowDim::Windowed {
@@ -20,6 +25,7 @@ fn main() {
     };
 
     let surface = GlfwSurface::new_gl33("Window Title", WindowOpt::default().set_dim(dim));
+    Mesh::load(Path::new("res/cube.glb"));
 
     match surface {
         Ok(surface) => {
@@ -45,6 +51,44 @@ pub struct Vertex {
     #[allow(dead_code)]
     position: VertexPosition,
 }
+
+type VertexIndex = u32;
+pub struct Mesh {
+    vertices: Vec<Vertex>,
+    indices: Vec<VertexIndex>,
+}
+
+impl Mesh {
+    fn to_tess<C>(self, context: &mut C) -> Result<Tess<Vertex, VertexIndex, (), Interleaved>, TessError>
+    where
+        C: GraphicsContext<Backend = Backend>,
+    {
+        context
+            .new_tess()
+            .set_mode(Mode::Triangle)
+            .set_vertices(self.vertices)
+            .set_indices(self.indices)
+            .build()
+    }
+
+    fn load<P>(path: P) -> Result<Self, String>
+    where
+        P: AsRef<Path>,
+    {
+        /*let gltf = Gltf::open(path)?;
+        for scene in gltf.scenes() {
+            for node in scene.nodes() {
+                println!(
+                    "Node #{} has {} children",
+                    node.index(),
+                    node.children().count(),
+                );
+            }
+        }*/
+        Ok(Mesh { vertices: Vec::new(), indices: Vec::new() })
+    }
+}
+
 
 const VS_STR: &str = include_str!("passthrough.vs");
 const FS_STR: &str = include_str!("color.fs");
