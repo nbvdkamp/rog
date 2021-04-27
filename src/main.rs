@@ -6,13 +6,9 @@ use luminance_derive::{Semantics, Vertex};
 use luminance::context::GraphicsContext as _;
 use luminance::pipeline::PipelineState;
 use luminance::tess::Mode;
-use luminance::shader::Program;
 use luminance::render_state::RenderState;
 
-use cgmath::Vector2;
-use cgmath::Vector3;
 use cgmath::Vector4;
-use cgmath::prelude::*;
 
 use std::process::exit;
 use std::time::Instant;
@@ -39,10 +35,8 @@ fn main() {
 
 #[derive(Copy, Clone, Debug, Semantics)]
 pub enum VertexSemantics {
-    #[sem(name = "position", repr = "[f32; 2]", wrapper = "VertexPosition")]
+    #[sem(name = "position", repr = "[f32; 3]", wrapper = "VertexPosition")]
     Position,   
-    #[sem(name = "color", repr = "[u8; 3]", wrapper = "VertexRGB")]
-    Color,
 }
 
 #[derive(Copy, Clone, Vertex)]
@@ -50,9 +44,6 @@ pub enum VertexSemantics {
 pub struct Vertex {
     #[allow(dead_code)]
     position: VertexPosition,
-    #[allow(dead_code)]
-    #[vertex(normalized = "true")]
-    color: VertexRGB
 }
 
 const VS_STR: &str = include_str!("passthrough.vs");
@@ -60,16 +51,13 @@ const FS_STR: &str = include_str!("color.fs");
 
 const VERTICES: [Vertex; 3] = [
   Vertex::new(
-    VertexPosition::new([-0.5, -0.5]),
-    VertexRGB::new([255, 0, 0]),
+    VertexPosition::new([-0.5, -0.5, 0.0]),
   ),
   Vertex::new(
-    VertexPosition::new([0.5, -0.5]),
-    VertexRGB::new([0, 255, 0]),
+    VertexPosition::new([0.5, -0.5, 0.0]),
   ),
   Vertex::new(
-    VertexPosition::new([0., 0.5]),
-    VertexRGB::new([0, 0, 255])
+    VertexPosition::new([0.0, 0.5, 0.0]),
   ),
 ];
 
