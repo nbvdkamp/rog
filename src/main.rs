@@ -2,19 +2,20 @@ use glfw::{Context as _, WindowEvent};
 
 use luminance_glfw::GlfwSurface;
 use luminance_windowing::{WindowDim, WindowOpt};
-use luminance_derive::{Semantics, Vertex, UniformInterface};
+use luminance_derive::UniformInterface;
 use luminance_front::pipeline::PipelineState;
 use luminance_front::render_state::RenderState;
 use luminance_front::context::GraphicsContext;
-use luminance_front::tess::{Mode, Tess, TessError, Interleaved};
 use luminance::shader::Uniform;
-use luminance_front::Backend;
 
 use cgmath::{perspective, EuclideanSpace, Matrix4, Point3, Rad, Vector3, Vector4};
 
 use std::process::exit;
 use std::time::Instant;
 use std::path::Path;
+
+mod mesh;
+use mesh::{Vertex, VertexIndex, VertexSemantics, Mesh};
 
 fn main() {
     let dim = WindowDim::Windowed {
@@ -33,39 +34,6 @@ fn main() {
             eprintln!("Could not create graphics surface:\n{}", e);
             exit(1);
         }
-    }
-}
-
-#[derive(Copy, Clone, Debug, Semantics)]
-pub enum VertexSemantics {
-    #[sem(name = "position", repr = "[f32; 3]", wrapper = "VertexPosition")]
-    Position,   
-}
-
-#[derive(Copy, Clone, Vertex)]
-#[vertex(sem = "VertexSemantics")]
-pub struct Vertex {
-    #[allow(dead_code)]
-    position: VertexPosition,
-}
-
-type VertexIndex = u32;
-pub struct Mesh {
-    vertices: Vec<Vertex>,
-    indices: Vec<VertexIndex>,
-}
-
-impl Mesh {
-    fn to_tess<C>(&self, context: &mut C) -> Result<Tess<Vertex, VertexIndex, (), Interleaved>, TessError>
-    where
-        C: GraphicsContext<Backend = Backend>,
-    {
-        context
-            .new_tess()
-            .set_mode(Mode::Triangle)
-            .set_vertices(self.vertices.clone())
-            .set_indices(self.indices.clone())
-            .build()
     }
 }
 
