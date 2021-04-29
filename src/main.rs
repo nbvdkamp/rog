@@ -2,17 +2,15 @@ use glfw::{Context as _, WindowEvent};
 
 use luminance_glfw::GlfwSurface;
 use luminance_windowing::{WindowDim, WindowOpt};
-use luminance_derive::{Semantics, Vertex};
-use luminance::pipeline::PipelineState;
-use luminance::tess::Mode;
-use luminance::render_state::RenderState;
+use luminance_derive::{Semantics, Vertex, UniformInterface};
+use luminance_front::pipeline::PipelineState;
+use luminance_front::render_state::RenderState;
 use luminance_front::context::GraphicsContext;
-use luminance_front::tess::{Tess, TessError, Interleaved};
+use luminance_front::tess::{Mode, Tess, TessError, Interleaved};
+use luminance::shader::Uniform;
 use luminance_front::Backend;
 
-//use gltf::*;
-
-use cgmath::Vector4;
+use cgmath::{perspective, EuclideanSpace, Matrix4, Point3, Rad, Vector3, Vector4};
 
 use std::process::exit;
 use std::time::Instant;
@@ -25,7 +23,6 @@ fn main() {
     };
 
     let surface = GlfwSurface::new_gl33("Window Title", WindowOpt::default().set_dim(dim));
-    Mesh::load(Path::new("res/cube.glb"));
 
     match surface {
         Ok(surface) => {
@@ -59,51 +56,94 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    fn to_tess<C>(self, context: &mut C) -> Result<Tess<Vertex, VertexIndex, (), Interleaved>, TessError>
+    fn to_tess<C>(&self, context: &mut C) -> Result<Tess<Vertex, VertexIndex, (), Interleaved>, TessError>
     where
         C: GraphicsContext<Backend = Backend>,
     {
         context
             .new_tess()
             .set_mode(Mode::Triangle)
-            .set_vertices(self.vertices)
-            .set_indices(self.indices)
+            .set_vertices(self.vertices.clone())
+            .set_indices(self.indices.clone())
             .build()
     }
+}
 
+pub struct Scene {
+    meshes: Vec<Mesh>,
+}
+
+impl Scene {
     fn load<P>(path: P) -> Result<Self, String>
     where
         P: AsRef<Path>,
     {
-        /*let gltf = Gltf::open(path)?;
-        for scene in gltf.scenes() {
-            for node in scene.nodes() {
-                println!(
-                    "Node #{} has {} children",
-                    node.index(),
-                    node.children().count(),
-                );
+        if let Ok((document, buffers, _)) = gltf::import(path) {
+            let mut meshes = Vec::<Mesh>::new();
+            
+            for scene in document.scenes() {
+                for node in scene.nodes() {
+                    if let Some(mesh) = node.mesh() {
+                        for primitive in mesh.primitives() {
+                            let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+
+                            let positions = {
+                                let iter = reader
+                                    .read_positions()
+                                    .unwrap_or_else(||
+                                        panic!("Primitive does not have POSITION attribute (mesh: {}, primitive: {})", mesh.index(), primitive.index())
+                                    );
+                                iter.collect::<Vec<_>>()
+                            };
+
+                            let vertices: Vec<Vertex> = positions
+                                .into_iter()
+                                .map(|position| {
+                                    Vertex {
+                                        position: position.into()
+                                    }
+                                }).collect();
+                            
+                            let indices: Vec<VertexIndex> = reader
+                                .read_indices()
+                                .map(|read_indices| {
+                                    read_indices.into_u32().collect::<Vec<_>>()
+                                })
+                                .unwrap_or_else(||
+                                    panic!("Primitive has no indices (mesh: {}, primitive: {})", mesh.index(), primitive.index())
+                                );
+                            
+                            //TODO get normals and stuff.
+                            meshes.push(Mesh { vertices, indices });
+                        }
+                    }
+                }
             }
-        }*/
-        Ok(Mesh { vertices: Vec::new(), indices: Vec::new() })
+
+            Ok(Scene { meshes })
+        }
+        else {
+            Err("Couldn't open glTF file.".into())
+        }
+
     }
+}
+
+#[derive(Debug, UniformInterface)]
+struct ShaderInterface {
+    #[uniform(unbound)]
+    u_projection: Uniform<[[f32; 4]; 4]>,
+    #[uniform(unbound)]
+    u_view: Uniform<[[f32; 4]; 4]>,
 }
 
 
 const VS_STR: &str = include_str!("passthrough.vs");
 const FS_STR: &str = include_str!("color.fs");
 
-const VERTICES: [Vertex; 3] = [
-  Vertex::new(
-    VertexPosition::new([-0.5, -0.5, 0.0]),
-  ),
-  Vertex::new(
-    VertexPosition::new([0.5, -0.5, 0.0]),
-  ),
-  Vertex::new(
-    VertexPosition::new([0.0, 0.5, 0.0]),
-  ),
-];
+const FOVY: Rad<f32> = Rad(std::f32::consts::FRAC_PI_2);
+const Z_NEAR: f32 = 0.1;
+const Z_FAR: f32 = 10.0;
 
 fn main_loop(surface: GlfwSurface) {
     let mut context = surface.context;
@@ -112,15 +152,14 @@ fn main_loop(surface: GlfwSurface) {
 
     let start_t = Instant::now();
 
-    let triangle = context
-        .new_tess()
-        .set_vertices(&VERTICES[..])
-        .set_mode(Mode::Triangle)
-        .build()
-        .unwrap();
+    let [width, height] = back_buffer.size();
+    let projection = perspective(FOVY, width as f32 / height as f32, Z_NEAR, Z_FAR);
+    let view = Matrix4::<f32>::look_at_rh(Point3::new(2., 2., 2.), Point3::origin(), Vector3::unit_y());
+
+    let scene = Scene::load(Path::new("res/cube.glb")).unwrap();
     
     let mut program = context
-        .new_shader_program::<VertexSemantics, (), ()>()
+        .new_shader_program::<VertexSemantics, (), ShaderInterface>()
         .from_strings(VS_STR, None, None, FS_STR)
         .unwrap()
         .ignore_warnings();
@@ -135,6 +174,10 @@ fn main_loop(surface: GlfwSurface) {
             }
         }
 
+        let m = &scene.meshes;
+        let me = m.get(0).unwrap();
+        let mesh = me.to_tess(&mut context).unwrap();
+
         let t = start_t.elapsed().as_millis() as f32 * 1e-3;
         let color = Vector4::new(t.cos(), t.sin(), 0.5, 1.);
 
@@ -144,9 +187,12 @@ fn main_loop(surface: GlfwSurface) {
                 &back_buffer,
                 &PipelineState::default().set_clear_color(color.into()),
                 |_, mut shd_gate| {
-                    shd_gate.shade(&mut program, |_, _, mut rdr_gate| {
+                    shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
+                        iface.set(&unif.u_projection, projection.into());
+                        iface.set(&unif.u_view, view.into());
+
                         rdr_gate.render(&RenderState::default(), |mut tess_gate| {
-                            tess_gate.render(&triangle)
+                            tess_gate.render(&mesh)
                         })
                     })
                 },
