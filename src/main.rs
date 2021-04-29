@@ -125,7 +125,6 @@ impl Scene {
         else {
             Err("Couldn't open glTF file.".into())
         }
-
     }
 }
 
@@ -174,35 +173,34 @@ fn main_loop(surface: GlfwSurface) {
             }
         }
 
-        let m = &scene.meshes;
-        let me = m.get(0).unwrap();
-        let mesh = me.to_tess(&mut context).unwrap();
-
         let t = start_t.elapsed().as_millis() as f32 * 1e-3;
         let color = Vector4::new(t.cos(), t.sin(), 0.5, 1.);
 
-        let render = context
-            .new_pipeline_gate()
-            .pipeline(
-                &back_buffer,
-                &PipelineState::default().set_clear_color(color.into()),
-                |_, mut shd_gate| {
-                    shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
-                        iface.set(&unif.u_projection, projection.into());
-                        iface.set(&unif.u_view, view.into());
+        for m in &scene.meshes {
+            let mesh = m.to_tess(&mut context).unwrap();
 
-                        rdr_gate.render(&RenderState::default(), |mut tess_gate| {
-                            tess_gate.render(&mesh)
+            let render = context
+                .new_pipeline_gate()
+                .pipeline(
+                    &back_buffer,
+                    &PipelineState::default().set_clear_color(color.into()),
+                    |_, mut shd_gate| {
+                        shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
+                            iface.set(&unif.u_projection, projection.into());
+                            iface.set(&unif.u_view, view.into());
+
+                            rdr_gate.render(&RenderState::default(), |mut tess_gate| {
+                                tess_gate.render(&mesh)
+                            })
                         })
-                    })
-                },
-            )
-            .assume();
-        
-        if render.is_ok() {
-            context.window.swap_buffers();
-        } else {
-            break 'app;
+                    },
+                )
+                .assume();
+            
+            if !render.is_ok() {
+                break 'app;
+            }
         }
+        context.window.swap_buffers();
     }
 }
