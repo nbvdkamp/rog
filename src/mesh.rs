@@ -7,6 +7,8 @@ use luminance_front::Backend;
 pub enum VertexSemantics {
     #[sem(name = "position", repr = "[f32; 3]", wrapper = "VertexPosition")]
     Position,   
+    #[sem(name = "normal", repr = "[f32; 3]", wrapper = "VertexNormal")]
+    Normal,   
 }
 
 #[derive(Copy, Clone, Vertex)]
@@ -14,6 +16,8 @@ pub enum VertexSemantics {
 pub struct Vertex {
     #[allow(dead_code)]
     pub position: VertexPosition,
+    #[allow(dead_code)]
+    pub normal: VertexNormal,
 }
 
 pub type VertexIndex = u32;

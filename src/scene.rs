@@ -27,12 +27,23 @@ impl Scene {
                                     );
                                 iter.collect::<Vec<_>>()
                             };
+                            
+                            let normals= {
+                                let iter = reader
+                                    .read_normals()
+                                    .unwrap_or_else(||
+                                        panic!("Primitive does not have NORMAL attribute (mesh: {}, primitive: {})", mesh.index(), primitive.index())
+                                    );
+                                iter.collect::<Vec<_>>()
+                            };
 
                             let vertices: Vec<Vertex> = positions
                                 .into_iter()
-                                .map(|position| {
+                                .zip(normals.into_iter())
+                                .map(|(position, normal)| {
                                     Vertex {
-                                        position: position.into()
+                                        position: position.into(),
+                                        normal: normal.into(),
                                     }
                                 }).collect();
                             
