@@ -1,8 +1,22 @@
 use crate::mesh::{Vertex, VertexIndex, Mesh};
 use std::path::Path;
+use cgmath::{Matrix4, Vector3, Vector4, Quaternion};
+use gltf::scene::Transform;
 
 pub struct Scene {
     pub meshes: Vec<Mesh>,
+}
+
+fn TransformToMat(t: Transform) -> Matrix4<f32> {
+    match t {
+        Transform::Matrix { matrix } => { matrix.into() }
+        Transform::Decomposed { translation, rotation, scale } => { 
+            let r: Matrix4<f32> = Quaternion::from(rotation).into();
+            let t = Matrix4::from_translation(translation.into());
+            let s = Matrix4::from_nonuniform_scale(scale[0], scale[1], scale[2]);
+            t * r * s
+        }
+    }
 }
 
 impl Scene {
@@ -15,6 +29,8 @@ impl Scene {
             
             for scene in document.scenes() {
                 for node in scene.nodes() {
+                    let transform = TransformToMat(node.transform());
+
                     if let Some(mesh) = node.mesh() {
                         for primitive in mesh.primitives() {
                             let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
