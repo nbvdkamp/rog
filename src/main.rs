@@ -6,7 +6,9 @@ use luminance_derive::UniformInterface;
 use luminance_front::pipeline::PipelineState;
 use luminance_front::render_state::RenderState;
 use luminance_front::context::GraphicsContext;
+use luminance_front::tess::{Tess, Interleaved};
 use luminance::shader::Uniform;
+
 
 use cgmath::{perspective, EuclideanSpace, Matrix4, Point3, Rad, Vector3, Vector4};
 
@@ -15,7 +17,7 @@ use std::time::Instant;
 use std::path::Path;
 
 mod mesh;
-use mesh::VertexSemantics;
+use mesh::{Vertex, VertexIndex, VertexSemantics};
 mod scene;
 use scene::Scene;
 
@@ -67,6 +69,9 @@ fn main_loop(surface: GlfwSurface) {
     let view = Matrix4::<f32>::look_at_rh(Point3::new(2., 2., 2.), Point3::origin(), Vector3::unit_y());
 
     let scene = Scene::load(Path::new("res/cube.glb")).unwrap();
+    let tesses = scene.meshes.as_slice().into_iter()
+        .map(|mesh| mesh.to_tess(&mut context).unwrap())
+        .collect::<Vec<Tess<Vertex, VertexIndex, (), Interleaved>>>();
     
     let mut program = context
         .new_shader_program::<VertexSemantics, (), ShaderInterface>()
@@ -87,31 +92,32 @@ fn main_loop(surface: GlfwSurface) {
         let t = start_t.elapsed().as_millis() as f32 * 1e-3;
         let color = Vector4::new(t.cos(), t.sin(), 0.5, 1.);
 
-        for m in &scene.meshes {
-            let mesh = m.to_tess(&mut context).unwrap();
-
-            let render = context
-                .new_pipeline_gate()
-                .pipeline(
-                    &back_buffer,
-                    &PipelineState::default().set_clear_color(color.into()),
-                    |_, mut shd_gate| {
+        let render = context
+            .new_pipeline_gate()
+            .pipeline(
+                &back_buffer,
+                &PipelineState::default().set_clear_color(color.into()),
+                |_, mut shd_gate| {
+                    for tess in &tesses {
                         shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
                             iface.set(&unif.u_projection, projection.into());
                             iface.set(&unif.u_view, view.into());
 
                             rdr_gate.render(&RenderState::default(), |mut tess_gate| {
-                                tess_gate.render(&mesh)
+                                tess_gate.render(tess)
                             })
-                        })
-                    },
-                )
-                .assume();
-            
-            if !render.is_ok() {
-                break 'app;
-            }
+                        })?;
+                    }
+
+                    Ok(())
+                },
+            )
+            .assume();
+        
+        if !render.is_ok() {
+            break 'app;
         }
+
         context.window.swap_buffers();
     }
 }
