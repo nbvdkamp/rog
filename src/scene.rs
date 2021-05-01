@@ -1,13 +1,13 @@
 use crate::mesh::{Vertex, VertexIndex, Mesh};
 use std::path::Path;
-use cgmath::{Matrix4, Vector3, Vector4, Quaternion};
+use cgmath::{Matrix4, Vector4, Quaternion};
 use gltf::scene::Transform;
 
 pub struct Scene {
     pub meshes: Vec<Mesh>,
 }
 
-fn TransformToMat(t: Transform) -> Matrix4<f32> {
+fn transform_to_mat(t: Transform) -> Matrix4<f32> {
     match t {
         Transform::Matrix { matrix } => { matrix.into() }
         Transform::Decomposed { translation, rotation, scale } => { 
@@ -29,7 +29,7 @@ impl Scene {
             
             for scene in document.scenes() {
                 for node in scene.nodes() {
-                    let transform = TransformToMat(node.transform());
+                    let transform = transform_to_mat(node.transform());
 
                     if let Some(mesh) = node.mesh() {
                         for primitive in mesh.primitives() {
@@ -40,7 +40,12 @@ impl Scene {
                                     .read_positions()
                                     .unwrap_or_else(||
                                         panic!("Primitive does not have POSITION attribute (mesh: {}, primitive: {})", mesh.index(), primitive.index())
-                                    );
+                                    )
+                                    .map(|pos| {
+                                        let v = transform * Vector4::new(pos[0], pos[1], pos[2], 1.0);
+                                        [v[0] / v[3], v[1] / v[3], v[2] / v[3]]
+                                    });
+                                
                                 iter.collect::<Vec<_>>()
                             };
                             

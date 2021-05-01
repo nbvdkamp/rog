@@ -55,7 +55,7 @@ const FS_STR: &str = include_str!("color.fs");
 
 const FOVY: Rad<f32> = Rad(std::f32::consts::FRAC_PI_2);
 const Z_NEAR: f32 = 0.1;
-const Z_FAR: f32 = 10.0;
+const Z_FAR: f32 = 100.0;
 
 fn main_loop(surface: GlfwSurface) {
     let mut context = surface.context;
