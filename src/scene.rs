@@ -32,54 +32,7 @@ impl Scene {
                     let transform = transform_to_mat(node.transform());
 
                     if let Some(mesh) = node.mesh() {
-                        for primitive in mesh.primitives() {
-                            let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
-
-                            let positions = {
-                                let iter = reader
-                                    .read_positions()
-                                    .unwrap_or_else(||
-                                        panic!("Primitive does not have POSITION attribute (mesh: {}, primitive: {})", mesh.index(), primitive.index())
-                                    )
-                                    .map(|pos| {
-                                        let v = transform * Vector4::new(pos[0], pos[1], pos[2], 1.0);
-                                        [v[0] / v[3], v[1] / v[3], v[2] / v[3]]
-                                    });
-                                
-                                iter.collect::<Vec<_>>()
-                            };
-                            
-                            let normals= {
-                                let iter = reader
-                                    .read_normals()
-                                    .unwrap_or_else(||
-                                        panic!("Primitive does not have NORMAL attribute (mesh: {}, primitive: {})", mesh.index(), primitive.index())
-                                    );
-                                iter.collect::<Vec<_>>()
-                            };
-
-                            let vertices: Vec<Vertex> = positions
-                                .into_iter()
-                                .zip(normals.into_iter())
-                                .map(|(position, normal)| {
-                                    Vertex {
-                                        position: position.into(),
-                                        normal: normal.into(),
-                                    }
-                                }).collect();
-                            
-                            let indices: Vec<VertexIndex> = reader
-                                .read_indices()
-                                .map(|read_indices| {
-                                    read_indices.into_u32().collect::<Vec<_>>()
-                                })
-                                .unwrap_or_else(||
-                                    panic!("Primitive has no indices (mesh: {}, primitive: {})", mesh.index(), primitive.index())
-                                );
-                            
-                            //TODO get normals and stuff.
-                            meshes.push(Mesh { vertices, indices });
-                        }
+                        add_meshes_from_gltf_mesh(mesh, &buffers, transform, &mut meshes);
                     }
                 }
             }
@@ -89,5 +42,56 @@ impl Scene {
         else {
             Err("Couldn't open glTF file.".into())
         }
+    }
+}
+
+fn add_meshes_from_gltf_mesh(mesh: gltf::Mesh, buffers: &Vec<gltf::buffer::Data>, transform: Matrix4<f32>, meshes: &mut Vec<Mesh>) {
+    for primitive in mesh.primitives() {
+        let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+
+        let positions = {
+            let iter = reader
+                .read_positions()
+                .unwrap_or_else(||
+                    panic!("Primitive does not have POSITION attribute (mesh: {}, primitive: {})", mesh.index(), primitive.index())
+                )
+                .map(|pos| {
+                    let v = transform * Vector4::new(pos[0], pos[1], pos[2], 1.0);
+                    [v[0] / v[3], v[1] / v[3], v[2] / v[3]]
+                });
+            
+            iter.collect::<Vec<_>>()
+        };
+        
+        let normals= {
+            let iter = reader
+                .read_normals()
+                .unwrap_or_else(||
+                    panic!("Primitive does not have NORMAL attribute (mesh: {}, primitive: {})", mesh.index(), primitive.index())
+                );
+            iter.collect::<Vec<_>>()
+        };
+
+        let vertices: Vec<Vertex> = positions
+            .into_iter()
+            .zip(normals.into_iter())
+            .map(|(position, normal)| {
+                Vertex {
+                    position: position.into(),
+                    normal: normal.into(),
+                }
+            }).collect();
+        
+        let indices: Vec<VertexIndex> = reader
+            .read_indices()
+            .map(|read_indices| {
+                read_indices.into_u32().collect::<Vec<_>>()
+            })
+            .unwrap_or_else(||
+                panic!("Primitive has no indices (mesh: {}, primitive: {})", mesh.index(), primitive.index())
+            );
+        
+        //TODO get normals and stuff.
+        meshes.push(Mesh { vertices, indices });
     }
 }
