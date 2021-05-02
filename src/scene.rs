@@ -6,6 +6,7 @@ use gltf::camera::Projection;
 
 use crate::mesh::{Vertex, VertexIndex, Mesh};
 use crate::camera::PerspectiveCamera;
+use crate::material::Material;
 
 pub struct Scene {
     pub meshes: Vec<Mesh>,
@@ -76,6 +77,16 @@ fn add_meshes_from_gltf_mesh(mesh: gltf::Mesh, buffers: &Vec<gltf::buffer::Data>
     for primitive in mesh.primitives() {
         let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
+        let mat = primitive.material();
+        let pbr = mat.pbr_metallic_roughness();
+        
+        let material = Material {
+            base_color_factor: pbr.base_color_factor().into(),
+            roughness_factor: pbr.roughness_factor(),
+            metallic_factor: pbr.metallic_factor(),
+            emissive_factor: mat.emissive_factor().into(),
+        };
+
         let positions = {
             let iter = reader
                 .read_positions()
@@ -118,7 +129,7 @@ fn add_meshes_from_gltf_mesh(mesh: gltf::Mesh, buffers: &Vec<gltf::buffer::Data>
                 panic!("Primitive has no indices (mesh: {}, primitive: {})", mesh.index(), primitive.index())
             );
         
-        //TODO get normals and stuff.
-        meshes.push(Mesh { vertices, indices });
+        //TODO get more optional vertex data.
+        meshes.push(Mesh { vertices, indices, material });
     }
 }

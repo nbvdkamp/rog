@@ -9,18 +9,16 @@ use luminance_front::context::GraphicsContext;
 use luminance_front::tess::{Tess, Interleaved};
 use luminance::shader::Uniform;
 
-
-use cgmath::Vector4;
-
 use std::process::exit;
-use std::time::Instant;
 use std::path::Path;
 
 mod mesh;
 mod scene;
 mod camera;
+mod material;
 use mesh::{Vertex, VertexIndex, VertexSemantics};
 use scene::Scene;
+use material::Material;
 
 fn main() {
     let dim = WindowDim::Windowed {
@@ -48,6 +46,8 @@ struct ShaderInterface {
     u_projection: Uniform<[[f32; 4]; 4]>,
     #[uniform(unbound)]
     u_view: Uniform<[[f32; 4]; 4]>,
+    #[uniform(unbound)]
+    u_base_color: Uniform<[f32; 4]>,
 }
 
 
@@ -59,12 +59,10 @@ fn main_loop(surface: GlfwSurface) {
     let events = surface.events_rx;
     let back_buffer = context.back_buffer().expect("back buffer");
 
-    let start_t = Instant::now();
-
-    let scene = Scene::load(Path::new("res/cube.glb")).unwrap();
+    let scene = Scene::load(Path::new("res/simple_raytracer_test.glb")).unwrap();
     let tesses = scene.meshes.as_slice().into_iter()
-        .map(|mesh| mesh.to_tess(&mut context).unwrap())
-        .collect::<Vec<Tess<Vertex, VertexIndex, (), Interleaved>>>();
+        .map(|mesh| (mesh.to_tess(&mut context).unwrap(), mesh.material.clone()))
+        .collect::<Vec<(Tess<Vertex, VertexIndex, (), Interleaved>, Material)>>();
 
     let [width, height] = back_buffer.size();
     let projection = scene.camera.projection();
@@ -86,19 +84,17 @@ fn main_loop(surface: GlfwSurface) {
             }
         }
 
-        let t = start_t.elapsed().as_millis() as f32 * 1e-3;
-        let color = Vector4::new(t.cos(), t.sin(), 0.5, 1.);
-
         let render = context
             .new_pipeline_gate()
             .pipeline(
                 &back_buffer,
-                &PipelineState::default().set_clear_color(color.into()),
+                &PipelineState::default().set_clear_color([0.1, 0.1, 0.1, 1.0]),
                 |_, mut shd_gate| {
-                    for tess in &tesses {
+                    for (tess, material) in &tesses {
                         shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
                             iface.set(&unif.u_projection, projection.into());
                             iface.set(&unif.u_view, view.into());
+                            iface.set(&unif.u_base_color , material.base_color_factor.into());
 
                             rdr_gate.render(&RenderState::default(), |mut tess_gate| {
                                 tess_gate.render(tess)

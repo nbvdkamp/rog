@@ -3,6 +3,8 @@ use luminance_front::context::GraphicsContext;
 use luminance_front::tess::{Mode, Tess, TessError, Interleaved};
 use luminance_front::Backend;
 
+use crate::material::Material;
+
 #[derive(Copy, Clone, Debug, Semantics)]
 pub enum VertexSemantics {
     #[sem(name = "position", repr = "[f32; 3]", wrapper = "VertexPosition")]
@@ -25,6 +27,7 @@ pub type VertexIndex = u32;
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<VertexIndex>,
+    pub material: Material,
 }
 
 impl Mesh {
