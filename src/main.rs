@@ -10,15 +10,16 @@ use luminance_front::tess::{Tess, Interleaved};
 use luminance::shader::Uniform;
 
 
-use cgmath::{perspective, EuclideanSpace, Matrix4, Point3, Rad, Vector3, Vector4};
+use cgmath::Vector4;
 
 use std::process::exit;
 use std::time::Instant;
 use std::path::Path;
 
 mod mesh;
-use mesh::{Vertex, VertexIndex, VertexSemantics};
 mod scene;
+mod camera;
+use mesh::{Vertex, VertexIndex, VertexSemantics};
 use scene::Scene;
 
 fn main() {
@@ -53,10 +54,6 @@ struct ShaderInterface {
 const VS_STR: &str = include_str!("passthrough.vs");
 const FS_STR: &str = include_str!("color.fs");
 
-const FOVY: Rad<f32> = Rad(std::f32::consts::FRAC_PI_2);
-const Z_NEAR: f32 = 0.1;
-const Z_FAR: f32 = 100.0;
-
 fn main_loop(surface: GlfwSurface) {
     let mut context = surface.context;
     let events = surface.events_rx;
@@ -64,14 +61,14 @@ fn main_loop(surface: GlfwSurface) {
 
     let start_t = Instant::now();
 
-    let [width, height] = back_buffer.size();
-    let projection = perspective(FOVY, width as f32 / height as f32, Z_NEAR, Z_FAR);
-    let view = Matrix4::<f32>::look_at_rh(Point3::new(2., 2., 2.), Point3::origin(), Vector3::unit_y());
-
     let scene = Scene::load(Path::new("res/cube.glb")).unwrap();
     let tesses = scene.meshes.as_slice().into_iter()
         .map(|mesh| mesh.to_tess(&mut context).unwrap())
         .collect::<Vec<Tess<Vertex, VertexIndex, (), Interleaved>>>();
+
+    let [width, height] = back_buffer.size();
+    let projection = scene.camera.projection();
+    let view = scene.camera.view;
     
     let mut program = context
         .new_shader_program::<VertexSemantics, (), ShaderInterface>()

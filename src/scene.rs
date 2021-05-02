@@ -1,10 +1,15 @@
-use crate::mesh::{Vertex, VertexIndex, Mesh};
 use std::path::Path;
-use cgmath::{Matrix4, Vector4, Quaternion};
+
+use cgmath::{Matrix4, Quaternion, Vector4, SquareMatrix};
 use gltf::scene::Transform;
+use gltf::camera::Projection;
+
+use crate::mesh::{Vertex, VertexIndex, Mesh};
+use crate::camera::PerspectiveCamera;
 
 pub struct Scene {
     pub meshes: Vec<Mesh>,
+    pub camera: PerspectiveCamera,
 }
 
 fn transform_to_mat(t: Transform) -> Matrix4<f32> {
@@ -26,22 +31,44 @@ impl Scene {
     {
         if let Ok((document, buffers, _)) = gltf::import(path) {
             let mut meshes = Vec::<Mesh>::new();
+            let mut camera = PerspectiveCamera::default();
             
             for scene in document.scenes() {
-                for node in scene.nodes() {
-                    let transform = transform_to_mat(node.transform());
-
-                    if let Some(mesh) = node.mesh() {
-                        add_meshes_from_gltf_mesh(mesh, &buffers, transform, &mut meshes);
-                    }
-                }
+                parse_nodes(scene.nodes().collect(), &buffers, &mut meshes, &mut camera, Matrix4::identity());
             }
 
-            Ok(Scene { meshes })
+            Ok(Scene { meshes, camera })
         }
         else {
             Err("Couldn't open glTF file.".into())
         }
+    }
+}
+
+fn parse_nodes(
+    nodes: Vec<gltf::Node>,
+    buffers: &Vec<gltf::buffer::Data>, 
+    meshes: &mut Vec<Mesh>, 
+    camera: &mut PerspectiveCamera,
+    base_transform: Matrix4<f32>) {
+    for node in nodes {
+        let transform = base_transform * transform_to_mat(node.transform());
+
+        if let Some(mesh) = node.mesh() {
+            add_meshes_from_gltf_mesh(mesh, &buffers, transform, meshes);
+        } else if let Some(cam) = node.camera() {
+            if let Projection::Perspective(perspective) = cam.projection() {
+                *camera = PerspectiveCamera {
+                    aspect_ratio: perspective.aspect_ratio().unwrap(),
+                    y_fov: perspective.yfov(),
+                    z_far: perspective.zfar().unwrap(),
+                    z_near: perspective.znear(),
+                    view: transform.invert().unwrap(),
+                }
+            }
+        }
+
+        parse_nodes(node.children().collect(), buffers, meshes, camera, transform);
     }
 }
 
