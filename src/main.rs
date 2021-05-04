@@ -1,4 +1,4 @@
-use glfw::{Context as _, WindowEvent};
+use glfw::{Context as _, WindowEvent, Key, Action};
 
 use luminance_glfw::GlfwSurface;
 use luminance_windowing::{WindowDim, WindowOpt};
@@ -16,6 +16,7 @@ mod mesh;
 mod scene;
 mod camera;
 mod material;
+mod raytracer;
 use mesh::{Vertex, VertexIndex, VertexSemantics};
 use scene::Scene;
 use material::Material;
@@ -80,6 +81,7 @@ fn main_loop(surface: GlfwSurface) {
         for (_, event) in glfw::flush_messages(&events) {
             match event {
                 WindowEvent::Close => break 'app,
+                WindowEvent::Key(key, _, action, _) => handle_key_event(key, action),
                 _ => ()
             }
         }
@@ -112,5 +114,11 @@ fn main_loop(surface: GlfwSurface) {
         }
 
         context.window.swap_buffers();
+    }
+}
+
+fn handle_key_event(key: Key, action: Action) {
+    if (key == Key::Enter && action == Action::Press) {
+        println!("Do a thing");
     }
 }
