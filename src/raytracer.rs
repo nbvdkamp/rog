@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::time::Instant;
 
 mod ray;
 mod triangle;
@@ -39,6 +40,29 @@ impl Raytracer {
     }
 
     pub fn render(&self) {
-        println!("Rendering a thing!");
+        let image_width: u32 = 1920;
+        let image_height: u32 = 1080;
+        let size = image_width * image_height * 3;
+
+        let start = Instant::now();
+
+        //let camera_pos = self.camera.position;
+        let mut buffer = Vec::<u8>::new();
+        buffer.resize(size as usize, 0xFF);
+
+        //: [u8; image_size] = [0; image_size];
+
+        /*for pixel in res {
+            let ray = Ray { origin: camera_pos, direction: ? };
+            buffer[pixel] = trace(ray);
+        }*/
+        println!("Finished rendering in {} seconds", start.elapsed().as_millis() as f64 / 1000.0);
+
+        let result = image::save_buffer("output/result.png", &buffer, image_width, image_height, image::ColorType::Rgb8);
+
+        match result {
+            Ok(_) => println!("File was saved succesfully"),
+            Err(e) => println!("Couldn't save file: {}", e),
+        }
     }
 }
