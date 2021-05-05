@@ -130,6 +130,6 @@ fn add_meshes_from_gltf_mesh(mesh: gltf::Mesh, buffers: &Vec<gltf::buffer::Data>
             );
         
         //TODO get more optional vertex data.
-        meshes.push(Mesh { vertices, indices, material });
+        meshes.push(Mesh::new(vertices, indices, material));
     }
 }

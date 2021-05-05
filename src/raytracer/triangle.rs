@@ -1,7 +1,7 @@
 
 pub struct Triangle {
-    pub index1: u64,
-    pub index2: u64,
-    pub index3: u64,
-    pub material_index: u64,
+    pub index1: u32,
+    pub index2: u32,
+    pub index3: u32,
+    pub material_index: u32,
 }

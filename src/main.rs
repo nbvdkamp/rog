@@ -17,9 +17,10 @@ mod scene;
 mod camera;
 mod material;
 mod raytracer;
-use mesh::{Vertex, VertexIndex, VertexSemantics};
+use mesh::{LuminanceVertex, VertexIndex, VertexSemantics};
 use scene::Scene;
 use material::Material;
+use raytracer::Raytracer;
 
 fn main() {
     let dim = WindowDim::Windowed {
@@ -63,7 +64,9 @@ fn main_loop(surface: GlfwSurface) {
     let scene = Scene::load(Path::new("res/simple_raytracer_test.glb")).unwrap();
     let tesses = scene.meshes.as_slice().into_iter()
         .map(|mesh| (mesh.to_tess(&mut context).unwrap(), mesh.material.clone()))
-        .collect::<Vec<(Tess<Vertex, VertexIndex, (), Interleaved>, Material)>>();
+        .collect::<Vec<(Tess<LuminanceVertex, VertexIndex, (), Interleaved>, Material)>>();
+    
+    let raytracer = Raytracer::new(scene.meshes);
 
     let [width, height] = back_buffer.size();
     let projection = scene.camera.projection();
@@ -118,7 +121,7 @@ fn main_loop(surface: GlfwSurface) {
 }
 
 fn handle_key_event(key: Key, action: Action) {
-    if (key == Key::Enter && action == Action::Press) {
+    if key == Key::Enter && action == Action::Press {
         println!("Do a thing");
     }
 }
