@@ -1,5 +1,4 @@
 use std::convert::TryFrom;
-use cgmath::{Point3, Vector3};
 
 mod ray;
 mod triangle;
@@ -13,18 +12,18 @@ pub struct Raytracer {
 }
 
 impl Raytracer {
-    pub fn new(meshes: Vec<Mesh>) -> Self {
+    pub fn new(meshes: &Vec<Mesh>) -> Self {
         let mut result = Raytracer { verts: Vec::new(), triangles: Vec::new(), materials: Vec::new() };
 
         for mesh in meshes {
             let start_index = u32::try_from(result.verts.len()).unwrap();
             let material_index = u32::try_from(result.materials.len()).unwrap();
 
-            for v in mesh.vertices {
-                result.verts.push(v);
+            for v in &mesh.vertices {
+                result.verts.push(v.clone());
             }
 
-            result.materials.push(mesh.material);
+            result.materials.push(mesh.material.clone());
 
             for i in (0..mesh.indices.len()).step_by(3) {
                 result.triangles.push(Triangle {
@@ -37,5 +36,9 @@ impl Raytracer {
         };
 
         result
+    }
+
+    pub fn render(&self) {
+        println!("Rendering a thing!");
     }
 }

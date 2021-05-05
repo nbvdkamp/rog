@@ -1,4 +1,4 @@
-use cgmath::{Vector3, Point3, InnerSpace, EuclideanSpace};
+use cgmath::{Vector3, Point3, InnerSpace};
 
 struct Ray {
     pub origin: Point3<f32>,
