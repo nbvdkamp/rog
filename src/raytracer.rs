@@ -3,6 +3,7 @@ use std::time::Instant;
 
 mod ray;
 mod triangle;
+use cgmath::Vector4;
 use triangle::Triangle;
 use crate::{material::Material, mesh::{Mesh, Vertex}};
 
@@ -10,6 +11,30 @@ pub struct Raytracer {
     verts: Vec<Vertex>,
     triangles: Vec<Triangle>,
     materials: Vec<Material>,
+}
+
+type Color = Vector4<f32>;
+
+trait ColorNormalizable {
+    fn rNormalized(&self) -> u8;
+    fn gNormalized(&self) -> u8;
+    fn bNormalized(&self) -> u8;
+    fn aNormalized(&self) -> u8;
+}
+
+impl ColorNormalizable for Color {
+    fn rNormalized(&self) -> u8 {
+        (self.x * 255.0) as u8
+    }
+    fn gNormalized(&self) -> u8 {
+        (self.y * 255.0) as u8
+    }
+    fn bNormalized(&self) -> u8 {
+        (self.z * 255.0) as u8
+    }
+    fn aNormalized(&self) -> u8 {
+        (self.w * 255.0) as u8
+    }
 }
 
 impl Raytracer {
@@ -48,19 +73,25 @@ impl Raytracer {
 
         //let camera_pos = self.camera.position;
         let mut buffer = Vec::<u8>::new();
-        buffer.resize(size as usize, 0xFF);
+        buffer.resize(size as usize, 0);
 
-        //: [u8; image_size] = [0; image_size];
+        for x in 0..image_width {
+            for y in 0..image_height {
+                let pixel_index = (image_width * y + x) * 3;
 
-        /*for pixel in res {
-            let ray = Ray { origin: camera_pos, direction: ? };
-            buffer[pixel] = trace(ray);
-        }*/
+                //let ray = Ray { origin: camera_pos, direction: ? };
+                let color = Color::new(x as f32 / image_width as f32, y as f32 / image_height as f32, 0.4, 1.0);
+
+                buffer[pixel_index as usize] = color.rNormalized();
+                buffer[pixel_index as usize + 1] = color.gNormalized();
+                buffer[pixel_index as usize + 2] = color.bNormalized();
+            }
+        }
         println!("Finished rendering in {} seconds", start.elapsed().as_millis() as f64 / 1000.0);
 
-        let result = image::save_buffer("output/result.png", &buffer, image_width, image_height, image::ColorType::Rgb8);
+        let save_result = image::save_buffer("output/result.png", &buffer, image_width, image_height, image::ColorType::Rgb8);
 
-        match result {
+        match save_result {
             Ok(_) => println!("File was saved succesfully"),
             Err(e) => println!("Couldn't save file: {}", e),
         }
