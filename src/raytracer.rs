@@ -1,4 +1,3 @@
-use std::convert::TryFrom;
 use std::time::Instant;
 
 mod ray;
@@ -50,8 +49,8 @@ impl Raytracer {
 
         // TODO: Fix borrowing to prevent having to clone everything
         for mesh in &scene.meshes {
-            let start_index = u32::try_from(result.verts.len()).unwrap();
-            let material_index = u32::try_from(result.materials.len()).unwrap();
+            let start_index = result.verts.len() as u32;
+            let material_index = result.materials.len() as u32;
 
             for v in &mesh.vertices {
                 result.verts.push(v.clone());
