@@ -65,6 +65,7 @@ fn parse_nodes(
                     z_far: perspective.zfar().unwrap(),
                     z_near: perspective.znear(),
                     view: transform.invert().unwrap(),
+                    model: transform
                 }
             }
         }

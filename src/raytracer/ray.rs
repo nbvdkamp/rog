@@ -1,14 +1,14 @@
 use cgmath::{Vector3, Point3, InnerSpace};
 
-struct Ray {
+pub struct Ray {
     pub origin: Point3<f32>,
     pub direction: Vector3<f32>,
 }
 
 #[derive(PartialEq, Debug)]
-enum IntersectionResult {
+pub enum IntersectionResult {
     Miss,
-    Hit { position: Point3<f32> },
+    Hit(Point3<f32>),
 }
 
 impl Ray {
@@ -43,7 +43,7 @@ impl Ray {
         let t = f * edge2.dot(q);
 
         if t > epsilon {
-            IntersectionResult::Hit { position: self.origin + self.direction * t }
+            IntersectionResult::Hit(self.origin + self.direction * t)
         }
         else {
             IntersectionResult::Miss
@@ -58,7 +58,7 @@ mod tests {
     #[test]
     fn hit_triangle() {
         let ray = Ray { origin: Point3::new(0., 0., -1.), direction: Vector3::unit_z() };
-        assert_eq!(IntersectionResult::Hit { position: Point3::new(0., 0., 0.) }, ray.intersect_triangle(
+        assert_eq!(IntersectionResult::Hit(Point3::new(0., 0., 0.)), ray.intersect_triangle(
             Point3::new(-1.0, -1.0, 0.0),
             Point3::new(1.0, -1.0, 0.0),
             Point3::new(0.0, 1.0, 0.0)

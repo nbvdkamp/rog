@@ -52,7 +52,7 @@ impl App {
         where P: AsRef<Path>,
     {
         let scene = Scene::load(scene_path).unwrap();
-        let raytracer = Raytracer::new(&scene.meshes);
+        let raytracer = Raytracer::new(&scene);
 
         App { raytracer, scene }
     }
