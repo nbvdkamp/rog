@@ -93,8 +93,8 @@ impl Raytracer {
                 let normalized_x = (x as f32 + 0.5) / image_width as f32;
                 let normalized_y = (y as f32 + 0.5) / image_height as f32;
                 let scale_factor = (self.camera.y_fov / 2.).tan();
-                let screen_x = (2. * normalized_x - aspect_ratio) * scale_factor;
-                let screen_y = -(2. * normalized_y - 1.) * scale_factor;
+                let screen_x = (2. * normalized_x - 1.) * scale_factor * aspect_ratio;
+                let screen_y = (1. - 2. * normalized_y) * scale_factor;
 
                 // Using w = 0 because this is a direction vector
                 let dir4 = cam_model * Vector4::new(screen_x, screen_y, -1., 0.).normalize();
