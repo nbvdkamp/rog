@@ -66,7 +66,27 @@ mod tests {
     }
 
     #[test]
+    fn barely_hit_triangle() {
+        let ray = Ray { origin: Point3::new(0.0, 0.0, -1.0), direction: Vector3::unit_z() };
+        assert_eq!(IntersectionResult::Hit(Point3::new(0.0, 0.0, 0.0)), ray.intersect_triangle(
+            Point3::new(0.0, -1.0, 0.0),
+            Point3::new(1.0, -1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0)
+        ));
+    }
+
+    #[test]
     fn miss_triangle() {
+        let ray = Ray { origin: Point3::new(-0.01, 0.0, -1.0), direction: Vector3::unit_z() };
+        assert_eq!(IntersectionResult::Miss, ray.intersect_triangle(
+            Point3::new(0.0, -1.0, 0.0),
+            Point3::new(1.0, -1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0)
+        ));
+    }
+
+    #[test]
+    fn miss_triangle_behind() {
         let ray = Ray { origin: Point3::new(0.0, 0.0, 1.0), direction: Vector3::unit_z() };
         assert_eq!(IntersectionResult::Miss, ray.intersect_triangle(
             Point3::new(-1.0, -1.0, 0.0),
