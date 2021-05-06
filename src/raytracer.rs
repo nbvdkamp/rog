@@ -86,8 +86,8 @@ impl Raytracer {
         let mut buffer = Vec::<u8>::new();
         buffer.resize(size as usize, 0);
 
-        for x in 0..image_width {
-            for y in 0..image_height {
+        for y in 0..image_height {
+            for x in 0..image_width {
                 let pixel_index = (image_width * y + x) * 3;
 
                 let normalized_x = (x as f32 + 0.5) / image_width as f32;
