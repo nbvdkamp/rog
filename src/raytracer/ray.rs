@@ -36,7 +36,7 @@ impl Ray {
         let q = s.cross(edge1);
         let v = f * self.direction.dot(q);
 
-        if v < 0.0 || v > 1.0 {
+        if v < 0.0 || u + v > 1.0 {
             return IntersectionResult::Miss;
         }
 
@@ -75,6 +75,8 @@ mod tests {
         ));
     }
 
+    
+
     #[test]
     fn miss_triangle() {
         let ray = Ray { origin: Point3::new(-0.01, 0.0, -1.0), direction: Vector3::unit_z() };
@@ -91,6 +93,16 @@ mod tests {
         assert_eq!(IntersectionResult::Miss, ray.intersect_triangle(
             Point3::new(-1.0, -1.0, 0.0),
             Point3::new(1.0, -1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0)
+        ));
+    }
+
+    #[test]
+    fn barely_miss_triangle_right() {
+        let ray = Ray { origin: Point3::new(0.001, 0.0, -1.0), direction: Vector3::unit_z() };
+        assert_eq!(IntersectionResult::Miss, ray.intersect_triangle(
+            Point3::new(-1.0, -1.0, 0.0),
+            Point3::new(0.0, -1.0, 0.0),
             Point3::new(0.0, 1.0, 0.0)
         ));
     }
