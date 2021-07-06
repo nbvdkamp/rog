@@ -2,10 +2,13 @@ use std::time::Instant;
 
 mod ray;
 mod triangle;
+mod acceleration;
 use cgmath::{MetricSpace, InnerSpace, Point3, Vector4};
 use triangle::Triangle;
 use ray::{Ray, IntersectionResult};
 use crate::{camera::PerspectiveCamera, material::Material, mesh::Vertex, scene::Scene};
+
+use self::acceleration::bih::BoundingIntervalHierarchy;
 
 pub struct Raytracer {
     verts: Vec<Vertex>,
@@ -66,7 +69,9 @@ impl Raytracer {
                     material_index 
                 });
             }
-        };
+        }
+
+        BoundingIntervalHierarchy::new(&result.verts, &result.triangles);
 
         result
     }
