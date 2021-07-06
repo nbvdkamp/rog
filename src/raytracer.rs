@@ -5,6 +5,8 @@ mod ray;
 mod triangle;
 mod acceleration;
 mod color;
+mod aabb;
+mod axis;
 
 use triangle::Triangle;
 use ray::{Ray, IntersectionResult};
