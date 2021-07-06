@@ -4,6 +4,7 @@ use crate::raytracer::Ray;
 
 use super::super::axis::Axis;
 use super::super::aabb::BoundingBox;
+use super::structure::AccelerationStructure;
 
 pub struct BoundingIntervalHierarchy {
     nodes: Vec<Node>,
@@ -38,8 +39,8 @@ impl Node {
     }
 }
 
-impl BoundingIntervalHierarchy {
-    pub fn new(verts: &Vec<Vertex>, triangles: &Vec<Triangle>) -> Self {
+impl AccelerationStructure for BoundingIntervalHierarchy {
+    fn new(verts: &Vec<Vertex>, triangles: &Vec<Triangle>) -> Self {
         let mut nodes = Vec::new();
 
         let bounds = compute_bounding_box(&verts[..]);
@@ -131,7 +132,7 @@ impl BoundingIntervalHierarchy {
         BoundingIntervalHierarchy { nodes: nodes }
     }
 
-    pub fn Intersect(ray: Ray) -> Vec<usize> {
+    fn intersect(&self, ray: Ray) -> Vec<usize> {
         let result = Vec::new();
         return result
     }

@@ -13,7 +13,7 @@ use ray::{Ray, IntersectionResult};
 use color::{Color, ColorNormalizable};
 use crate::{camera::PerspectiveCamera, material::Material, mesh::Vertex, scene::Scene};
 
-use self::acceleration::bih::BoundingIntervalHierarchy;
+use self::acceleration::{bih::BoundingIntervalHierarchy, structure::AccelerationStructure};
 
 pub struct Raytracer {
     verts: Vec<Vertex>,
