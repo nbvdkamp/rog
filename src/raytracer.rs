@@ -1,11 +1,14 @@
 use std::time::Instant;
+use cgmath::{MetricSpace, InnerSpace, Point3, Vector4};
 
 mod ray;
 mod triangle;
 mod acceleration;
-use cgmath::{MetricSpace, InnerSpace, Point3, Vector4};
+mod color;
+
 use triangle::Triangle;
 use ray::{Ray, IntersectionResult};
+use color::{Color, ColorNormalizable};
 use crate::{camera::PerspectiveCamera, material::Material, mesh::Vertex, scene::Scene};
 
 use self::acceleration::bih::BoundingIntervalHierarchy;
@@ -15,30 +18,6 @@ pub struct Raytracer {
     triangles: Vec<Triangle>,
     materials: Vec<Material>,
     camera: PerspectiveCamera,
-}
-
-type Color = Vector4<f32>;
-
-trait ColorNormalizable {
-    fn r_normalized(&self) -> u8;
-    fn g_normalized(&self) -> u8;
-    fn b_normalized(&self) -> u8;
-    fn a_normalized(&self) -> u8;
-}
-
-impl ColorNormalizable for Color {
-    fn r_normalized(&self) -> u8 {
-        (self.x * 255.0) as u8
-    }
-    fn g_normalized(&self) -> u8 {
-        (self.y * 255.0) as u8
-    }
-    fn b_normalized(&self) -> u8 {
-        (self.z * 255.0) as u8
-    }
-    fn a_normalized(&self) -> u8 {
-        (self.w * 255.0) as u8
-    }
 }
 
 impl Raytracer {
