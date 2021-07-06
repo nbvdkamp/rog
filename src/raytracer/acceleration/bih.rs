@@ -1,5 +1,6 @@
 use crate::mesh::Vertex;
 use crate::raytracer::triangle::Triangle;
+use crate::raytracer::Ray;
 
 use super::super::axis::Axis;
 use super::super::aabb::BoundingBox;
@@ -128,6 +129,11 @@ impl BoundingIntervalHierarchy {
         nodes.push(Node::Leaf{ items: 10 });
 
         BoundingIntervalHierarchy { nodes: nodes }
+    }
+
+    pub fn Intersect(ray: Ray) -> Vec<usize> {
+        let result = Vec::new();
+        return result
     }
 }
 
