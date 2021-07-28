@@ -144,7 +144,8 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
         let mut result = Vec::new();
         let inv_dir = 1.0 / ray.direction;
 
-        let mut stack = vec![0];
+        let mut stack = Vec::new();
+        stack.push(0);
 
         while let Some(i) = stack.pop() {
             match &self.nodes[i] {
