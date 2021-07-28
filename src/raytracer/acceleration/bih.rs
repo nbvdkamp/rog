@@ -132,7 +132,7 @@ impl AccelerationStructure for BoundingIntervalHierarchy {
         BoundingIntervalHierarchy { nodes: nodes }
     }
 
-    fn intersect(&self, ray: Ray) -> Vec<usize> {
+    fn intersect(&self, ray: &Ray) -> Vec<usize> {
         let result = Vec::new();
         return result
     }

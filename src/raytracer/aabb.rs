@@ -1,5 +1,7 @@
-use cgmath::Point3;
+use cgmath::{ElementWise, Point3};
 use super::axis::Axis;
+use super::Ray;
+use crate::util::*;
 
 #[derive(Debug, Copy, Clone)]
 pub struct BoundingBox {
@@ -53,5 +55,15 @@ impl BoundingBox {
             Axis::Y => self.max.y = value,
             Axis::Z => self.max.z = value,
         }
+    }
+
+    pub fn intersects(&self, ray: &Ray) -> bool {
+        let inv_dir = -ray.direction;
+        let t0 = (self.min - ray.origin).mul_element_wise(inv_dir);
+        let t1 = (self.max - ray.origin).mul_element_wise(inv_dir);
+        let tmin = elementwise_min(t0, t1);
+        let tmax = elementwise_max(t0, t1);
+
+        max_element(tmin) <= min_element(tmax)
     }
 }

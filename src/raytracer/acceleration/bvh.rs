@@ -23,9 +23,9 @@ enum Node {
 }
 
 impl Node {
-    fn new_leaf(bounds: BoundingBox) -> Node {
+    fn new_leaf(triangle_index: i32, bounds: BoundingBox) -> Node {
         Node::Leaf { 
-            triangle_index: -1,
+            triangle_index,
             bounds,
         }
     }
@@ -71,6 +71,9 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
             let left_bounds;
             let right_bounds;
 
+            let mut left_triangle_index = -1;
+            let mut right_triangle_index = -1;
+
             match node {
                 Node::Inner { left_child, right_child, bounds } => {
                     let (split_axis, _) = bounds.find_split_plane();
@@ -110,10 +113,14 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
 
                     if !left_is_leaf {
                         stack.push((new_left_index as usize, left_indices));
+                    } else {
+                        left_triangle_index = left_indices[0] as i32;
                     }
 
                     if !right_is_leaf {
                         stack.push((new_right_index as usize, right_indices));
+                    } else {
+                        right_triangle_index = right_indices[0] as i32;
                     }
                 }
                 _ => panic!("Unreachable")
@@ -121,23 +128,43 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
 
 
             if left_is_leaf {
-                nodes.push(Node::new_leaf(left_bounds));
+                nodes.push(Node::new_leaf(left_triangle_index, left_bounds));
             } else {
                 nodes.push(Node::new_inner(left_bounds));
             }
 
             if right_is_leaf {
-                nodes.push(Node::new_leaf(right_bounds));
+                nodes.push(Node::new_leaf(right_triangle_index, right_bounds));
             } else {
                 nodes.push(Node::new_inner(right_bounds));
             }
         }
 
-        BoundingVolumeHierarchy { nodes: nodes }
+        BoundingVolumeHierarchy { nodes }
     }
 
-    fn intersect(&self, ray: Ray) -> Vec<usize> {
-        let result = Vec::new();
+    fn intersect(&self, ray: &Ray) -> Vec<usize> {
+        let mut result = Vec::new();
+
+        let mut stack = Vec::new();
+        stack.push(0);
+
+        while let Some(i) = stack.pop() {
+            match &self.nodes[i] {
+                Node::Inner { left_child, right_child, bounds } => {
+                    if bounds.intersects(ray) {
+                        stack.push(*left_child as usize);
+                        stack.push(*right_child as usize);
+                    }
+                }
+                Node::Leaf { triangle_index, bounds } => {
+                    if bounds.intersects(ray) {
+                        result.push(*triangle_index as usize);
+                    }
+                }
+            }
+        }
+
         return result
     }
 }

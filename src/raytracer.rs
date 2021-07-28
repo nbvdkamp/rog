@@ -20,30 +20,28 @@ pub struct Raytracer {
     triangles: Vec<Triangle>,
     materials: Vec<Material>,
     camera: PerspectiveCamera,
+    bvh: BoundingVolumeHierarchy,
 }
 
 impl Raytracer {
     pub fn new(scene: &Scene) -> Self {
-        let mut result = Raytracer {
-            verts: Vec::new(),
-            triangles: Vec::new(),
-            materials: Vec::new(),
-            camera: scene.camera.clone()
-        };
+        let mut verts = Vec::new();
+        let mut triangles = Vec::new();
+        let mut materials = Vec::new();
 
         // TODO: Fix borrowing to prevent having to clone everything
         for mesh in &scene.meshes {
-            let start_index = result.verts.len() as u32;
-            let material_index = result.materials.len() as u32;
+            let start_index = verts.len() as u32;
+            let material_index = materials.len() as u32;
 
             for v in &mesh.vertices {
-                result.verts.push(v.clone());
+                verts.push(v.clone());
             }
 
-            result.materials.push(mesh.material.clone());
+            materials.push(mesh.material.clone());
 
             for i in (0..mesh.indices.len()).step_by(3) {
-                result.triangles.push(Triangle {
+                triangles.push(Triangle {
                     index1: mesh.indices[i] + start_index,
                     index2: mesh.indices[i + 1] + start_index,
                     index3: mesh.indices[i + 2] + start_index,
@@ -52,9 +50,15 @@ impl Raytracer {
             }
         }
 
-        BoundingVolumeHierarchy::new(&result.verts, &result.triangles);
+        let bvh = BoundingVolumeHierarchy::new(&verts, &triangles);
 
-        result
+        Raytracer {
+            verts,
+            triangles,
+            materials,
+            camera: scene.camera.clone(),
+            bvh,
+        }
     }
 
     pub fn render(&self) {
@@ -106,7 +110,8 @@ impl Raytracer {
         let mut result = Color::new(0., 0., 0., 1.);
         let mut min_distance = f32::MAX;
 
-        for triangle in &self.triangles {
+        for i in self.bvh.intersect(&ray) {
+            let triangle = &self.triangles[i];
             let p1 = &self.verts[triangle.index1 as usize];
             let p2 = &self.verts[triangle.index2 as usize];
             let p3 = &self.verts[triangle.index3 as usize];

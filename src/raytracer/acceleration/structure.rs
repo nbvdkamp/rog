@@ -4,5 +4,5 @@ use crate::raytracer::Ray;
 
 pub trait AccelerationStructure {
     fn new(verts: &Vec<Vertex>, triangles: &Vec<Triangle>) -> Self;
-    fn intersect(&self, ray: Ray) -> Vec<usize>;
+    fn intersect(&self, ray: &Ray) -> Vec<usize>;
 }
