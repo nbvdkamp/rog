@@ -184,14 +184,10 @@ fn compute_bounding_box_triangle_indexed(vertices: &[Vertex], triangles: &[Trian
     let mut bounds = BoundingBox::new();
 
     for i in triangle_indices {
-        if *i >= triangles.len() {
-            println!("{} > {}", *i, triangles.len());
-        } else {
-            let triangle = &triangles[*i];
-            bounds.add(&vertices[triangle.index1 as usize].position);
-            bounds.add(&vertices[triangle.index2 as usize].position);
-            bounds.add(&vertices[triangle.index3 as usize].position);
-        }
+        let triangle = &triangles[*i];
+        bounds.add(&vertices[triangle.index1 as usize].position);
+        bounds.add(&vertices[triangle.index2 as usize].position);
+        bounds.add(&vertices[triangle.index3 as usize].position);
     }
 
     bounds
