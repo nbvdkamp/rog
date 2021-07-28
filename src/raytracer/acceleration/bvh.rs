@@ -39,7 +39,7 @@ impl Node {
 }
 
 impl AccelerationStructure for BoundingVolumeHierarchy {
-    fn new(verts: &Vec<Vertex>, triangles: &Vec<Triangle>) -> Self {
+    fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
         let mut nodes = Vec::new();
 
         let bounds = compute_bounding_box(&verts[..]);
