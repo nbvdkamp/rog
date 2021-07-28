@@ -129,7 +129,7 @@ impl AccelerationStructure for BoundingIntervalHierarchy {
 
         nodes.push(Node::Leaf{ items: 10 });
 
-        BoundingIntervalHierarchy { nodes: nodes }
+        BoundingIntervalHierarchy { nodes }
     }
 
     fn intersect(&self, ray: &Ray) -> Vec<usize> {

@@ -42,7 +42,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
     fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
         let mut nodes = Vec::new();
 
-        let bounds = compute_bounding_box(&verts[..]);
+        let bounds = compute_bounding_box(&verts);
         let mut item_indices = Vec::new();
 
         for i in 0..triangles.len() {
@@ -86,7 +86,8 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                         let mid_b = (verts[triangle_b.index1 as usize].position[axis_index] +
                                         verts[triangle_b.index2 as usize].position[axis_index] + 
                                         verts[triangle_b.index3 as usize].position[axis_index]) / 3.0;
-                        return mid_a.partial_cmp(&mid_b).unwrap();
+
+                        mid_a.partial_cmp(&mid_b).unwrap()
                     });
 
                     let mid_item_index = item_indices.len() / 2;

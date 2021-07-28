@@ -48,7 +48,7 @@ impl Scene {
 
 fn parse_nodes(
     nodes: Vec<gltf::Node>,
-    buffers: &Vec<gltf::buffer::Data>, 
+    buffers: &[gltf::buffer::Data], 
     meshes: &mut Vec<Mesh>, 
     camera: &mut PerspectiveCamera,
     base_transform: Matrix4<f32>) {
@@ -74,7 +74,7 @@ fn parse_nodes(
     }
 }
 
-fn add_meshes_from_gltf_mesh(mesh: gltf::Mesh, buffers: &Vec<gltf::buffer::Data>, transform: Matrix4<f32>, meshes: &mut Vec<Mesh>) {
+fn add_meshes_from_gltf_mesh(mesh: gltf::Mesh, buffers: &[gltf::buffer::Data], transform: Matrix4<f32>, meshes: &mut Vec<Mesh>) {
     for primitive in mesh.primitives() {
         let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
