@@ -63,7 +63,7 @@ impl BoundingBox {
         let tmin = elementwise_min(t0, t1);
         let tmax = elementwise_max(t0, t1);
 
-        max_element(tmin) <= min_element(tmax)
+        max_element(tmin) <= min_element(tmax) && min_element(tmax) >= 0.0 // Ensure the object isn't behind the ray
     }
 }
 
@@ -90,6 +90,18 @@ mod tests {
         bb.add(&Point3::new(1.0, 1.0, 1.0));
 
         let ray = Ray { origin: Point3::new(-2.0, 2.0, 0.0), direction: Vector3::new(1.0, 0.0, 0.0) };
+        let inv_dir = 1.0 / ray.direction;
+
+        assert_eq!(bb.intersects(&ray, &inv_dir), false);
+    }
+    
+    #[test]
+    fn intersect_miss_behind_ray() {
+        let mut bb = BoundingBox::new();
+        bb.add(&Point3::new(-1.0, -1.0, -1.0));
+        bb.add(&Point3::new(1.0, 1.0, 1.0));
+
+        let ray = Ray { origin: Point3::new(2.0, 0.0, 0.0), direction: Vector3::new(1.0, 0.0, 0.0) };
         let inv_dir = 1.0 / ray.direction;
 
         assert_eq!(bb.intersects(&ray, &inv_dir), false);
