@@ -2,7 +2,6 @@ use crate::mesh::Vertex;
 use crate::raytracer::triangle::Triangle;
 use crate::raytracer::Ray;
 
-use super::super::axis::Axis;
 use super::super::aabb::BoundingBox;
 use super::structure::AccelerationStructure;
 
@@ -61,8 +60,6 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
             let left_is_leaf;
             let right_is_leaf;
 
-            // TODO: Figure out how to make item_indices of size 1 lists into a leaf right away?
-
             let node = nodes.get_mut(index).unwrap();
 
             let mut left_indices = Vec::new();
@@ -102,8 +99,8 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                         right_indices.push(item_indices[i]);
                     }
 
-                    left_bounds = compute_bounding_box_triangle_indexed(&verts[..], &triangles[..], &left_indices[..]);
-                    right_bounds = compute_bounding_box_triangle_indexed(&verts[..],  &triangles[..],&right_indices[..]);
+                    left_bounds = compute_bounding_box_triangle_indexed(&verts, &triangles, &left_indices);
+                    right_bounds = compute_bounding_box_triangle_indexed(&verts,  &triangles,&right_indices);
 
                     left_is_leaf = left_indices.len() < 2;
                     right_is_leaf = right_indices.len() < 2;
@@ -147,8 +144,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
         let mut result = Vec::new();
         let inv_dir = 1.0 / ray.direction;
 
-        let mut stack = Vec::new();
-        stack.push(0);
+        let mut stack = vec![0];
 
         while let Some(i) = stack.pop() {
             match &self.nodes[i] {
@@ -166,7 +162,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
             }
         }
 
-        return result
+        result
     }
 }
 

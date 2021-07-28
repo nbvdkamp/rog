@@ -81,7 +81,7 @@ impl App {
         let events = surface.events_rx;
         let back_buffer = context.back_buffer().expect("back buffer");
 
-        let tesses = self.scene.meshes.as_slice().into_iter()
+        let tesses = self.scene.meshes.as_slice().iter()
             .map(|mesh| (mesh.to_tess(&mut context).unwrap(), mesh.material.clone()))
             .collect::<Vec<(Tess<LuminanceVertex, VertexIndex, (), Interleaved>, Material)>>();
 
