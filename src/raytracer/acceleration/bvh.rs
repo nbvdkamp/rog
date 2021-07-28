@@ -51,8 +51,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
 
         nodes.push(Node::new_inner(bounds));
 
-        let mut stack = Vec::new();
-        stack.push((0, item_indices));
+        let mut stack = vec![(0, item_indices)];
 
         while let Some((index, mut item_indices)) = stack.pop() {
             let new_left_index = nodes.len() as i32;
@@ -145,6 +144,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
         let mut result = Vec::new();
         let inv_dir = 1.0 / ray.direction;
 
+        // Replacing this with a vec! macro degrades performance somehow??
         let mut stack = Vec::new();
         stack.push(0);
 

@@ -43,7 +43,7 @@ impl AccelerationStructure for BoundingIntervalHierarchy {
     fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
         let mut nodes = Vec::new();
 
-        let bounds = compute_bounding_box(&verts[..]);
+        let bounds = compute_bounding_box(&verts);
         let mut item_indices = Vec::new();
 
         for i in 0..triangles.len() {
@@ -100,13 +100,13 @@ impl AccelerationStructure for BoundingIntervalHierarchy {
                     // TODO test if this can be left out for empty leaves
 
                     if !left_is_leaf {
-                        let mut left_bounds = bounds.clone();
+                        let mut left_bounds = bounds;
                         left_bounds.set_max(axis, *clip_left);
                         stack.push((new_left_index as usize, left_bounds, left_indices));
                     }
 
                     if !right_is_leaf {
-                        let mut right_bounds = bounds.clone();
+                        let mut right_bounds = bounds;
                         right_bounds.set_min(axis, *clip_right);
                         stack.push((new_right_index as usize, right_bounds, right_indices));
                     }
@@ -134,7 +134,7 @@ impl AccelerationStructure for BoundingIntervalHierarchy {
 
     fn intersect(&self, ray: &Ray) -> Vec<usize> {
         let result = Vec::new();
-        return result
+        result
     }
 }
 
