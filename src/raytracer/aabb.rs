@@ -1,4 +1,4 @@
-use cgmath::{ElementWise, Point3};
+use cgmath::{ElementWise, Point3, Vector3};
 use super::axis::Axis;
 use super::Ray;
 use crate::util::*;
@@ -57,13 +57,41 @@ impl BoundingBox {
         }
     }
 
-    pub fn intersects(&self, ray: &Ray) -> bool {
-        let inv_dir = -ray.direction;
-        let t0 = (self.min - ray.origin).mul_element_wise(inv_dir);
-        let t1 = (self.max - ray.origin).mul_element_wise(inv_dir);
+    pub fn intersects(&self, ray: &Ray, inv_dir: &Vector3<f32>) -> bool {
+        let t0 = (self.min - ray.origin).mul_element_wise(*inv_dir);
+        let t1 = (self.max - ray.origin).mul_element_wise(*inv_dir);
         let tmin = elementwise_min(t0, t1);
         let tmax = elementwise_max(t0, t1);
 
         max_element(tmin) <= min_element(tmax)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn intersect_hit() {
+        let mut bb = BoundingBox::new();
+        bb.add(&Point3::new(-1.0, -1.0, -1.0));
+        bb.add(&Point3::new(1.0, 1.0, 1.0));
+
+        let ray = Ray { origin: Point3::new(-2.0, 0.0, 0.0), direction: Vector3::new(1.0, 0.0, 0.0) };
+        let inv_dir = 1.0 / ray.direction;
+
+        assert_eq!(bb.intersects(&ray, &inv_dir), true);
+    }
+
+    #[test]
+    fn intersect_miss() {
+        let mut bb = BoundingBox::new();
+        bb.add(&Point3::new(-1.0, -1.0, -1.0));
+        bb.add(&Point3::new(1.0, 1.0, 1.0));
+
+        let ray = Ray { origin: Point3::new(-2.0, 2.0, 0.0), direction: Vector3::new(1.0, 0.0, 0.0) };
+        let inv_dir = 1.0 / ray.direction;
+
+        assert_eq!(bb.intersects(&ray, &inv_dir), false);
     }
 }

@@ -10,9 +10,9 @@ pub fn elementwise_min(a: Vector3<f32>, b: Vector3<f32>) -> Vector3<f32> {
 
 pub fn elementwise_max(a: Vector3<f32>, b: Vector3<f32>) -> Vector3<f32> {
     Vector3 {
-        x: f32::min(a.x, b.x),
-        y: f32::min(a.y, b.y),
-        z: f32::min(a.z, b.z),
+        x: f32::max(a.x, b.x),
+        y: f32::max(a.y, b.y),
+        z: f32::max(a.z, b.z),
     }
 }
 

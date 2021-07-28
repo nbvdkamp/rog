@@ -145,6 +145,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
 
     fn intersect(&self, ray: &Ray) -> Vec<usize> {
         let mut result = Vec::new();
+        let inv_dir = 1.0 / ray.direction;
 
         let mut stack = Vec::new();
         stack.push(0);
@@ -152,13 +153,13 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
         while let Some(i) = stack.pop() {
             match &self.nodes[i] {
                 Node::Inner { left_child, right_child, bounds } => {
-                    if bounds.intersects(ray) {
+                    if bounds.intersects(ray, &inv_dir) {
                         stack.push(*left_child as usize);
                         stack.push(*right_child as usize);
                     }
                 }
                 Node::Leaf { triangle_index, bounds } => {
-                    if bounds.intersects(ray) {
+                    if bounds.intersects(ray,  &inv_dir) {
                         result.push(*triangle_index as usize);
                     }
                 }
