@@ -92,12 +92,12 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
 
                     let mid_item_index = item_indices.len() / 2;
 
-                    for i in 0..mid_item_index {
-                        left_indices.push(item_indices[i]);
+                    for item in item_indices.iter().take(mid_item_index) {
+                        left_indices.push(*item);
                     }
 
-                    for i in mid_item_index..item_indices.len() {
-                        right_indices.push(item_indices[i]);
+                    for item in item_indices.iter().skip(mid_item_index) {
+                        right_indices.push(*item);
                     }
 
                     left_bounds = compute_bounding_box_triangle_indexed(&verts, &triangles, &left_indices);
