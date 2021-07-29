@@ -146,6 +146,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
 
         // Replacing this with a vec! macro degrades performance somehow??
         let mut stack = Vec::new();
+        stack.reserve(f32::log2(self.nodes.len() as f32) as usize);
         stack.push(0);
 
         while let Some(i) = stack.pop() {
