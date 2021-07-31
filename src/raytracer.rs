@@ -13,7 +13,13 @@ use ray::{Ray, IntersectionResult};
 use color::{Color, ColorNormalizable};
 use crate::{camera::PerspectiveCamera, material::Material, mesh::Vertex, scene::Scene};
 
-use self::acceleration::{bih::BoundingIntervalHierarchy, bvh::BoundingVolumeHierarchy, structure::AccelerationStructure};
+use self::acceleration::{
+    bih::BoundingIntervalHierarchy,
+    bvh::BoundingVolumeHierarchy,
+    bvh_rec::BoundingVolumeHierarchyRec,
+    kdtree::KdTree, 
+    structure::AccelerationStructure
+};
 
 pub struct Raytracer {
     verts: Vec<Vertex>,
@@ -21,6 +27,7 @@ pub struct Raytracer {
     materials: Vec<Material>,
     camera: PerspectiveCamera,
     bvh: BoundingVolumeHierarchy,
+    bvh_rec: BoundingVolumeHierarchyRec,
 }
 
 impl Raytracer {
@@ -51,6 +58,7 @@ impl Raytracer {
         }
 
         let bvh = BoundingVolumeHierarchy::new(&verts, &triangles);
+        let bvh_rec = BoundingVolumeHierarchyRec::new(&verts, &triangles);
 
         Raytracer {
             verts,
@@ -58,6 +66,7 @@ impl Raytracer {
             materials,
             camera: scene.camera.clone(),
             bvh,
+            bvh_rec,
         }
     }
 
@@ -110,7 +119,7 @@ impl Raytracer {
         let mut result = Color::new(0., 0., 0., 1.);
         let mut min_distance = f32::MAX;
 
-        for i in self.bvh.intersect(&ray) {
+        for i in self.bvh_rec.intersect(&ray) {
             let triangle = &self.triangles[i];
             let p1 = &self.verts[triangle.index1 as usize];
             let p2 = &self.verts[triangle.index2 as usize];
