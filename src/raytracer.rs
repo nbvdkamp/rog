@@ -119,7 +119,7 @@ impl Raytracer {
     fn trace(&self, ray: Ray) -> Color {
         let mut result = Color::new(0., 0., 0., 1.);
 
-        if let TraceResult::Hit(triangle_index, hit_pos) = self.accel_structures[0].intersect(&ray, &self.verts, &self.triangles) {
+        if let TraceResult::Hit(triangle_index, hit_pos) = self.accel_structures[1].intersect(&ray, &self.verts, &self.triangles) {
             let triangle = &self.triangles[triangle_index as usize];
             result = self.materials[triangle.material_index as usize].base_color_factor;
         }

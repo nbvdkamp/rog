@@ -26,7 +26,7 @@ enum Node {
 impl AccelerationStructure for BoundingVolumeHierarchyRec {
     fn intersect(&self, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
         let inv_dir = 1.0 / ray.direction;
-        self.intersect(&self.root, ray, inv_dir, verts, triangles)
+        intersect(&self.root, ray, inv_dir, verts, triangles)
     }
 }
 
@@ -40,59 +40,67 @@ impl BoundingVolumeHierarchyRec {
 
         BoundingVolumeHierarchyRec { root: create_node(verts, triangles, &mut item_indices) }
     }
+}
 
-    fn intersect(&self, node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
-        match node_opt {
-            Some(node) => {
-                let node = node.as_ref();
-                match node {
-                    Node::Inner { left_child, right_child, bounds} => {
-                        if bounds.intersects(ray, &inv_dir) {
-                            let l = self.intersect(left_child, ray, inv_dir, verts, triangles);
-                            let r = self.intersect(right_child, ray, inv_dir, verts, triangles);
-
-                            if let TraceResult::Hit(triangle_index_l, hit_pos_l) = l {
-                                if let TraceResult::Hit(triangle_index_r, hit_pos_r) = r {
-                                    let distance_l = hit_pos_l.distance2(ray.origin);
-                                    let distance_r = hit_pos_r.distance2(ray.origin);
-
-                                    if distance_l <= distance_r {
-                                        l
-                                    } else {
-                                        r
-                                    }
-                                } else {
-                                    l
-                                }
-                            } else {
-                                r
-                            }
-                        } else {
-                            TraceResult::Miss
-                        }
-                    }
-                    Node::Leaf { triangle_index, bounds } => {
-                        if bounds.intersects(ray, &inv_dir) {
-                            let triangle = &triangles[*triangle_index as usize];
-                            let p1 = &verts[triangle.index1 as usize];
-                            let p2 = &verts[triangle.index2 as usize];
-                            let p3 = &verts[triangle.index3 as usize];
-
-                            if let IntersectionResult::Hit(hit_pos) = ray.intersect_triangle(p1.position, p2.position, p3.position) {
-                                TraceResult::Hit(*triangle_index, hit_pos)
-                            } else {
-                                TraceResult::Miss
-                            }
-                        } else {
-                            TraceResult::Miss
-                        }
-                    }
-                }
+fn intersect(node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+    match node_opt {
+        Some(node) => {
+            let node = node.as_ref();
+            match node {
+                Node::Inner { left_child, right_child, bounds} => 
+                    lr_intersect(left_child, right_child, bounds, ray, inv_dir, verts, triangles),
+                Node::Leaf { triangle_index, bounds } => 
+                    tri_intersect(*triangle_index, bounds, ray, inv_dir, verts, triangles)
             }
-            None => TraceResult::Miss
         }
+        None => TraceResult::Miss
     }
 }
+
+fn lr_intersect(left: &Option<Box<Node>>, right: &Option<Box<Node>>, bounds: &BoundingBox,
+                ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+    if bounds.intersects(ray, &inv_dir) {
+        let l = intersect(left, ray, inv_dir, verts, triangles);
+        let r = intersect(right, ray, inv_dir, verts, triangles);
+
+        if let TraceResult::Hit(triangle_index_l, hit_pos_l) = l {
+            if let TraceResult::Hit(triangle_index_r, hit_pos_r) = r {
+                let distance_l = hit_pos_l.distance2(ray.origin);
+                let distance_r = hit_pos_r.distance2(ray.origin);
+
+                if distance_l <= distance_r {
+                    l
+                } else {
+                    r
+                }
+            } else {
+                l
+            }
+        } else {
+            r
+        }
+    } else {
+        TraceResult::Miss
+    }
+}
+
+fn tri_intersect(triangle_index: i32, bounds: &BoundingBox, ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+    if bounds.intersects(ray, &inv_dir) {
+        let triangle = &triangles[triangle_index as usize];
+        let p1 = &verts[triangle.index1 as usize];
+        let p2 = &verts[triangle.index2 as usize];
+        let p3 = &verts[triangle.index3 as usize];
+
+        if let IntersectionResult::Hit(hit_pos) = ray.intersect_triangle(p1.position, p2.position, p3.position) {
+            TraceResult::Hit(triangle_index, hit_pos)
+        } else {
+            TraceResult::Miss
+        }
+    } else {
+        TraceResult::Miss
+    }
+}
+
 
 fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: &mut Vec<usize>) -> Option<Box<Node>> {
     if triangle_indices.len() == 0 {
