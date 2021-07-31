@@ -1,5 +1,5 @@
 use std::time::Instant;
-use cgmath::{MetricSpace, InnerSpace, Point3, Vector4};
+use cgmath::{InnerSpace, Point3, Vector4};
 
 mod ray;
 mod triangle;
@@ -14,11 +14,12 @@ use color::{Color, ColorNormalizable};
 use crate::{camera::PerspectiveCamera, material::Material, mesh::Vertex, scene::Scene};
 
 use self::acceleration::{
-    bih::BoundingIntervalHierarchy,
+    // bih::BoundingIntervalHierarchy,
     bvh::BoundingVolumeHierarchy,
     bvh_rec::BoundingVolumeHierarchyRec,
-    kdtree::KdTree, 
-    structure::AccelerationStructure
+    // kdtree::KdTree, 
+    structure::AccelerationStructure,
+    structure::TraceResult,
 };
 
 pub struct Raytracer {
@@ -26,8 +27,7 @@ pub struct Raytracer {
     triangles: Vec<Triangle>,
     materials: Vec<Material>,
     camera: PerspectiveCamera,
-    bvh: BoundingVolumeHierarchy,
-    bvh_rec: BoundingVolumeHierarchyRec,
+    accel_structures: Vec<Box<dyn AccelerationStructure>>,
 }
 
 impl Raytracer {
@@ -57,17 +57,18 @@ impl Raytracer {
             }
         }
 
-        let bvh = BoundingVolumeHierarchy::new(&verts, &triangles);
-        let bvh_rec = BoundingVolumeHierarchyRec::new(&verts, &triangles);
-
-        Raytracer {
+        let mut result = Raytracer {
             verts,
             triangles,
             materials,
             camera: scene.camera.clone(),
-            bvh,
-            bvh_rec,
-        }
+            accel_structures: Vec::new(),
+        };
+
+        result.accel_structures.push(Box::new(BoundingVolumeHierarchy::new(&result.verts, &result.triangles)));
+        result.accel_structures.push(Box::new(BoundingVolumeHierarchyRec::new(&result.verts, &result.triangles)));
+
+        result
     }
 
     pub fn render(&self) {
@@ -117,22 +118,10 @@ impl Raytracer {
 
     fn trace(&self, ray: Ray) -> Color {
         let mut result = Color::new(0., 0., 0., 1.);
-        let mut min_distance = f32::MAX;
 
-        for i in self.bvh_rec.intersect(&ray) {
-            let triangle = &self.triangles[i];
-            let p1 = &self.verts[triangle.index1 as usize];
-            let p2 = &self.verts[triangle.index2 as usize];
-            let p3 = &self.verts[triangle.index3 as usize];
-
-            if let IntersectionResult::Hit(hit_pos) = ray.intersect_triangle(p1.position, p2.position, p3.position) {
-                let distance = hit_pos.distance2(ray.origin);
-
-                if distance < min_distance {
-                    min_distance = distance;
-                    result = self.materials[triangle.material_index as usize].base_color_factor;
-                }
-            }
+        if let TraceResult::Hit(triangle_index, hit_pos) = self.accel_structures[0].intersect(&ray, &self.verts, &self.triangles) {
+            let triangle = &self.triangles[triangle_index as usize];
+            result = self.materials[triangle.material_index as usize].base_color_factor;
         }
 
         result

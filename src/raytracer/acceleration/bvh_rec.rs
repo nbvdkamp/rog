@@ -1,14 +1,14 @@
 use crate::mesh::Vertex;
 use crate::raytracer::triangle::Triangle;
-use crate::raytracer::Ray;
+use crate::raytracer::{Ray, IntersectionResult};
 
-use cgmath::Vector3;
+use cgmath::{MetricSpace, Vector3};
 
 use super::super::aabb::BoundingBox;
-use super::structure::AccelerationStructure;
+use super::structure::{AccelerationStructure, TraceResult};
 
 pub struct BoundingVolumeHierarchyRec {
-    root: Option<Box<Node>>,
+    root: Option<Box<Node>>
 }
 
 enum Node {
@@ -24,7 +24,14 @@ enum Node {
 }
 
 impl AccelerationStructure for BoundingVolumeHierarchyRec {
-    fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
+    fn intersect(&self, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+        let inv_dir = 1.0 / ray.direction;
+        self.intersect(&self.root, ray, inv_dir, verts, triangles)
+    }
+}
+
+impl BoundingVolumeHierarchyRec {
+    pub fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
         let mut item_indices = Vec::new();
 
         for i in 0..triangles.len() {
@@ -34,37 +41,56 @@ impl AccelerationStructure for BoundingVolumeHierarchyRec {
         BoundingVolumeHierarchyRec { root: create_node(verts, triangles, &mut item_indices) }
     }
 
-    fn intersect(&self, ray: &Ray) -> Vec<usize> {
-        let inv_dir = 1.0 / ray.direction;
-        intersect(&self.root, ray, inv_dir)
-    }
-}
+    fn intersect(&self, node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+        match node_opt {
+            Some(node) => {
+                let node = node.as_ref();
+                match node {
+                    Node::Inner { left_child, right_child, bounds} => {
+                        if bounds.intersects(ray, &inv_dir) {
+                            let l = self.intersect(left_child, ray, inv_dir, verts, triangles);
+                            let r = self.intersect(right_child, ray, inv_dir, verts, triangles);
 
-fn intersect(node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: Vector3<f32>) -> Vec<usize> {
-    match node_opt {
-        Some(node) => {
-            let node = node.as_ref();
-            match node {
-                Node::Inner { left_child, right_child, bounds} => {
-                    if bounds.intersects(ray, &inv_dir) {
-                        let mut l = intersect(left_child, ray, inv_dir);
-                        let mut r = intersect(right_child, ray, inv_dir);
-                        l.append(&mut r);
-                        l
-                    } else {
-                        vec![]
+                            if let TraceResult::Hit(triangle_index_l, hit_pos_l) = l {
+                                if let TraceResult::Hit(triangle_index_r, hit_pos_r) = r {
+                                    let distance_l = hit_pos_l.distance2(ray.origin);
+                                    let distance_r = hit_pos_r.distance2(ray.origin);
+
+                                    if distance_l <= distance_r {
+                                        l
+                                    } else {
+                                        r
+                                    }
+                                } else {
+                                    l
+                                }
+                            } else {
+                                r
+                            }
+                        } else {
+                            TraceResult::Miss
+                        }
                     }
-                }
-                Node::Leaf { triangle_index, bounds } => {
-                    if bounds.intersects(ray, &inv_dir) {
-                        vec![*triangle_index as usize]
-                    } else {
-                        vec![]
+                    Node::Leaf { triangle_index, bounds } => {
+                        if bounds.intersects(ray, &inv_dir) {
+                            let triangle = &triangles[*triangle_index as usize];
+                            let p1 = &verts[triangle.index1 as usize];
+                            let p2 = &verts[triangle.index2 as usize];
+                            let p3 = &verts[triangle.index3 as usize];
+
+                            if let IntersectionResult::Hit(hit_pos) = ray.intersect_triangle(p1.position, p2.position, p3.position) {
+                                TraceResult::Hit(*triangle_index, hit_pos)
+                            } else {
+                                TraceResult::Miss
+                            }
+                        } else {
+                            TraceResult::Miss
+                        }
                     }
                 }
             }
+            None => TraceResult::Miss
         }
-        None => vec![]
     }
 }
 

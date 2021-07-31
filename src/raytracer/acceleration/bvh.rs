@@ -1,12 +1,14 @@
 use crate::mesh::Vertex;
 use crate::raytracer::triangle::Triangle;
-use crate::raytracer::Ray;
+use crate::raytracer::{Ray, IntersectionResult};
 
 use super::super::aabb::BoundingBox;
-use super::structure::AccelerationStructure;
+use super::structure::{AccelerationStructure, TraceResult};
+
+use cgmath::MetricSpace;
 
 pub struct BoundingVolumeHierarchy {
-    nodes: Vec<Node>,
+    nodes: Vec<Node>
 }
 
 enum Node {
@@ -38,8 +40,8 @@ impl Node {
     }
 }
 
-impl AccelerationStructure for BoundingVolumeHierarchy {
-    fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
+impl BoundingVolumeHierarchy {
+    pub fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
         let mut nodes = Vec::new();
 
         let bounds = compute_bounding_box(&verts);
@@ -139,9 +141,12 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
 
         BoundingVolumeHierarchy { nodes }
     }
+}
 
-    fn intersect(&self, ray: &Ray) -> Vec<usize> {
-        let mut result = Vec::new();
+impl AccelerationStructure for BoundingVolumeHierarchy {
+    fn intersect(&self, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+        let mut result = TraceResult::Miss;
+        let mut min_distance = f32::MAX;
         let inv_dir = 1.0 / ray.direction;
 
         // Replacing this with a vec! macro degrades performance somehow??
@@ -159,7 +164,19 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                 }
                 Node::Leaf { triangle_index, bounds } => {
                     if bounds.intersects(ray,  &inv_dir) {
-                        result.push(*triangle_index as usize);
+                        let triangle = &triangles[*triangle_index as usize];
+                        let p1 = &verts[triangle.index1 as usize];
+                        let p2 = &verts[triangle.index2 as usize];
+                        let p3 = &verts[triangle.index3 as usize];
+
+                        if let IntersectionResult::Hit(hit_pos) = ray.intersect_triangle(p1.position, p2.position, p3.position) {
+                            let distance = hit_pos.distance2(ray.origin);
+
+                            if distance < min_distance {
+                                min_distance = distance;
+                                result = TraceResult::Hit(*triangle_index, hit_pos);
+                            }
+                        }
                     }
                 }
             }
