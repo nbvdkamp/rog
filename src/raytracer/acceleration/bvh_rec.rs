@@ -23,23 +23,6 @@ enum Node {
     },
 }
 
-impl Node {
-    fn new_leaf(triangle_index: i32, bounds: BoundingBox) -> Node {
-        Node::Leaf { 
-            triangle_index,
-            bounds,
-        }
-    }
-
-    fn new_inner(bounds: BoundingBox) -> Node {
-        Node::Inner { 
-            left_child: None,
-            right_child: None,
-            bounds,
-        }
-    }
-}
-
 impl AccelerationStructure for BoundingVolumeHierarchyRec {
     fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
         let mut item_indices = Vec::new();
@@ -48,9 +31,7 @@ impl AccelerationStructure for BoundingVolumeHierarchyRec {
             item_indices.push(i);
         }
 
-        let root = create_node(verts, triangles, &mut item_indices);
-
-        BoundingVolumeHierarchyRec { root }
+        BoundingVolumeHierarchyRec { root: create_node(verts, triangles, &mut item_indices) }
     }
 
     fn intersect(&self, ray: &Ray) -> Vec<usize> {
@@ -95,11 +76,12 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: &mut 
     let bounds = compute_bounding_box_triangle_indexed(verts, triangles, triangle_indices);
 
     if triangle_indices.len() == 1 {
-        return Some(Box::new(Node::new_leaf(triangle_indices[0] as i32, bounds)));
+        return Some(Box::new(Node::Leaf {
+            triangle_index: triangle_indices[0] as i32,
+            bounds,
+        }));
     }
     
-    let mut node = Node::new_inner(bounds);
-
     let mut left_indices = Vec::new();
     let mut right_indices = Vec::new();
 
@@ -138,16 +120,6 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: &mut 
         right_child: right,
         bounds
     }))
-}
-
-fn compute_bounding_box(vertices: &[Vertex]) -> BoundingBox {
-    let mut bounds = BoundingBox::new();
-
-    for vertex in vertices {
-        bounds.add(&vertex.position);
-    }
-
-    bounds
 }
 
 fn compute_bounding_box_triangle_indexed(vertices: &[Vertex], triangles: &[Triangle], triangle_indices: &[usize]) -> BoundingBox {
