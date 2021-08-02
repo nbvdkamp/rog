@@ -157,13 +157,13 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
         while let Some(i) = stack.pop() {
             match &self.nodes[i] {
                 Node::Inner { left_child, right_child, bounds } => {
-                    if bounds.intersects(ray, &inv_dir) {
+                    if bounds.intersects_ray(ray, &inv_dir) {
                         stack.push(*left_child as usize);
                         stack.push(*right_child as usize);
                     }
                 }
                 Node::Leaf { triangle_index, bounds } => {
-                    if bounds.intersects(ray,  &inv_dir) {
+                    if bounds.intersects_ray(ray,  &inv_dir) {
                         let triangle = &triangles[*triangle_index as usize];
                         let p1 = &verts[triangle.index1 as usize];
                         let p2 = &verts[triangle.index2 as usize];
@@ -183,6 +183,10 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
         }
 
         result
+    }
+
+    fn get_name(&self) -> &str {
+        "BVH (iterative)"
     }
 }
 

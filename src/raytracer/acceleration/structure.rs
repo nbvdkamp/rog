@@ -12,4 +12,6 @@ pub enum TraceResult {
 
 pub trait AccelerationStructure {
     fn intersect(&self, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult;
+
+    fn get_name(&self) -> &str;
 }

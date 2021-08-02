@@ -27,7 +27,7 @@ pub struct Raytracer {
     triangles: Vec<Triangle>,
     materials: Vec<Material>,
     camera: PerspectiveCamera,
-    accel_structures: Vec<Box<dyn AccelerationStructure>>,
+    pub accel_structures: Vec<Box<dyn AccelerationStructure>>,
 }
 
 impl Raytracer {
@@ -71,9 +71,7 @@ impl Raytracer {
         result
     }
 
-    pub fn render(&self) {
-        let image_width: u32 = 1920;
-        let image_height: u32 = 1080;
+    pub fn render(&self, image_width: u32, image_height: u32, accel_index: usize) -> (Vec::<u8>, f64) {
         let aspect_ratio = image_width as f32 / image_height as f32;
 
         let start = Instant::now();
@@ -99,27 +97,21 @@ impl Raytracer {
                 let dir4 = cam_model * Vector4::new(screen_x, screen_y, -1., 0.).normalize();
                 let ray = Ray { origin: camera_pos, direction: dir4.truncate().normalize() };
 
-                let color = self.trace(ray);
+                let color = self.trace(ray, accel_index);
 
                 buffer[pixel_index as usize] = color.r_normalized();
                 buffer[pixel_index as usize + 1] = color.g_normalized();
                 buffer[pixel_index as usize + 2] = color.b_normalized();
             }
         }
-        println!("Finished rendering in {} seconds", start.elapsed().as_millis() as f64 / 1000.0);
 
-        let save_result = image::save_buffer("output/result.png", &buffer, image_width, image_height, image::ColorType::Rgb8);
-
-        match save_result {
-            Ok(_) => println!("File was saved succesfully"),
-            Err(e) => println!("Couldn't save file: {}", e),
-        }
+        (buffer, start.elapsed().as_millis() as f64 / 1000.0)
     }
 
-    fn trace(&self, ray: Ray) -> Color {
+    fn trace(&self, ray: Ray, accel_index: usize) -> Color {
         let mut result = Color::new(0., 0., 0., 1.);
 
-        if let TraceResult::Hit(triangle_index, hit_pos) = self.accel_structures[1].intersect(&ray, &self.verts, &self.triangles) {
+        if let TraceResult::Hit(triangle_index, hit_pos) = self.accel_structures[accel_index].intersect(&ray, &self.verts, &self.triangles) {
             let triangle = &self.triangles[triangle_index as usize];
             result = self.materials[triangle.material_index as usize].base_color_factor;
         }

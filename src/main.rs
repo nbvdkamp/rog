@@ -11,6 +11,7 @@ use luminance::shader::Uniform;
 
 use std::process::exit;
 use std::path::Path;
+use std::env;
 
 mod mesh;
 mod scene;
@@ -24,9 +25,13 @@ use material::Material;
 use raytracer::Raytracer;
 
 fn main() {
-    let scene_filename = "res/simple_raytracer_test.glb";
-    let app = App::new(scene_filename);
-    app.run();
+    if env::args().any(|arg| arg == "--bench") {
+        accel_benchmark();
+    } else {
+        let scene_filename = "res/simple_raytracer_test.glb";
+        let app = App::new(scene_filename);
+        app.run();
+    }
 }
 
 #[derive(Debug, UniformInterface)]
@@ -139,7 +144,42 @@ impl App {
 
     fn handle_key_event(&self, key: Key, action: Action) {
         if key == Key::Enter && action == Action::Press {
-            self.raytracer.render();
+            let width = 1920;
+            let height = 1080;
+
+            let (buffer, time_elapsed) = self.raytracer.render(width, height, 0);
+            println!("Finished rendering in {} seconds", time_elapsed);
+
+            let save_result = image::save_buffer("output/result.png", &buffer, width, height, image::ColorType::Rgb8);
+
+            match save_result {
+                Ok(_) => println!("File was saved succesfully"),
+                Err(e) => println!("Couldn't save file: {}", e),
+            }
         }
+    }
+}
+
+fn accel_benchmark() {
+    let test_scene_filenames = vec![
+        "res/simple_raytracer_test.glb",
+        "res/sea_test.glb",
+        "res/sea_test_obscured.glb",
+    ];
+    
+
+    for path in test_scene_filenames {
+        let scene = Scene::load(path).unwrap();
+        let raytracer = Raytracer::new(&scene);
+
+        println!("\nFilename: {}", path);
+        println!("{: <25} | {: <10}", "Acceleration structure", "time (seconds)");
+
+        for i in 0..raytracer.accel_structures.len() {
+
+            let (_, time_elapsed) = raytracer.render(480, 270, i);
+            println!("{: <25} | {: <10}", raytracer.accel_structures[i].get_name(), time_elapsed);
+        }
+
     }
 }
