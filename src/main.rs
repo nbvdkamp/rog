@@ -162,18 +162,20 @@ impl App {
 
 fn accel_benchmark() {
     let test_scene_filenames = vec![
-        "res/simple_raytracer_test.glb",
-        "res/sea_test.glb",
-        "res/sea_test_obscured.glb",
+        "simple_raytracer_test",
+        "sea_test",
+        "sea_test_obscured",
+        "cube",
+        "simplest",
     ];
     
 
     for path in test_scene_filenames {
-        let scene = Scene::load(path).unwrap();
+        let scene = Scene::load(format!("res/{}.glb", path)).unwrap();
         let raytracer = Raytracer::new(&scene);
 
         println!("\nFilename: {}", path);
-        println!("{: <25} | {: <10}", "Acceleration structure", "time (seconds)");
+        println!("{: <25} | {: <10}", "Acceleration structure", "render time (seconds)");
 
         for i in 0..raytracer.accel_structures.len() {
 
