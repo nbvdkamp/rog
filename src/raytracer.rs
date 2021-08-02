@@ -17,7 +17,7 @@ use self::acceleration::{
     // bih::BoundingIntervalHierarchy,
     bvh::BoundingVolumeHierarchy,
     bvh_rec::BoundingVolumeHierarchyRec,
-    // kdtree::KdTree, 
+    kdtree::KdTree, 
     structure::AccelerationStructure,
     structure::TraceResult,
 };
@@ -67,6 +67,7 @@ impl Raytracer {
 
         result.accel_structures.push(Box::new(BoundingVolumeHierarchy::new(&result.verts, &result.triangles)));
         result.accel_structures.push(Box::new(BoundingVolumeHierarchyRec::new(&result.verts, &result.triangles)));
+        result.accel_structures.push(Box::new(KdTree::new(&result.verts, &result.triangles)));
 
         result
     }

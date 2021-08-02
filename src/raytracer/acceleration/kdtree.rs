@@ -1,13 +1,15 @@
+use rand::{seq::IteratorRandom, thread_rng};
+
 use crate::mesh::Vertex;
 use crate::raytracer::triangle::Triangle;
 use crate::raytracer::Ray;
 
 use super::super::axis::Axis;
 use super::super::aabb::BoundingBox;
-use super::structure::AccelerationStructure;
+use super::structure::{AccelerationStructure, TraceResult};
 
 pub struct KdTree {
-    nodes: Vec<Node>,
+    root: Option<Box<Node>>
 }
 
 enum Node {
@@ -15,8 +17,8 @@ enum Node {
         items: Vec<usize>
     },
     Inner {
-        left_child: i32,
-        right_child: i32,
+        left_child: Option<Box<Node>>,
+        right_child: Option<Box<Node>>,
         plane: f32,
         axis: Axis,
     },
@@ -29,129 +31,95 @@ impl Node {
 
     fn new_inner() -> Node {
         Node::Inner { 
-            left_child: -1,
-            right_child: -1,
+            left_child: None,
+            right_child: None,
             plane: 0.0,
             axis: Axis::X,
         }
     }
 }
 
-impl AccelerationStructure for KdTree {
-    fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
-        let mut nodes = Vec::new();
-
-        let bounds = compute_bounding_box(&verts);
+impl KdTree {
+    pub fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
         let mut item_indices = Vec::new();
 
         for i in 0..triangles.len() {
             item_indices.push(i);
         }
 
-        nodes.push(Node::new_inner());
+        KdTree { root: create_node(verts, triangles, item_indices, 0) }
+    }
+}
 
-        let mut stack = Vec::new();
-        stack.push((0, bounds, item_indices));
+impl AccelerationStructure for KdTree {
+    fn intersect(&self, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+        TraceResult::Miss
+    }
 
-        while let Some((index, bounds, item_indices)) = stack.pop() {
-            let new_left_index ;
-            let new_right_index;
-            let left_is_empty;
-            let right_is_empty;
-            let left_is_leaf;
-            let right_is_leaf;
+    fn get_name(&self) -> &str {
+        "K-d Tree"
+    }
+}
 
-            let mut current_index = nodes.len() as i32;
+fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<usize>, depth: i32) -> Option<Box<Node>> {
+    if triangle_indices.len() == 0 {
+        return None
+    }
 
-            let node = nodes.get_mut(index).unwrap();
+    let early_term_leaf_size = 10;
+    let max_depth = 10;
 
-            let mut left_indices = Vec::new();
-            let mut right_indices = Vec::new();
+    if triangle_indices.len() <= early_term_leaf_size || depth > max_depth {
+        return Some(Box::new(Node::Leaf {
+            items: triangle_indices,
+        }));
+    }
+    
+    let mut left_indices = Vec::new();
+    let mut right_indices = Vec::new();
 
-            match node {
-                Node::Inner { left_child, right_child, plane, axis } => {
-                    let (split_axis, mid) = bounds.find_split_plane();
-                    *axis = split_axis;
-                    *plane = mid;
+    let axis_index = (depth % 3) as usize;
+    let axis = Axis::from_index(axis_index);
 
+    let samples = triangle_indices.iter().choose_multiple(&mut thread_rng(), 10);
 
+    let mut sample_centers = Vec::new();
+    sample_centers.reserve(samples.len());
 
-                    for index in item_indices {
-                        let v1 = &verts[triangles[index].index1 as usize].position[axis.index()];
-                        let v2 = &verts[triangles[index].index2 as usize].position[axis.index()];
-                        let v3 = &verts[triangles[index].index3 as usize].position[axis.index()];
+    for i in samples {
+        let triangle = &triangles[*i];
+        sample_centers.push(
+            verts[triangle.index1 as usize].position[axis_index] +
+            verts[triangle.index2 as usize].position[axis_index] + 
+            verts[triangle.index3 as usize].position[axis_index]);
+    }
 
-                        if *v1 <= mid || *v2 <= mid || *v3 <= mid {
-                            left_indices.push(index);
-                        }
-                        if *v1 >= mid || *v2 >= mid || *v3 >= mid {
-                            right_indices.push(index);
-                        }
-                    }
+    sample_centers.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let median = sample_centers[sample_centers.len() / 2];
 
-                    let max_leaf_items = 10;
+    for index in triangle_indices {
+        let triangle = &triangles[index];
+        let v1 = &verts[triangle.index1 as usize].position[axis_index];
+        let v2 = &verts[triangle.index2 as usize].position[axis_index];
+        let v3 = &verts[triangle.index3 as usize].position[axis_index];
 
-                    left_is_empty = left_indices.len() == 0;
-                    right_is_empty = right_indices.len() == 0;
-                    left_is_leaf = left_indices.len() <= max_leaf_items;
-                    right_is_leaf = right_indices.len() <= max_leaf_items;
-
-
-                    if !left_is_empty {
-                        new_left_index = current_index;
-                        current_index += 1;
-                    } else {
-                        new_left_index = -1;
-                    }
-
-                    if !right_is_empty {
-                        new_right_index = current_index;
-                    } else {
-                        new_right_index = -1;
-                    }
-
-                    *left_child = new_left_index;
-                    *right_child = new_right_index;
-
-                    if !left_is_empty && !left_is_leaf {
-                        let mut left_bounds = bounds;
-                        left_bounds.set_max(axis, mid);
-                        stack.push((new_left_index as usize, left_bounds, left_indices.clone()));
-                    }
-
-                    if !left_is_empty && !right_is_leaf {
-                        let mut right_bounds = bounds;
-                        right_bounds.set_min(axis, mid);
-                        stack.push((new_right_index as usize, right_bounds, right_indices.clone()));
-                    }
-                }
-                _ => panic!("Unreachable")
-            }
-
-            if !left_is_empty {
-                if left_is_leaf {
-                    nodes.push(Node::new_leaf(left_indices));
-                } else {
-                    nodes.push(Node::new_inner());
-                }
-            }
-
-            if !right_is_empty {
-                if right_is_leaf {
-                    nodes.push(Node::new_leaf(right_indices));
-                } else {
-                    nodes.push(Node::new_inner());
-                }
-            }
+        if *v1 <= median || *v2 <= median || *v3 <= median {
+            left_indices.push(index);
         }
-
-        KdTree { nodes }
+        if *v1 >= median || *v2 >= median || *v3 >= median {
+            right_indices.push(index);
+        }
     }
 
-    fn intersect(&self, ray: &Ray) -> Vec<usize> {
-        let result = Vec::new();
-        result
-    }
+    let left = create_node(verts, triangles, left_indices, depth + 1);
+    let right = create_node(verts, triangles, right_indices, depth + 1);
+
+    Some(Box::new(Node::Inner {
+        left_child: left,
+        right_child: right,
+        plane: median,
+        axis
+    }))
 }
 
 fn compute_bounding_box(vertices: &[Vertex]) -> BoundingBox {
