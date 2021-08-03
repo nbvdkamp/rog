@@ -147,7 +147,7 @@ impl App {
             let width = 1920;
             let height = 1080;
 
-            let (buffer, time_elapsed) = self.raytracer.render(width, height, 0);
+            let (buffer, time_elapsed) = self.raytracer.render(width, height, 2);
             println!("Finished rendering in {} seconds", time_elapsed);
 
             let save_result = image::save_buffer("output/result.png", &buffer, width, height, image::ColorType::Rgb8);
@@ -169,6 +169,9 @@ fn accel_benchmark() {
         "simplest",
     ];
     
+    let resolution_factor = 15;
+    let image_width = 16 * resolution_factor;
+    let image_height = 9 * resolution_factor;
 
     for path in test_scene_filenames {
         let scene = Scene::load(format!("res/{}.glb", path)).unwrap();
@@ -179,9 +182,8 @@ fn accel_benchmark() {
 
         for i in 0..raytracer.accel_structures.len() {
 
-            let (_, time_elapsed) = raytracer.render(480, 270, i);
+            let (_, time_elapsed) = raytracer.render(image_width, image_height, i);
             println!("{: <25} | {: <10}", raytracer.accel_structures[i].get_name(), time_elapsed);
         }
-
     }
 }

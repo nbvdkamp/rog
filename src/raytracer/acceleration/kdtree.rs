@@ -1,15 +1,18 @@
 use rand::{seq::IteratorRandom, thread_rng};
 
+use cgmath::{MetricSpace, Vector3};
+
 use crate::mesh::Vertex;
 use crate::raytracer::triangle::Triangle;
-use crate::raytracer::Ray;
+use crate::raytracer::{Ray, IntersectionResult};
 
 use super::super::axis::Axis;
 use super::super::aabb::BoundingBox;
 use super::structure::{AccelerationStructure, TraceResult};
 
 pub struct KdTree {
-    root: Option<Box<Node>>
+    root: Option<Box<Node>>,
+    scene_bounds: BoundingBox,
 }
 
 enum Node {
@@ -24,21 +27,6 @@ enum Node {
     },
 }
 
-impl Node {
-    fn new_leaf(items: Vec<usize>) -> Node {
-        Node::Leaf { items }
-    }
-
-    fn new_inner() -> Node {
-        Node::Inner { 
-            left_child: None,
-            right_child: None,
-            plane: 0.0,
-            axis: Axis::X,
-        }
-    }
-}
-
 impl KdTree {
     pub fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
         let mut item_indices = Vec::new();
@@ -47,18 +35,93 @@ impl KdTree {
             item_indices.push(i);
         }
 
-        KdTree { root: create_node(verts, triangles, item_indices, 0) }
+        KdTree { 
+            root: create_node(verts, triangles, item_indices, 0),
+            scene_bounds: compute_bounding_box(verts),
+        }
     }
 }
 
 impl AccelerationStructure for KdTree {
     fn intersect(&self, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
-        TraceResult::Miss
+        let inv_dir = 1.0 / ray.direction;
+
+        intersect(&self.root, ray, inv_dir, verts, triangles, self.scene_bounds)
     }
 
     fn get_name(&self) -> &str {
         "K-d Tree"
     }
+}
+
+fn intersect(node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle], bounds: BoundingBox) -> TraceResult {
+    match node_opt {
+        Some(node) => {
+            if !bounds.intersects_ray(ray, &inv_dir) {
+                return TraceResult::Miss;
+            }
+
+            let node = node.as_ref();
+            match node {
+                Node::Inner { left_child, right_child, plane, axis } => 
+                    inner_intersect(left_child, right_child, bounds, *plane, *axis, ray, inv_dir, verts, triangles),
+                Node::Leaf { items } => 
+                    leaf_intersect(items, ray, verts, triangles)
+            }
+        }
+        None => TraceResult::Miss
+    }
+}
+
+fn inner_intersect(left: &Option<Box<Node>>, right: &Option<Box<Node>>, bounds: BoundingBox, plane: f32, axis: Axis,
+                ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+    let mut left_bounds = bounds;
+    left_bounds.set_max(&axis, plane);
+    let mut right_bounds = bounds;
+    right_bounds.set_min(&axis, plane);
+    
+    let l = intersect(left, ray, inv_dir, verts, triangles, left_bounds);
+    let r = intersect(right, ray, inv_dir, verts, triangles, right_bounds);
+
+    if let TraceResult::Hit(_, hit_pos_l) = l {
+        if let TraceResult::Hit(_, hit_pos_r) = r {
+            let distance_l = hit_pos_l.distance2(ray.origin);
+            let distance_r = hit_pos_r.distance2(ray.origin);
+
+            if distance_l <= distance_r {
+                l
+            } else {
+                r
+            }
+        } else {
+            l
+        }
+    } else {
+        r
+    }
+}
+
+fn leaf_intersect(triangle_indices: &Vec<usize>, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+    let mut result = TraceResult::Miss;
+    let mut min_dist = f32::MAX;
+
+    for triangle_index in triangle_indices {
+        let triangle = &triangles[*triangle_index as usize];
+        let p1 = &verts[triangle.index1 as usize];
+        let p2 = &verts[triangle.index2 as usize];
+        let p3 = &verts[triangle.index3 as usize];
+
+        if let IntersectionResult::Hit(hit_pos) = ray.intersect_triangle(p1.position, p2.position, p3.position) {
+            let dist = hit_pos.distance2(ray.origin);
+
+            if dist < min_dist {
+                result = TraceResult::Hit(*triangle_index as i32, hit_pos);
+                min_dist = dist;
+            }
+        }
+    }
+
+    result
 }
 
 fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<usize>, depth: i32) -> Option<Box<Node>> {

@@ -145,8 +145,8 @@ fn inner_intersect(left: &Option<Box<Node>>, right: &Option<Box<Node>>,
         let l = intersect(left, ray, inv_dir, verts, triangles);
         let r = intersect(right, ray, inv_dir, verts, triangles);
 
-        if let TraceResult::Hit(triangle_index_l, hit_pos_l) = l {
-            if let TraceResult::Hit(triangle_index_r, hit_pos_r) = r {
+        if let TraceResult::Hit(_, hit_pos_l) = l {
+            if let TraceResult::Hit(_, hit_pos_r) = r {
                 let distance_l = hit_pos_l.distance2(ray.origin);
                 let distance_r = hit_pos_r.distance2(ray.origin);
 
