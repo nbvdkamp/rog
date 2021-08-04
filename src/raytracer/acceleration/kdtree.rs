@@ -152,9 +152,9 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<u
     for i in samples {
         let triangle = &triangles[*i];
         sample_centers.push(
-            verts[triangle.index1 as usize].position[axis_index] +
+            (verts[triangle.index1 as usize].position[axis_index] +
             verts[triangle.index2 as usize].position[axis_index] + 
-            verts[triangle.index3 as usize].position[axis_index]);
+            verts[triangle.index3 as usize].position[axis_index]) / 3.0);
     }
 
     sample_centers.sort_by(|a, b| a.partial_cmp(b).unwrap());
