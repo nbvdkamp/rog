@@ -5,10 +5,12 @@ use crate::raytracer::{Ray, IntersectionResult};
 use cgmath::{MetricSpace, Vector3};
 
 use super::super::aabb::BoundingBox;
+use super::statistics::{Statistics, StatisticsStore};
 use super::structure::{AccelerationStructure, TraceResult};
 
 pub struct BoundingVolumeHierarchyRec {
-    root: Option<Box<Node>>
+    root: Option<Box<Node>>,
+    stats: Statistics,
 }
 
 enum Node {
@@ -25,10 +27,12 @@ enum Node {
 
 impl AccelerationStructure for BoundingVolumeHierarchyRec {
     fn intersect(&self, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+        self.stats.count_ray();
+
         let inv_dir = 1.0 / ray.direction;
 
         if intersects_bounds(&self.root, ray, inv_dir) {
-            intersect(&self.root, ray, inv_dir, verts, triangles)
+            self.intersect(&self.root, ray, inv_dir, verts, triangles)
         } else {
             TraceResult::Miss
         }
@@ -36,6 +40,10 @@ impl AccelerationStructure for BoundingVolumeHierarchyRec {
 
     fn get_name(&self) -> &str {
         "BVH (recursive)"
+    }
+
+    fn get_statistics(&self) -> StatisticsStore {
+        self.stats.get_copy()
     }
 }
 
@@ -47,22 +55,105 @@ impl BoundingVolumeHierarchyRec {
             item_indices.push(i);
         }
 
-        BoundingVolumeHierarchyRec { root: create_node(verts, triangles, &mut item_indices) }
+        BoundingVolumeHierarchyRec { 
+            root: create_node(verts, triangles, &mut item_indices),
+            stats: Statistics::new(),
+        }
     }
-}
 
-fn intersect(node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
-    match node_opt {
-        Some(node) => {
-            let node = node.as_ref();
-            match node {
-                Node::Inner { left_child, right_child, .. } => 
-                    inner_intersect(left_child, right_child, ray, inv_dir, verts, triangles),
-                Node::Leaf { triangle_index, .. } => 
-                    leaf_intersect(*triangle_index, ray, verts, triangles)
+    fn intersect(&self, node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+        match node_opt {
+            Some(node) => {
+                let node = node.as_ref();
+                match node {
+                    Node::Inner { left_child, right_child, .. } => 
+                        self.inner_intersect(left_child, right_child, ray, inv_dir, verts, triangles),
+                    Node::Leaf { triangle_index, .. } => 
+                        self.leaf_intersect(*triangle_index, ray, verts, triangles)
+                }
+            }
+            None => TraceResult::Miss
+        }
+    }
+
+    fn inner_intersect(&self, left: &Option<Box<Node>>, right: &Option<Box<Node>>,
+                    ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+        self.stats.count_inner_node_traversal();
+
+        let hit_l_box = intersects_bounds(left, ray, inv_dir);
+        let hit_r_box = intersects_bounds(right, ray, inv_dir);
+
+        if !hit_l_box && !hit_r_box {
+            return TraceResult::Miss;
+        } else if hit_l_box && !hit_r_box {
+            return self.intersect(left, ray, inv_dir, verts, triangles);
+        } else if !hit_l_box && hit_r_box {
+            return self.intersect(right, ray, inv_dir, verts, triangles);
+        }
+
+        // Both children are intersected
+
+        
+        if intersecting_bounds(left, right) {
+            // If the childrens bboxes overlap we have to check all options
+            let l = self.intersect(left, ray, inv_dir, verts, triangles);
+            let r = self.intersect(right, ray, inv_dir, verts, triangles);
+
+            if let TraceResult::Hit(_, hit_pos_l) = l {
+                if let TraceResult::Hit(_, hit_pos_r) = r {
+                    let distance_l = hit_pos_l.distance2(ray.origin);
+                    let distance_r = hit_pos_r.distance2(ray.origin);
+
+                    if distance_l <= distance_r {
+                        l
+                    } else {
+                        r
+                    }
+                } else {
+                    l
+                }
+            } else {
+                r
+            }
+
+        } else {
+            // if the bboxes are disjoint and the closest one has a hit we can skip the other
+            // TODO this doesn't seem to help yet, maybe a better construction method for a better tree is required?
+            if intersects_bounds_distance(left, ray, inv_dir) < intersects_bounds_distance(right, ray, inv_dir) {
+                let l = self.intersect(left, ray, inv_dir, verts, triangles);
+
+                if let TraceResult::Hit(..) = l {
+                    l
+                } else {
+                    self.intersect(right, ray, inv_dir, verts, triangles)
+                }
+            } else {
+                let r = self.intersect(right, ray, inv_dir, verts, triangles);
+
+                if let TraceResult::Hit(..) = r {
+                    r
+                } else {
+                    self.intersect(left, ray, inv_dir, verts, triangles)
+                }
             }
         }
-        None => TraceResult::Miss
+    }
+
+    fn leaf_intersect(&self, triangle_index: i32, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+        let triangle = &triangles[triangle_index as usize];
+        let p1 = &verts[triangle.index1 as usize];
+        let p2 = &verts[triangle.index2 as usize];
+        let p3 = &verts[triangle.index3 as usize];
+
+        self.stats.count_intersection_test();
+
+        if let IntersectionResult::Hit(hit_pos) = ray.intersect_triangle(p1.position, p2.position, p3.position) {
+            self.stats.count_intersection_hit();
+
+            TraceResult::Hit(triangle_index, hit_pos)
+        } else {
+            TraceResult::Miss
+        }
     }
 }
 
@@ -123,81 +214,6 @@ fn intersecting_bounds(left_opt: &Option<Box<Node>>, right_opt: &Option<Box<Node
         None => false
     }
 }
-
-fn inner_intersect(left: &Option<Box<Node>>, right: &Option<Box<Node>>,
-                ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
-    let hit_l_box = intersects_bounds(left, ray, inv_dir);
-    let hit_r_box = intersects_bounds(right, ray, inv_dir);
-
-    if !hit_l_box && !hit_r_box {
-        return TraceResult::Miss;
-    } else if hit_l_box && !hit_r_box {
-        return intersect(left, ray, inv_dir, verts, triangles);
-    } else if !hit_l_box && hit_r_box {
-        return intersect(right, ray, inv_dir, verts, triangles);
-    }
-
-    // Both children are intersected
-
-    
-    if intersecting_bounds(left, right) {
-        // If the childrens bboxes overlap we have to check all options
-        let l = intersect(left, ray, inv_dir, verts, triangles);
-        let r = intersect(right, ray, inv_dir, verts, triangles);
-
-        if let TraceResult::Hit(_, hit_pos_l) = l {
-            if let TraceResult::Hit(_, hit_pos_r) = r {
-                let distance_l = hit_pos_l.distance2(ray.origin);
-                let distance_r = hit_pos_r.distance2(ray.origin);
-
-                if distance_l <= distance_r {
-                    l
-                } else {
-                    r
-                }
-            } else {
-                l
-            }
-        } else {
-            r
-        }
-
-    } else {
-        // if the bboxes are disjoint and the closest one has a hit we can skip the other
-        // TODO this doesn't seem to help yet, maybe a better construction method for a better tree is required?
-        if intersects_bounds_distance(left, ray, inv_dir) < intersects_bounds_distance(right, ray, inv_dir) {
-            let l = intersect(left, ray, inv_dir, verts, triangles);
-
-            if let TraceResult::Hit(..) = l {
-                l
-            } else {
-                intersect(right, ray, inv_dir, verts, triangles)
-            }
-        } else {
-            let r = intersect(right, ray, inv_dir, verts, triangles);
-
-            if let TraceResult::Hit(..) = r {
-                r
-            } else {
-                intersect(left, ray, inv_dir, verts, triangles)
-            }
-        }
-    }
-}
-
-fn leaf_intersect(triangle_index: i32, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
-    let triangle = &triangles[triangle_index as usize];
-    let p1 = &verts[triangle.index1 as usize];
-    let p2 = &verts[triangle.index2 as usize];
-    let p3 = &verts[triangle.index3 as usize];
-
-    if let IntersectionResult::Hit(hit_pos) = ray.intersect_triangle(p1.position, p2.position, p3.position) {
-        TraceResult::Hit(triangle_index, hit_pos)
-    } else {
-        TraceResult::Miss
-    }
-}
-
 
 fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: &mut Vec<usize>) -> Option<Box<Node>> {
     if triangle_indices.len() == 0 {

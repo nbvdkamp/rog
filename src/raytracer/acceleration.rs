@@ -1,3 +1,4 @@
+pub mod statistics;
 pub mod structure;
 // pub mod bih;
 pub mod bvh;

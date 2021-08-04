@@ -178,12 +178,17 @@ fn accel_benchmark() {
         let raytracer = Raytracer::new(&scene);
 
         println!("\nFilename: {}", path);
-        println!("{: <25} | {: <10}", "Acceleration structure", "render time (seconds)");
+        println!("{: <25} | {: <10} | {: <10} | {: <10} | {: <10}", "Acceleration structure", "Time (s)", "Nodes/ray", "Tests/ray", "Hits/test", );
 
         for i in 0..raytracer.accel_structures.len() {
-
             let (_, time_elapsed) = raytracer.render(image_width, image_height, i);
-            println!("{: <25} | {: <10}", raytracer.accel_structures[i].get_name(), time_elapsed);
+
+            let stats = raytracer.accel_structures[i].get_statistics();
+            let traversals_per_ray = stats.inner_node_traversals as f32 / stats.rays as f32;
+            let tests_per_ray = stats.intersection_tests as f32 / stats.rays as f32;
+            let hits_per_test = stats.intersection_hits as f32 / stats.intersection_tests as f32;
+
+            println!("{: <25} | {: <10} | {: <10} | {: <10} | {: <10}", raytracer.accel_structures[i].get_name(), time_elapsed, traversals_per_ray, tests_per_ray, hits_per_test);
         }
     }
 }

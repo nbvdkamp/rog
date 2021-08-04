@@ -3,12 +3,14 @@ use crate::raytracer::triangle::Triangle;
 use crate::raytracer::{Ray, IntersectionResult};
 
 use super::super::aabb::BoundingBox;
+use super::statistics::{Statistics, StatisticsStore};
 use super::structure::{AccelerationStructure, TraceResult};
 
 use cgmath::MetricSpace;
 
 pub struct BoundingVolumeHierarchy {
-    nodes: Vec<Node>
+    nodes: Vec<Node>,
+    stats: Statistics,
 }
 
 enum Node {
@@ -139,12 +141,14 @@ impl BoundingVolumeHierarchy {
             }
         }
 
-        BoundingVolumeHierarchy { nodes }
+        BoundingVolumeHierarchy { nodes, stats: Statistics::new() }
     }
 }
 
 impl AccelerationStructure for BoundingVolumeHierarchy {
     fn intersect(&self, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+        self.stats.count_ray();
+
         let mut result = TraceResult::Miss;
         let mut min_distance = f32::MAX;
         let inv_dir = 1.0 / ray.direction;
@@ -158,6 +162,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
             match &self.nodes[i] {
                 Node::Inner { left_child, right_child, bounds } => {
                     if bounds.intersects_ray(ray, &inv_dir) {
+                        self.stats.count_inner_node_traversal();
                         stack.push(*left_child as usize);
                         stack.push(*right_child as usize);
                     }
@@ -169,7 +174,11 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                         let p2 = &verts[triangle.index2 as usize];
                         let p3 = &verts[triangle.index3 as usize];
 
+                        self.stats.count_intersection_test();
+
                         if let IntersectionResult::Hit(hit_pos) = ray.intersect_triangle(p1.position, p2.position, p3.position) {
+                            self.stats.count_intersection_hit();
+
                             let distance = hit_pos.distance2(ray.origin);
 
                             if distance < min_distance {
@@ -187,6 +196,10 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
 
     fn get_name(&self) -> &str {
         "BVH (iterative)"
+    }
+
+    fn get_statistics(&self) -> StatisticsStore {
+        self.stats.get_copy()
     }
 }
 
