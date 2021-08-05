@@ -35,6 +35,10 @@ impl AccelerationStructure for KdTree {
 
         let inv_dir = 1.0 / ray.direction;
 
+        if !self.scene_bounds.intersects_ray(ray, &inv_dir) {
+            return TraceResult::Miss;
+        }
+
         self.intersect(&self.root, ray, inv_dir, verts, triangles, self.scene_bounds)
     }
 
@@ -65,10 +69,6 @@ impl KdTree {
     fn intersect(&self, node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle], bounds: BoundingBox) -> TraceResult {
         match node_opt {
             Some(node) => {
-                if !bounds.intersects_ray(ray, &inv_dir) {
-                    return TraceResult::Miss;
-                }
-
                 let node = node.as_ref();
                 match node {
                     Node::Inner { left_child, right_child, plane, axis } => 
@@ -90,24 +90,75 @@ impl KdTree {
         let mut right_bounds = bounds;
         right_bounds.set_min(&axis, plane);
         
-        let l = self.intersect(left, ray, inv_dir, verts, triangles, left_bounds);
-        let r = self.intersect(right, ray, inv_dir, verts, triangles, right_bounds);
+        let hit_l_box = left_bounds.intersects_ray(ray, &inv_dir);
+        let hit_r_box = right_bounds.intersects_ray(ray, &inv_dir);
 
-        if let TraceResult::Hit(_, hit_pos_l) = l {
-            if let TraceResult::Hit(_, hit_pos_r) = r {
+        if !hit_l_box && !hit_r_box {
+            return TraceResult::Miss;
+        } else if hit_l_box && !hit_r_box {
+            return self.intersect(left, ray, inv_dir, verts, triangles, left_bounds);
+        } else if !hit_l_box && hit_r_box {
+            return self.intersect(right, ray, inv_dir, verts, triangles, right_bounds);
+        } 
+
+        // We hit both children's bounds, so check which is hit first
+        // If there is an intersection in that one that is closer than the other child's bounds we can stop
+
+        let dist_to_left_box = left_bounds.t_distance_from_ray(ray, &inv_dir);
+        let dist_to_right_box = right_bounds.t_distance_from_ray(ray, &inv_dir);
+
+        if dist_to_left_box < dist_to_right_box {
+            let l = self.intersect(left, ray, inv_dir, verts, triangles, left_bounds);
+
+            if let TraceResult::Hit(_, hit_pos_l) = l {
                 let distance_l = hit_pos_l.distance2(ray.origin);
-                let distance_r = hit_pos_r.distance2(ray.origin);
 
-                if distance_l <= distance_r {
+                if distance_l < dist_to_right_box * dist_to_right_box {
                     l
                 } else {
-                    r
+                    let r = self.intersect(right, ray, inv_dir, verts, triangles, right_bounds);
+
+                    if let TraceResult::Hit(_, hit_pos_r) = r {
+                        let distance_r = hit_pos_r.distance2(ray.origin);
+
+                        if distance_r < distance_l {
+                            r
+                        } else {
+                            l
+                        }
+                    } else {
+                        l
+                    }
                 }
             } else {
-                l
+                self.intersect(right, ray, inv_dir, verts, triangles, right_bounds)
             }
         } else {
-            r
+            let r = self.intersect(right, ray, inv_dir, verts, triangles, right_bounds);
+
+            if let TraceResult::Hit(_, hit_pos_r) = r {
+                let distance_r = hit_pos_r.distance2(ray.origin);
+
+                if distance_r < dist_to_left_box * dist_to_left_box {
+                    r
+                } else {
+                    let l = self.intersect(left, ray, inv_dir, verts, triangles, left_bounds);
+
+                    if let TraceResult::Hit(_, hit_pos_l) = l {
+                        let distance_l = hit_pos_l.distance2(ray.origin);
+
+                        if distance_l < distance_r {
+                            l
+                        } else {
+                            r
+                        }
+                    } else {
+                        r
+                    }
+                }
+            } else {
+                self.intersect(left, ray, inv_dir, verts, triangles, left_bounds)
+            }
         }
     }
 
@@ -145,7 +196,7 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<u
     }
 
     let early_term_leaf_size = 10;
-    let max_depth = 10;
+    let max_depth = f32::log2(triangles.len() as f32) as i32;
 
     if triangle_indices.len() <= early_term_leaf_size || depth > max_depth {
         return Some(Box::new(Node::Leaf {
@@ -172,8 +223,7 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<u
             verts[triangle.index3 as usize].position[axis_index]) / 3.0);
     }
 
-    sample_centers.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let median = sample_centers[sample_centers.len() / 2];
+    let split_plane = sample_centers.iter().sum::<f32>() / sample_centers.len() as f32;
 
     for index in triangle_indices {
         let triangle = &triangles[index];
@@ -181,10 +231,10 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<u
         let v2 = &verts[triangle.index2 as usize].position[axis_index];
         let v3 = &verts[triangle.index3 as usize].position[axis_index];
 
-        if *v1 <= median || *v2 <= median || *v3 <= median {
+        if *v1 <= split_plane || *v2 <= split_plane || *v3 <= split_plane {
             left_indices.push(index);
         }
-        if *v1 >= median || *v2 >= median || *v3 >= median {
+        if *v1 >= split_plane || *v2 >= split_plane || *v3 >= split_plane {
             right_indices.push(index);
         }
     }
@@ -195,7 +245,7 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<u
     Some(Box::new(Node::Inner {
         left_child: left,
         right_child: right,
-        plane: median,
+        plane: split_plane,
         axis
     }))
 }
