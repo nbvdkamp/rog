@@ -227,14 +227,14 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<u
 
     for index in triangle_indices {
         let triangle = &triangles[index];
-        let v1 = &verts[triangle.index1 as usize].position[axis_index];
-        let v2 = &verts[triangle.index2 as usize].position[axis_index];
-        let v3 = &verts[triangle.index3 as usize].position[axis_index];
+        let v1 = verts[triangle.index1 as usize].position[axis_index];
+        let v2 = verts[triangle.index2 as usize].position[axis_index];
+        let v3 = verts[triangle.index3 as usize].position[axis_index];
 
-        if *v1 <= split_plane || *v2 <= split_plane || *v3 <= split_plane {
+        if v1 <= split_plane || v2 <= split_plane || v3 <= split_plane {
             left_indices.push(index);
         }
-        if *v1 >= split_plane || *v2 >= split_plane || *v3 >= split_plane {
+        if v1 >= split_plane || v2 >= split_plane || v3 >= split_plane {
             right_indices.push(index);
         }
     }
