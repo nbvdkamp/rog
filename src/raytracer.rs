@@ -109,6 +109,10 @@ impl Raytracer {
         (buffer, start.elapsed().as_millis() as f64 / 1000.0)
     }
 
+    pub fn get_num_tris(&self) -> usize {
+        self.triangles.len()
+    }
+
     fn trace(&self, ray: Ray, accel_index: usize) -> Color {
         let mut result = Color::new(0., 0., 0., 1.);
 

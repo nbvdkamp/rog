@@ -177,7 +177,7 @@ fn accel_benchmark() {
         let scene = Scene::load(format!("res/{}.glb", path)).unwrap();
         let raytracer = Raytracer::new(&scene);
 
-        println!("\nFilename: {}", path);
+        println!("\nFilename: {}, tris: {}", path, raytracer.get_num_tris());
         println!("{: <25} | {: <10} | {: <10} | {: <10} | {: <10}", "Acceleration structure", "Time (s)", "Nodes/ray", "Tests/ray", "Hits/test", );
 
         for i in 0..raytracer.accel_structures.len() {
