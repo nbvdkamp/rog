@@ -70,9 +70,9 @@ impl BoundingBox {
     pub fn t_distance_from_ray(&self, ray: &Ray, inv_dir: &Vector3<f32>) -> f32 {
         let t0 = (self.min - ray.origin).mul_element_wise(*inv_dir);
         let t1 = (self.max - ray.origin).mul_element_wise(*inv_dir);
-        let tmax = elementwise_max(t0, t1);
+        let tmin = elementwise_min(t0, t1);
 
-        min_element(tmax)
+        max_element(tmin)
     }
 
     pub fn intersects_bounding_box(&self, other: &BoundingBox) -> bool {
@@ -150,5 +150,31 @@ mod tests {
         other.add(&Point3::new(3.0, 3.0, 3.0));
 
         assert_eq!(bb.intersects_bounding_box(&other), false);
+    }
+
+    #[test]
+    fn distance_from_ray() {
+        let mut bb = BoundingBox::new();
+        bb.add(&Point3::new(-1.0, -1.0, -1.0));
+        bb.add(&Point3::new(1.0, 1.0, 1.0));
+
+        let direction = Vector3::new(1., 0., 0.);
+        let inv_dir = 1. / direction;
+        let ray = Ray { origin: Point3::new(-2., 0., 0.), direction };
+
+        assert_eq!(bb.t_distance_from_ray(&ray, &inv_dir), 1.0);
+    }
+
+    #[test]
+    fn distance_from_ray_backwards() {
+        let mut bb = BoundingBox::new();
+        bb.add(&Point3::new(-1.0, -1.0, -1.0));
+        bb.add(&Point3::new(1.0, 1.0, 1.0));
+
+        let direction = Vector3::new(-1., 0., 0.);
+        let inv_dir = 1. / direction;
+        let ray = Ray { origin: Point3::new(2., 0., 0.), direction };
+
+        assert_eq!(bb.t_distance_from_ray(&ray, &inv_dir), 1.0);
     }
 }
