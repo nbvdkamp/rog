@@ -1,5 +1,3 @@
-use rand::{seq::IteratorRandom, thread_rng};
-
 use cgmath::{MetricSpace, Vector3};
 
 use crate::mesh::Vertex;
@@ -59,9 +57,11 @@ impl KdTree {
             item_indices.push(i);
         }
 
+        let scene_bounds = compute_bounding_box(verts);
+
         KdTree { 
-            root: create_node(verts, triangles, item_indices, 0),
-            scene_bounds: compute_bounding_box(verts),
+            root: create_node(verts, triangles, item_indices, 0, &scene_bounds),
+            scene_bounds,
             stats: Statistics::new(),
         }
     }
@@ -190,7 +190,7 @@ impl KdTree {
     }
 }
 
-fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<usize>, depth: i32) -> Option<Box<Node>> {
+fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<usize>, depth: i32, bounds: &BoundingBox) -> Option<Box<Node>> {
     if triangle_indices.len() == 0 {
         return None
     }
@@ -207,23 +207,38 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<u
     let mut left_indices = Vec::new();
     let mut right_indices = Vec::new();
 
-    let axis_index = (depth % 3) as usize;
-    let axis = Axis::from_index(axis_index);
+    let (axis, mid_plane) = bounds.find_split_plane();
+    let axis_index = axis.index();
 
-    let samples = triangle_indices.iter().choose_multiple(&mut thread_rng(), 10);
+    let mut split_plane = f32::MAX;
+    let mut least_dist = f32::MAX;
 
-    let mut sample_centers = Vec::new();
-    sample_centers.reserve(samples.len());
+    // Perfect vertex split
+    for index in &triangle_indices {
+        let bounds = &triangles[*index].bounds;
+        
+        let p = bounds.max[axis_index];
+        let dist = f32::abs(p - mid_plane);
 
-    for i in samples {
-        let triangle = &triangles[*i];
-        sample_centers.push(
-            (verts[triangle.index1 as usize].position[axis_index] +
-            verts[triangle.index2 as usize].position[axis_index] + 
-            verts[triangle.index3 as usize].position[axis_index]) / 3.0);
+        if  dist < least_dist {
+            split_plane = p;
+            least_dist = dist;
+        }
+
+        let p = bounds.min[axis_index];
+        let dist = f32::abs(p - mid_plane);
+
+        if  dist < least_dist {
+            split_plane = p;
+            least_dist = dist;
+        }
     }
 
-    let split_plane = sample_centers.iter().sum::<f32>() / sample_centers.len() as f32;
+    let mut left_bounds = bounds.clone();
+    left_bounds.set_max(&axis, split_plane);
+    let mut right_bounds = bounds.clone();
+    right_bounds.set_min(&axis, split_plane);
+
 
     for index in triangle_indices {
         let triangle = &triangles[index];
@@ -234,13 +249,13 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<u
         if v1 <= split_plane || v2 <= split_plane || v3 <= split_plane {
             left_indices.push(index);
         }
-        if v1 >= split_plane || v2 >= split_plane || v3 >= split_plane {
+        if v1 > split_plane || v2 > split_plane || v3 > split_plane {
             right_indices.push(index);
         }
     }
 
-    let left = create_node(verts, triangles, left_indices, depth + 1);
-    let right = create_node(verts, triangles, right_indices, depth + 1);
+    let left = create_node(verts, triangles, left_indices, depth + 1, &left_bounds);
+    let right = create_node(verts, triangles, right_indices, depth + 1, &right_bounds);
 
     Some(Box::new(Node::Inner {
         left_child: left,
