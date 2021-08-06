@@ -13,6 +13,7 @@ use ray::{Ray, IntersectionResult};
 use color::{Color, ColorNormalizable};
 use crate::{camera::PerspectiveCamera, material::Material, mesh::Vertex, scene::Scene};
 
+use self::aabb::BoundingBox;
 use self::acceleration::{
     // bih::BoundingIntervalHierarchy,
     bvh::BoundingVolumeHierarchy,
@@ -48,12 +49,16 @@ impl Raytracer {
             materials.push(mesh.material.clone());
 
             for i in (0..mesh.indices.len()).step_by(3) {
-                triangles.push(Triangle {
-                    index1: mesh.indices[i] + start_index,
-                    index2: mesh.indices[i + 1] + start_index,
-                    index3: mesh.indices[i + 2] + start_index,
-                    material_index 
-                });
+                let index1 = mesh.indices[i] + start_index;
+                let index2 = mesh.indices[i + 1] + start_index;
+                let index3 = mesh.indices[i + 2] + start_index;
+                
+                let mut bounds = BoundingBox::new();
+                bounds.add(&verts[index1 as usize].position);
+                bounds.add(&verts[index2 as usize].position);
+                bounds.add(&verts[index3 as usize].position);
+
+                triangles.push(Triangle { index1, index2, index3, material_index, bounds });
             }
         }
 

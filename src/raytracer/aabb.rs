@@ -5,8 +5,8 @@ use crate::util::*;
 
 #[derive(Debug, Copy, Clone)]
 pub struct BoundingBox {
-    min: Point3<f32>,
-    max: Point3<f32>,
+    pub min: Point3<f32>,
+    pub max: Point3<f32>,
 }
 
 impl BoundingBox {
