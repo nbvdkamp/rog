@@ -93,49 +93,43 @@ impl BoundingVolumeHierarchyRec {
 
         // Both children are intersected
 
-        
-        if intersecting_bounds(left, right) {
-            // If the childrens bboxes overlap we have to check all options
-            let l = self.intersect(left, ray, inv_dir, verts, triangles);
-            let r = self.intersect(right, ray, inv_dir, verts, triangles);
+        let dist_to_left_box = intersects_bounds_distance(left, ray, inv_dir);
+        let dist_to_right_box = intersects_bounds_distance(right, ray, inv_dir);
 
-            if let TraceResult::Hit(_, hit_pos_l) = l {
-                if let TraceResult::Hit(_, hit_pos_r) = r {
-                    let distance_l = hit_pos_l.distance2(ray.origin);
-                    let distance_r = hit_pos_r.distance2(ray.origin);
+        if dist_to_left_box < dist_to_right_box {
+            self.intersect_both_children_hit(left, right, dist_to_right_box, ray, inv_dir, verts, triangles)
+        } else {
+            self.intersect_both_children_hit(right, left, dist_to_left_box, ray, inv_dir, verts, triangles)
+        }
+    }
 
-                    if distance_l <= distance_r {
-                        l
+    fn intersect_both_children_hit(&self, first_hit_child: &Option<Box<Node>>, second_hit_child: &Option<Box<Node>>, dist_to_second_box: f32,
+                        ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+
+        let first_result = self.intersect(&first_hit_child, ray, inv_dir, verts, triangles);
+
+        if let TraceResult::Hit(_, hit_pos_first) = first_result {
+            let distance_first_hit = hit_pos_first.distance2(ray.origin);
+
+            if distance_first_hit < dist_to_second_box * dist_to_second_box {
+                first_result
+            } else {
+                let second_result = self.intersect(second_hit_child, ray, inv_dir, verts, triangles);
+
+                if let TraceResult::Hit(_, hit_pos_second) = second_result {
+                    let distance_second_hit = hit_pos_second.distance2(ray.origin);
+
+                    if distance_second_hit < distance_first_hit {
+                        second_result
                     } else {
-                        r
+                        first_result
                     }
                 } else {
-                    l
+                    first_result
                 }
-            } else {
-                r
             }
-
         } else {
-            // if the bboxes are disjoint and the closest one has a hit we can skip the other
-            // TODO this doesn't seem to help yet, maybe a better construction method for a better tree is required?
-            if intersects_bounds_distance(left, ray, inv_dir) < intersects_bounds_distance(right, ray, inv_dir) {
-                let l = self.intersect(left, ray, inv_dir, verts, triangles);
-
-                if let TraceResult::Hit(..) = l {
-                    l
-                } else {
-                    self.intersect(right, ray, inv_dir, verts, triangles)
-                }
-            } else {
-                let r = self.intersect(right, ray, inv_dir, verts, triangles);
-
-                if let TraceResult::Hit(..) = r {
-                    r
-                } else {
-                    self.intersect(left, ray, inv_dir, verts, triangles)
-                }
-            }
+            self.intersect(second_hit_child, ray, inv_dir, verts, triangles)
         }
     }
 
