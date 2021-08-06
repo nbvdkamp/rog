@@ -196,7 +196,7 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<u
     }
 
     let early_term_leaf_size = 10;
-    let max_depth = f32::log2(triangles.len() as f32) as i32;
+    let max_depth = (f32::log2(triangles.len() as f32) * 1.2) as i32;
 
     if triangle_indices.len() <= early_term_leaf_size || depth > max_depth {
         return Some(Box::new(Node::Leaf {
