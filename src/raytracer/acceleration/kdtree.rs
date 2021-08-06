@@ -108,17 +108,16 @@ impl KdTree {
         let dist_to_right_box = right_bounds.t_distance_from_ray(ray, &inv_dir);
 
         if dist_to_left_box < dist_to_right_box {
-            self.intersect_both_children_hit(dist_to_right_box, left, right, 
-    left_bounds, right_bounds, ray, inv_dir, verts, triangles)
+            self.intersect_both_children_hit(left, left_bounds, 
+                right, right_bounds, dist_to_right_box, ray, inv_dir, verts, triangles)
         } else {
-            self.intersect_both_children_hit(dist_to_left_box, right, left, 
-    right_bounds, left_bounds, ray, inv_dir, verts, triangles)
+            self.intersect_both_children_hit(right, right_bounds, 
+                left, left_bounds, dist_to_left_box, ray, inv_dir, verts, triangles)
         }
     }
 
-    fn intersect_both_children_hit(&self, dist_to_second_box: f32,
-                        first_hit_child: &Option<Box<Node>>, second_hit_child: &Option<Box<Node>>,
-                        first_bounds: BoundingBox, second_bounds: BoundingBox,
+    fn intersect_both_children_hit(&self, first_hit_child: &Option<Box<Node>>, first_bounds: BoundingBox,
+                        second_hit_child: &Option<Box<Node>>, second_bounds: BoundingBox, dist_to_second_box: f32,
                         ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
 
         let first_result = self.intersect(&first_hit_child, ray, inv_dir, verts, triangles, first_bounds);
