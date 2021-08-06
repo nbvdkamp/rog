@@ -108,57 +108,43 @@ impl KdTree {
         let dist_to_right_box = right_bounds.t_distance_from_ray(ray, &inv_dir);
 
         if dist_to_left_box < dist_to_right_box {
-            let l = self.intersect(left, ray, inv_dir, verts, triangles, left_bounds);
+            self.intersect_both_children_hit(dist_to_right_box, left, right, 
+    left_bounds, right_bounds, ray, inv_dir, verts, triangles)
+        } else {
+            self.intersect_both_children_hit(dist_to_left_box, right, left, 
+    right_bounds, left_bounds, ray, inv_dir, verts, triangles)
+        }
+    }
 
-            if let TraceResult::Hit(_, hit_pos_l) = l {
-                let distance_l = hit_pos_l.distance2(ray.origin);
+    fn intersect_both_children_hit(&self, dist_to_second_box: f32,
+                        first_hit_child: &Option<Box<Node>>, second_hit_child: &Option<Box<Node>>,
+                        first_bounds: BoundingBox, second_bounds: BoundingBox,
+                        ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
 
-                if distance_l < dist_to_right_box * dist_to_right_box {
-                    l
-                } else {
-                    let r = self.intersect(right, ray, inv_dir, verts, triangles, right_bounds);
+        let first_result = self.intersect(&first_hit_child, ray, inv_dir, verts, triangles, first_bounds);
 
-                    if let TraceResult::Hit(_, hit_pos_r) = r {
-                        let distance_r = hit_pos_r.distance2(ray.origin);
+        if let TraceResult::Hit(_, hit_pos_l) = first_result {
+            let distance_l = hit_pos_l.distance2(ray.origin);
 
-                        if distance_r < distance_l {
-                            r
-                        } else {
-                            l
-                        }
-                    } else {
-                        l
-                    }
-                }
+            if distance_l < dist_to_second_box * dist_to_second_box {
+                first_result
             } else {
-                self.intersect(right, ray, inv_dir, verts, triangles, right_bounds)
+                let second_result = self.intersect(second_hit_child, ray, inv_dir, verts, triangles, second_bounds);
+
+                if let TraceResult::Hit(_, hit_pos_r) = second_result {
+                    let distance_r = hit_pos_r.distance2(ray.origin);
+
+                    if distance_r < distance_l {
+                        second_result
+                    } else {
+                        first_result
+                    }
+                } else {
+                    first_result
+                }
             }
         } else {
-            let r = self.intersect(right, ray, inv_dir, verts, triangles, right_bounds);
-
-            if let TraceResult::Hit(_, hit_pos_r) = r {
-                let distance_r = hit_pos_r.distance2(ray.origin);
-
-                if distance_r < dist_to_left_box * dist_to_left_box {
-                    r
-                } else {
-                    let l = self.intersect(left, ray, inv_dir, verts, triangles, left_bounds);
-
-                    if let TraceResult::Hit(_, hit_pos_l) = l {
-                        let distance_l = hit_pos_l.distance2(ray.origin);
-
-                        if distance_l < distance_r {
-                            l
-                        } else {
-                            r
-                        }
-                    } else {
-                        r
-                    }
-                }
-            } else {
-                self.intersect(left, ray, inv_dir, verts, triangles, left_bounds)
-            }
+            self.intersect(second_hit_child, ray, inv_dir, verts, triangles, second_bounds)
         }
     }
 
