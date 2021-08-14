@@ -177,38 +177,6 @@ fn intersects_bounds_distance(node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: 
     }
 }
 
-fn intersecting_bounds(left_opt: &Option<Box<Node>>, right_opt: &Option<Box<Node>>) -> bool {
-    let left_bounds;
-
-    match left_opt {
-        Some(node) => {
-            let node = node.as_ref();
-            match node {
-                Node::Inner { bounds, .. } => {
-                    left_bounds = bounds.clone();
-                }
-                Node::Leaf {  bounds , .. } => {
-                    left_bounds = bounds.clone();
-                }
-            }
-        }
-        None => {
-            return false;
-        }
-    }
-
-    match right_opt {
-        Some(node) => {
-            let node = node.as_ref();
-            match node {
-                Node::Inner { bounds, .. } => left_bounds.intersects_bounding_box(bounds),
-                Node::Leaf { bounds , .. } => left_bounds.intersects_bounding_box(bounds)
-            }
-        }
-        None => false
-    }
-}
-
 fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: &mut Vec<usize>) -> Option<Box<Node>> {
     if triangle_indices.len() == 0 {
         return None

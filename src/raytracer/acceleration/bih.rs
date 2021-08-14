@@ -1,140 +1,245 @@
+use cgmath::{MetricSpace, Vector3};
+
 use crate::mesh::Vertex;
 use crate::raytracer::triangle::Triangle;
-use crate::raytracer::Ray;
+use crate::raytracer::{Ray, IntersectionResult};
 
 use super::super::axis::Axis;
 use super::super::aabb::BoundingBox;
 use super::structure::{AccelerationStructure, TraceResult};
+use super::statistics::{Statistics, StatisticsStore};
 
 pub struct BoundingIntervalHierarchy {
-    nodes: Vec<Node>,
+    root: Option<Box<Node>>,
+    scene_bounds: BoundingBox,
+    stats: Statistics,
 }
 
 enum Node {
     Leaf {
-        items: i32
+        item_index: u32
     },
     Inner {
-        left_child: i32,
-        right_child: i32,
-        clip_left: f32,
-        clip_right: f32,
+        left_child: Option<Box<Node>>,
+        right_child: Option<Box<Node>>,
+        left_plane: f32,
+        right_plane: f32,
         axis: Axis,
     },
 }
 
-impl Node {
-    fn new_leaf() -> Node {
-        Node::Leaf { items: -1 }
+impl AccelerationStructure for BoundingIntervalHierarchy {
+    fn intersect(&self, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+        self.stats.count_ray();
+
+        let inv_dir = 1.0 / ray.direction;
+
+        if !self.scene_bounds.intersects_ray(ray, &inv_dir) {
+            return TraceResult::Miss;
+        }
+
+        self.intersect(&self.root, ray, inv_dir, verts, triangles, self.scene_bounds)
     }
 
-    fn new_inner() -> Node {
-        Node::Inner { 
-            left_child: -1,
-            right_child: -1,
-            clip_left: f32::MIN,
-            clip_right: f32::MAX,
-            axis: Axis::X,
-        }
+    fn get_name(&self) -> &str {
+        "BIH"
+    }
+
+    fn get_statistics(&self) -> StatisticsStore {
+        self.stats.get_copy()
     }
 }
 
-impl AccelerationStructure for BoundingIntervalHierarchy {
-    fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
-        let mut nodes = Vec::new();
-
-        let bounds = compute_bounding_box(&verts);
+impl BoundingIntervalHierarchy {
+    pub fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
         let mut item_indices = Vec::new();
 
         for i in 0..triangles.len() {
             item_indices.push(i);
         }
 
-        nodes.push(Node::new_inner());
+        let scene_bounds = compute_bounding_box(verts);
 
-        let mut stack = Vec::new();
-        stack.push((0, bounds, item_indices));
+        BoundingIntervalHierarchy { 
+            root: create_node(verts, triangles, item_indices, 0, &scene_bounds),
+            scene_bounds,
+            stats: Statistics::new(),
+        }
+    }
 
-        while let Some((index, bounds, item_indices)) = stack.pop() {
-            let new_left_index = nodes.len() as i32;
-            let new_right_index = new_left_index + 1;
-            let left_is_leaf;
-            let right_is_leaf;
-
-            let node = nodes.get_mut(index).unwrap();
-
-            match node {
-                Node::Inner { left_child, right_child, clip_left, clip_right, axis } => {
-                    let (split_axis, mid) = bounds.find_split_plane();
-                    *axis = split_axis;
-
-
-                    let mut left_indices = Vec::new();
-                    let mut right_indices = Vec::new();
-
-                    for index in item_indices {
-                        let v1 = &verts[triangles[index].index1 as usize].position[axis.index()];
-                        let v2 = &verts[triangles[index].index2 as usize].position[axis.index()];
-                        let v3 = &verts[triangles[index].index3 as usize].position[axis.index()];
-
-                        // Simplistic heuristic, probably better to divide by surface on each side
-                        if *v1 >= mid && *v2 >= mid {
-                            right_indices.push(index);
-
-                            let min = f32::min(*v1, f32::min(*v2, *v3));
-                            *clip_right = f32::min(*clip_right, min);
-                        } else {
-                            left_indices.push(index);
-
-                            let max = f32::max(*v1, f32::max(*v2, *v3));
-                            *clip_left = f32::max(*clip_left, max);
-                        }
-                    }
-
-                    left_is_leaf = left_indices.len() < 2;
-                    right_is_leaf = right_indices.len() < 2;
-
-                    *left_child = new_left_index;
-                    *right_child = new_right_index;
-
-                    // TODO test if this can be left out for empty leaves
-
-                    if !left_is_leaf {
-                        let mut left_bounds = bounds;
-                        left_bounds.set_max(axis, *clip_left);
-                        stack.push((new_left_index as usize, left_bounds, left_indices));
-                    }
-
-                    if !right_is_leaf {
-                        let mut right_bounds = bounds;
-                        right_bounds.set_min(axis, *clip_right);
-                        stack.push((new_right_index as usize, right_bounds, right_indices));
-                    }
+    fn intersect(&self, node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle], bounds: BoundingBox) -> TraceResult {
+        match node_opt {
+            Some(node) => {
+                let node = node.as_ref();
+                match node {
+                    Node::Inner { left_child, right_child, left_plane, right_plane, axis } => 
+                        self.inner_intersect(left_child, right_child, bounds, *left_plane, *right_plane, *axis, ray, inv_dir, verts, triangles),
+                    Node::Leaf { item_index } => 
+                        self.leaf_intersect(*item_index, ray, verts, triangles)
                 }
-                _ => panic!("Unreachable")
             }
+            None => TraceResult::Miss
+        }
+    }
 
-            if left_is_leaf {
-                nodes.push(Node::new_leaf());
-            } else {
-                nodes.push(Node::new_inner());
-            }
+    fn inner_intersect(&self, left: &Option<Box<Node>>, right: &Option<Box<Node>>, bounds: BoundingBox, left_plane: f32, right_plane: f32, axis: Axis,
+                    ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+        self.stats.count_inner_node_traversal();
 
-            if right_is_leaf {
-                nodes.push(Node::new_leaf());
+        let mut left_bounds = bounds;
+        left_bounds.set_max(&axis, left_plane);
+        let mut right_bounds = bounds;
+        right_bounds.set_min(&axis, right_plane);
+        
+        let hit_l_box = left_bounds.intersects_ray(ray, &inv_dir);
+        let hit_r_box = right_bounds.intersects_ray(ray, &inv_dir);
+
+        if !hit_l_box && !hit_r_box {
+            return TraceResult::Miss;
+        } else if hit_l_box && !hit_r_box {
+            return self.intersect(left, ray, inv_dir, verts, triangles, left_bounds);
+        } else if !hit_l_box && hit_r_box {
+            return self.intersect(right, ray, inv_dir, verts, triangles, right_bounds);
+        } 
+
+        // We hit both children's bounds, so check which is hit first
+        // If there is an intersection in that one that is closer than the other child's bounds we can stop
+
+        let dist_to_left_box = left_bounds.t_distance_from_ray(ray, &inv_dir);
+        let dist_to_right_box = right_bounds.t_distance_from_ray(ray, &inv_dir);
+
+        if dist_to_left_box < dist_to_right_box {
+            self.intersect_both_children_hit(left, left_bounds, 
+                right, right_bounds, dist_to_right_box, ray, inv_dir, verts, triangles)
+        } else {
+            self.intersect_both_children_hit(right, right_bounds, 
+                left, left_bounds, dist_to_left_box, ray, inv_dir, verts, triangles)
+        }
+    }
+
+    fn intersect_both_children_hit(&self, first_hit_child: &Option<Box<Node>>, first_bounds: BoundingBox,
+                        second_hit_child: &Option<Box<Node>>, second_bounds: BoundingBox, dist_to_second_box: f32,
+                        ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+
+        let first_result = self.intersect(&first_hit_child, ray, inv_dir, verts, triangles, first_bounds);
+
+        if let TraceResult::Hit(_, hit_pos_first) = first_result {
+            let distance_first_hit = hit_pos_first.distance2(ray.origin);
+
+            if distance_first_hit < dist_to_second_box * dist_to_second_box {
+                first_result
             } else {
-                nodes.push(Node::new_inner());
+                let second_result = self.intersect(second_hit_child, ray, inv_dir, verts, triangles, second_bounds);
+
+                if let TraceResult::Hit(_, hit_pos_second) = second_result {
+                    let distance_second_hit = hit_pos_second.distance2(ray.origin);
+
+                    if distance_second_hit < distance_first_hit {
+                        second_result
+                    } else {
+                        first_result
+                    }
+                } else {
+                    first_result
+                }
             }
+        } else {
+            self.intersect(second_hit_child, ray, inv_dir, verts, triangles, second_bounds)
+        }
+    }
+
+    fn leaf_intersect(&self, item_index: u32, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+        self.stats.count_intersection_test();
+
+        let triangle = &triangles[item_index as usize];
+            let p1 = &verts[triangle.index1 as usize];
+            let p2 = &verts[triangle.index2 as usize];
+            let p3 = &verts[triangle.index3 as usize];
+
+        if let IntersectionResult::Hit(hit_pos) = ray.intersect_triangle(p1.position, p2.position, p3.position) {
+            self.stats.count_intersection_hit();
+
+            TraceResult::Hit(item_index as i32, hit_pos)
+        } else {
+            TraceResult::Miss
+        }
+    }
+}
+
+fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<usize>, depth: i32, bounds: &BoundingBox) -> Option<Box<Node>> {
+    if triangle_indices.len() == 0 {
+        return None
+    } else if triangle_indices.len() == 1 {
+        return Some(Box::new(Node::Leaf {
+            item_index: triangle_indices[0] as u32,
+        }));
+    }
+    
+    let mut left_indices = Vec::new();
+    let mut right_indices = Vec::new();
+
+    let (axis, mid_plane) = bounds.find_split_plane();
+    let axis_index = axis.index();
+
+    let mut split_plane = triangles[0].bounds.max[axis_index];
+    let mut least_dist = f32::abs(split_plane - mid_plane);
+
+    // Perfect vertex split
+
+    // Iterate over all but the first and last triangle
+    for index in triangle_indices.iter().skip(1).take(triangle_indices.len() - 2) {
+        let bounds = &triangles[*index].bounds;
+        
+        let p = bounds.max[axis_index];
+        let dist = f32::abs(p - mid_plane);
+
+        if  dist < least_dist {
+            split_plane = p;
+            least_dist = dist;
         }
 
-        nodes.push(Node::Leaf{ items: 10 });
+        // let p = bounds.min[axis_index];
+        // let dist = f32::abs(p - mid_plane);
 
-        BoundingIntervalHierarchy { nodes }
+        // if  dist < least_dist {
+        //     split_plane = p;
+        //     least_dist = dist;
+        // }
     }
 
-    fn intersect(&self, ray: &Ray) -> TraceResult {
-        TraceResult::Miss
+    let mut left_plane = f32::MIN;
+    let mut right_plane = f32::MAX;
+
+    for index in triangle_indices {
+        let triangle = &triangles[index];
+        let v1 = verts[triangle.index1 as usize].position[axis_index];
+        let v2 = verts[triangle.index2 as usize].position[axis_index];
+        let v3 = verts[triangle.index3 as usize].position[axis_index];
+
+        if v1 <= split_plane || v2 <= split_plane || v3 <= split_plane {
+            left_indices.push(index);
+            left_plane = f32::max(left_plane, triangle.bounds.max[axis_index]);
+        } else {
+            right_indices.push(index);
+            right_plane = f32::min(right_plane, triangle.bounds.min[axis_index]);
+        }
     }
+
+    let mut left_bounds = bounds.clone();
+    left_bounds.set_max(&axis, left_plane);
+    let mut right_bounds = bounds.clone();
+    right_bounds.set_min(&axis, right_plane);
+
+    let left = create_node(verts, triangles, left_indices, depth + 1, &left_bounds);
+    let right = create_node(verts, triangles, right_indices, depth + 1, &right_bounds);
+
+    Some(Box::new(Node::Inner {
+        left_child: left,
+        right_child: right,
+        left_plane,
+        right_plane,
+        axis
+    }))
 }
 
 fn compute_bounding_box(vertices: &[Vertex]) -> BoundingBox {
