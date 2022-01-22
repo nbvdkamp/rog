@@ -70,7 +70,7 @@ impl Raytracer {
             accel_structures: Vec::new(),
         };
 
-        result.accel_structures.push(Box::new(BoundingIntervalHierarchy::new(&result.verts, &result.triangles)));
+        // result.accel_structures.push(Box::new(BoundingIntervalHierarchy::new(&result.verts, &result.triangles)));
         result.accel_structures.push(Box::new(BoundingVolumeHierarchy::new(&result.verts, &result.triangles)));
         result.accel_structures.push(Box::new(BoundingVolumeHierarchyRec::new(&result.verts, &result.triangles)));
         result.accel_structures.push(Box::new(KdTree::new(&result.verts, &result.triangles)));
