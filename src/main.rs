@@ -1,4 +1,5 @@
 use glfw::{Context as _, WindowEvent, Key, Action};
+use cgmath::Vector2;
 
 use luminance_glfw::GlfwSurface;
 use luminance_windowing::{WindowDim, WindowOpt};
@@ -144,13 +145,12 @@ impl App {
 
     fn handle_key_event(&self, key: Key, action: Action) {
         if key == Key::Enter && action == Action::Press {
-            let width = 1920;
-            let height = 1080;
+            let image_size = Vector2::new(1920, 1080);
 
-            let (buffer, time_elapsed) = self.raytracer.render(width, height, 2);
+            let (buffer, time_elapsed) = self.raytracer.render(image_size, 2);
             println!("Finished rendering in {} seconds", time_elapsed);
 
-            let save_result = image::save_buffer("output/result.png", &buffer, width, height, image::ColorType::Rgb8);
+            let save_result = image::save_buffer("output/result.png", &buffer, image_size.x, image_size.y, image::ColorType::Rgb8);
 
             match save_result {
                 Ok(_) => println!("File was saved succesfully"),
@@ -170,8 +170,7 @@ fn accel_benchmark() {
     ];
     
     let resolution_factor = 15;
-    let image_width = 16 * resolution_factor;
-    let image_height = 9 * resolution_factor;
+    let image_size = Vector2::new(16 * resolution_factor, 9 * resolution_factor);
 
     for path in test_scene_filenames {
         let scene = Scene::load(format!("res/{}.glb", path)).unwrap();
@@ -181,7 +180,7 @@ fn accel_benchmark() {
         println!("{: <25} | {: <10} | {: <10} | {: <10} | {: <10}", "Acceleration structure", "Time (s)", "Nodes/ray", "Tests/ray", "Hits/test", );
 
         for i in 0..raytracer.accel_structures.len() {
-            let (_, time_elapsed) = raytracer.render(image_width, image_height, i);
+            let (_, time_elapsed) = raytracer.render(image_size, i);
 
             let stats = raytracer.accel_structures[i].get_statistics();
             let traversals_per_ray = stats.inner_node_traversals as f32 / stats.rays as f32;
