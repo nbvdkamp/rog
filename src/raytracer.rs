@@ -1,5 +1,5 @@
 use std::time::Instant;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
 use crossbeam_utils::thread;
 use cgmath::{InnerSpace, Point3, Vector2, Vector4};
@@ -93,14 +93,18 @@ impl Raytracer {
         let mut buffer = Vec::<u8>::new();
         buffer.resize(3 * (image_size.x * image_size.y) as usize, 0);
 
-        let buffer= Mutex::new(buffer);
+        let buffer= Arc::new(Mutex::new(buffer));
 
-        let thread_count = 2;
+        let thread_count = 16;
+        let rows_per_thread = image_size.y / thread_count;
 
         thread::scope(|s| {
-            for _ in 0..thread_count {
-                s.spawn(|_| {
-                    for y in 0..image_size.y {
+            for thread_index in 0..thread_count {
+                let buffer = Arc::clone(&buffer);
+
+                s.spawn(move |_| {
+                    // Simple row-wise split of work
+                    for y in (thread_index * rows_per_thread)..((thread_index + 1) * rows_per_thread) {
                         for x in 0..image_size.x {
                             let offset = Vector2::new(0.5, 0.5);
                             let screen = self.pixel_to_screen(Vector2::new(x, y), offset, image_size, aspect_ratio, fov_factor);
@@ -122,7 +126,9 @@ impl Raytracer {
             }
         }).unwrap();
 
-        (buffer.into_inner().expect("Cannot unlock buffer mutex"), start.elapsed().as_millis() as f64 / 1000.0)
+        let lock = Arc::try_unwrap(buffer).expect("Buffer lock has multiple owners");
+
+        (lock.into_inner().expect("Cannot unlock buffer mutex"), start.elapsed().as_millis() as f64 / 1000.0)
     }
 
     fn pixel_to_screen(&self, pixel: Vector2<u32>, offset: Vector2<f32>, image_size: Vector2<u32>, aspect_ratio: f32, fov_factor: f32) -> Vector2<f32> {
