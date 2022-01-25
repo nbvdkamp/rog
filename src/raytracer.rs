@@ -1,4 +1,7 @@
 use std::time::Instant;
+use std::sync::{Arc, Mutex, RwLock};
+
+use crossbeam_utils::thread;
 use cgmath::{InnerSpace, Point3, Vector2, Vector4};
 
 mod ray;
@@ -28,7 +31,7 @@ pub struct Raytracer {
     triangles: Vec<Triangle>,
     materials: Vec<Material>,
     camera: PerspectiveCamera,
-    pub accel_structures: Vec<Box<dyn AccelerationStructure>>,
+    pub accel_structures: Vec<Box<dyn AccelerationStructure + Sync>>,
 }
 
 impl Raytracer {
@@ -90,25 +93,36 @@ impl Raytracer {
         let mut buffer = Vec::<u8>::new();
         buffer.resize(3 * (image_size.x * image_size.y) as usize, 0);
 
-        for y in 0..image_size.y {
-            for x in 0..image_size.x {
-                let offset = Vector2::new(0.5, 0.5);
-                let screen = self.pixel_to_screen(Vector2::new(x, y), offset, image_size, aspect_ratio, fov_factor);
+        let buffer= Mutex::new(buffer);
 
-                // Using w = 0 because this is a direction vector
-                let dir4 = cam_model * Vector4::new(screen.x, screen.y, -1., 0.).normalize();
-                let ray = Ray { origin: camera_pos, direction: dir4.truncate().normalize() };
+        let thread_count = 2;
 
-                let color = self.trace(ray, accel_index);
+        thread::scope(|s| {
+            for _ in 0..thread_count {
+                s.spawn(|_| {
+                    for y in 0..image_size.y {
+                        for x in 0..image_size.x {
+                            let offset = Vector2::new(0.5, 0.5);
+                            let screen = self.pixel_to_screen(Vector2::new(x, y), offset, image_size, aspect_ratio, fov_factor);
 
-                let pixel_index = 3 * (image_size.x * y + x) as usize;
-                buffer[pixel_index] = color.r_normalized();
-                buffer[pixel_index + 1] = color.g_normalized();
-                buffer[pixel_index + 2] = color.b_normalized();
+                            // Using w = 0 because this is a direction vector
+                            let dir4 = cam_model * Vector4::new(screen.x, screen.y, -1., 0.).normalize();
+                            let ray = Ray { origin: camera_pos, direction: dir4.truncate().normalize() };
+
+                            let color = self.trace(ray, accel_index);
+
+                            let pixel_index = 3 * (image_size.x * y + x) as usize;
+                            let mut buffer = buffer.lock().unwrap();
+                            buffer[pixel_index] = color.r_normalized();
+                            buffer[pixel_index + 1] = color.g_normalized();
+                            buffer[pixel_index + 2] = color.b_normalized();
+                        }
+                    }
+                });
             }
-        }
+        }).unwrap();
 
-        (buffer, start.elapsed().as_millis() as f64 / 1000.0)
+        (buffer.into_inner().expect("Cannot unlock buffer mutex"), start.elapsed().as_millis() as f64 / 1000.0)
     }
 
     fn pixel_to_screen(&self, pixel: Vector2<u32>, offset: Vector2<f32>, image_size: Vector2<u32>, aspect_ratio: f32, fov_factor: f32) -> Vector2<f32> {
