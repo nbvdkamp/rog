@@ -1,3 +1,4 @@
+use core::num;
 use std::time::Instant;
 use std::sync::{Arc, Mutex};
 
@@ -95,7 +96,7 @@ impl Raytracer {
 
         let buffer= Arc::new(Mutex::new(buffer));
 
-        let thread_count = 16;
+        let thread_count = u32::max(num_cpus::get() as u32 - 2, 1);
         let rows_per_thread = image_size.y / thread_count;
 
         thread::scope(|s| {
