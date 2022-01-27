@@ -168,6 +168,9 @@ fn accel_benchmark() {
         "cube",
         "simplest",
     ];
+
+    #[cfg(not(feature = "stats"))]
+    println!("Build with --features stats for traversal statistics");
     
     let resolution_factor = 15;
     let image_size = Vector2::new(16 * resolution_factor, 9 * resolution_factor);
@@ -177,17 +180,24 @@ fn accel_benchmark() {
         let raytracer = Raytracer::new(&scene);
 
         println!("\nFilename: {}, tris: {}", path, raytracer.get_num_tris());
-        println!("{: <25} | {: <10} | {: <10} | {: <10} | {: <10}", "Acceleration structure", "Time (s)", "Nodes/ray", "Tests/ray", "Hits/test", );
+        #[cfg(feature = "stats")]
+        println!("{: <25} | {: <10} | {: <10} | {: <10} | {: <10}", "Acceleration structure", "Time (s)", "Nodes/ray", "Tests/ray", "Hits/test");
+        #[cfg(not(feature = "stats"))]
+        println!("{: <25} | {: <10}", "Acceleration structure", "Time (s)");
 
         for i in 0..raytracer.accel_structures.len() {
             let (_, time_elapsed) = raytracer.render(image_size, i);
 
-            let stats = raytracer.accel_structures[i].get_statistics();
-            let traversals_per_ray = stats.inner_node_traversals as f32 / stats.rays as f32;
-            let tests_per_ray = stats.intersection_tests as f32 / stats.rays as f32;
-            let hits_per_test = stats.intersection_hits as f32 / stats.intersection_tests as f32;
-
-            println!("{: <25} | {: <10} | {: <10} | {: <10} | {: <10}", raytracer.accel_structures[i].get_name(), time_elapsed, traversals_per_ray, tests_per_ray, hits_per_test);
+            #[cfg(feature = "stats")]
+            {
+                let stats = raytracer.accel_structures[i].get_statistics();
+                let traversals_per_ray = stats.inner_node_traversals as f32 / stats.rays as f32;
+                let tests_per_ray = stats.intersection_tests as f32 / stats.rays as f32;
+                let hits_per_test = stats.intersection_hits as f32 / stats.intersection_tests as f32;
+                println!("{: <25} | {: <10} | {: <10} | {: <10} | {: <10}", raytracer.accel_structures[i].get_name(), time_elapsed, traversals_per_ray, tests_per_ray, hits_per_test);
+            }
+            #[cfg(not(feature = "stats"))]
+            println!("{: <25} | {: <10}", raytracer.accel_structures[i].get_name(), time_elapsed);
         }
     }
 }
