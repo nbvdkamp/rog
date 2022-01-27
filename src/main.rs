@@ -150,7 +150,7 @@ impl App {
             let (buffer, time_elapsed) = self.raytracer.render(image_size, 2);
             println!("Finished rendering in {} seconds", time_elapsed);
 
-            let save_result = image::save_buffer("output/result.png", &buffer, image_size.x, image_size.y, image::ColorType::Rgb8);
+            let save_result = image::save_buffer("output/result.png", &buffer, image_size.x as u32, image_size.y as u32, image::ColorType::Rgb8);
 
             match save_result {
                 Ok(_) => println!("File was saved succesfully"),

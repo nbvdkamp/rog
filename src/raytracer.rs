@@ -1,4 +1,3 @@
-use core::num;
 use std::time::Instant;
 use std::sync::{Arc, Mutex};
 
@@ -82,7 +81,7 @@ impl Raytracer {
         result
     }
 
-    pub fn render(&self, image_size: Vector2<u32>, accel_index: usize) -> (Vec::<u8>, f64) {
+    pub fn render(&self, image_size: Vector2<usize>, accel_index: usize) -> (Vec::<u8>, f64) {
         let aspect_ratio = image_size.x as f32 / image_size.y as f32;
         let fov_factor = (self.camera.y_fov / 2.).tan();
 
@@ -96,7 +95,7 @@ impl Raytracer {
 
         let buffer= Arc::new(Mutex::new(buffer));
 
-        let thread_count = u32::max(num_cpus::get() as u32 - 2, 1);
+        let thread_count = usize::max(num_cpus::get() - 2, 1);
         let rows_per_thread = image_size.y / thread_count;
 
         thread::scope(|s| {
@@ -104,8 +103,11 @@ impl Raytracer {
                 let buffer = Arc::clone(&buffer);
 
                 s.spawn(move |_| {
+                    let y_start = thread_index * rows_per_thread;
+                    let y_end = (thread_index + 1) * rows_per_thread;
+
                     // Simple row-wise split of work
-                    for y in (thread_index * rows_per_thread)..((thread_index + 1) * rows_per_thread) {
+                    for y in y_start..y_end {
                         for x in 0..image_size.x {
                             let offset = Vector2::new(0.5, 0.5);
                             let screen = self.pixel_to_screen(Vector2::new(x, y), offset, image_size, aspect_ratio, fov_factor);
@@ -132,7 +134,7 @@ impl Raytracer {
         (lock.into_inner().expect("Cannot unlock buffer mutex"), start.elapsed().as_millis() as f64 / 1000.0)
     }
 
-    fn pixel_to_screen(&self, pixel: Vector2<u32>, offset: Vector2<f32>, image_size: Vector2<u32>, aspect_ratio: f32, fov_factor: f32) -> Vector2<f32> {
+    fn pixel_to_screen(&self, pixel: Vector2<usize>, offset: Vector2<f32>, image_size: Vector2<usize>, aspect_ratio: f32, fov_factor: f32) -> Vector2<f32> {
         let normalized_x = (pixel.x as f32 + offset.x) / image_size.x as f32;
         let normalized_y = (pixel.y as f32 + offset.y) / image_size.y as f32;
         let x = (2. * normalized_x - 1.) * fov_factor * aspect_ratio;
