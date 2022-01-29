@@ -31,6 +31,7 @@ pub struct Raytracer {
     triangles: Vec<Triangle>,
     materials: Vec<Material>,
     camera: PerspectiveCamera,
+    max_depth: usize,
     pub accel_structures: Vec<Box<dyn AccelerationStructure + Sync>>,
 }
 
@@ -70,6 +71,7 @@ impl Raytracer {
             triangles,
             materials,
             camera: scene.camera.clone(),
+            max_depth: 10,
             accel_structures: Vec::new(),
         };
 
@@ -116,7 +118,7 @@ impl Raytracer {
                             let dir4 = cam_model * Vector4::new(screen.x, screen.y, -1., 0.).normalize();
                             let ray = Ray { origin: camera_pos, direction: dir4.truncate().normalize() };
 
-                            let color = self.trace(ray, accel_index);
+                            let color = self.trace(ray, 0, accel_index);
 
                             let pixel_index = 3 * (image_size.x * y + x) as usize;
                             let mut buffer = buffer.lock().unwrap();
@@ -146,12 +148,18 @@ impl Raytracer {
         self.triangles.len()
     }
 
-    fn trace(&self, ray: Ray, accel_index: usize) -> Color {
+    fn trace(&self, ray: Ray, depth: usize, accel_index: usize) -> Color {
         let mut result = Color::new(0., 0., 0., 1.);
+        let light_pos: Point3<f32> = Point3::new(0., 2., 2.);
 
         if let TraceResult::Hit(triangle_index, hit_pos) = self.accel_structures[accel_index].intersect(&ray, &self.verts, &self.triangles) {
             let triangle = &self.triangles[triangle_index as usize];
-            result = self.materials[triangle.material_index as usize].base_color_factor;
+            let light_dir = light_pos - hit_pos;
+            let normal =  self.verts[triangle.index1 as usize].normal;
+            if depth < self.max_depth {
+                //trace(new ray, depth + 1, accel_index)
+            }
+            result = light_dir.dot(normal) * self.materials[triangle.material_index as usize].base_color_factor;
         }
 
         result
