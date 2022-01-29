@@ -1,18 +1,22 @@
-use glfw::{Context as _, WindowEvent, Key, Action};
+use glfw::{Context as _, WindowEvent, Key, Action, WindowMode, SwapInterval};
 use cgmath::Vector2;
 
-use luminance_glfw::GlfwSurface;
-use luminance_windowing::{WindowDim, WindowOpt};
+use luminance_glfw::{GlfwSurface, GlfwSurfaceError};
 use luminance_derive::UniformInterface;
-use luminance_front::pipeline::PipelineState;
-use luminance_front::render_state::RenderState;
-use luminance_front::context::GraphicsContext;
-use luminance_front::tess::{Tess, Interleaved};
-use luminance::shader::Uniform;
+use luminance_front::{
+    pipeline::PipelineState,
+    render_state::RenderState,
+    context::GraphicsContext,
+    shader::{
+        Uniform, 
+        types::{Mat44, Vec4}
+    },
+    tess::{Tess, Interleaved}
+};
 
-use std::process::exit;
 use std::path::Path;
 use std::env;
+use std::vec;
 
 mod mesh;
 mod scene;
@@ -24,6 +28,7 @@ use mesh::{LuminanceVertex, VertexIndex, VertexSemantics};
 use scene::Scene;
 use material::Material;
 use raytracer::Raytracer;
+use util::{mat_to_shader_type, vec_to_shader_type};
 
 fn main() {
     if env::args().any(|arg| arg == "--bench") {
@@ -38,11 +43,11 @@ fn main() {
 #[derive(Debug, UniformInterface)]
 struct ShaderInterface {
     #[uniform(unbound)]
-    u_projection: Uniform<[[f32; 4]; 4]>,
+    u_projection: Uniform<Mat44<f32>>,
     #[uniform(unbound)]
-    u_view: Uniform<[[f32; 4]; 4]>,
+    u_view: Uniform<Mat44<f32>>,
     #[uniform(unbound)]
-    u_base_color: Uniform<[f32; 4]>,
+    u_base_color: Uniform<Vec4<f32>>,
 }
 
 
@@ -52,6 +57,11 @@ const FS_STR: &str = include_str!("color.fs");
 struct App {
     raytracer: Raytracer,
     scene: Scene,
+}
+
+#[derive(Debug)]
+pub enum PlatformError {
+  CannotCreateWindow,
 }
 
 impl App {
@@ -65,23 +75,18 @@ impl App {
     }
 
     fn run(&self) {
-        let dim = WindowDim::Windowed {
-            width: 960,
-            height: 540,
-        };
+        let surface = GlfwSurface::new(|glfw| {
+            let (mut window, events) = glfw
+                .create_window(960, 540, "Rust renderer", WindowMode::Windowed)
+                .ok_or_else(|| GlfwSurfaceError::UserError(PlatformError::CannotCreateWindow))?;
+            
+            window.make_current();
+            window.set_all_polling(true);
+            glfw.set_swap_interval(SwapInterval::Sync(1));
 
-        let surface_result = GlfwSurface::new_gl33("Window Title", WindowOpt::default().set_dim(dim));
-
-        let surface = match surface_result {
-            Ok(surface) => {
-                eprintln!("Graphics surface created");
-                surface
-            }
-            Err(e) => {
-                eprintln!("Could not create graphics surface:\n{}", e);
-                exit(1);
-            }
-        };
+            Ok((window, events))
+        })
+        .expect("Failed to create GLFW surface");
 
         let mut context = surface.context;
         let events = surface.events_rx;
@@ -120,9 +125,9 @@ impl App {
                     |_, mut shd_gate| {
                         for (tess, material) in &tesses {
                             shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
-                                iface.set(&unif.u_projection, projection.into());
-                                iface.set(&unif.u_view, view.into());
-                                iface.set(&unif.u_base_color , material.base_color_factor.into());
+                                iface.set(&unif.u_projection, mat_to_shader_type(projection));
+                                iface.set(&unif.u_view, mat_to_shader_type(view));
+                                iface.set(&unif.u_base_color , vec_to_shader_type(material.base_color_factor));
 
                                 rdr_gate.render(&RenderState::default(), |mut tess_gate| {
                                     tess_gate.render(tess)
