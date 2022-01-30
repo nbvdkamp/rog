@@ -118,7 +118,7 @@ impl Raytracer {
                             let dir4 = cam_model * Vector4::new(screen.x, screen.y, -1., 0.).normalize();
                             let ray = Ray { origin: camera_pos, direction: dir4.truncate().normalize() };
 
-                            let color = self.trace(ray, 0, accel_index);
+                            let color = self.radiance(ray, 0, accel_index);
 
                             let pixel_index = 3 * (image_size.x * y + x) as usize;
                             let mut buffer = buffer.lock().unwrap();
@@ -148,14 +148,16 @@ impl Raytracer {
         self.triangles.len()
     }
 
-    fn trace(&self, ray: Ray, depth: usize, accel_index: usize) -> Color {
+    fn radiance(&self, ray: Ray, depth: usize, accel_index: usize) -> Color {
         let mut result = Color::new(0., 0., 0., 1.);
         let light_pos: Point3<f32> = Point3::new(0., 2., 2.);
 
-        if let TraceResult::Hit{ triangle_index, t, u, v } = self.accel_structures[accel_index].intersect(&ray, &self.verts, &self.triangles) {
+        if let TraceResult::Hit{ triangle_index, t, u, v } = self.trace(&ray, accel_index) {
             let hit_pos = ray.traverse(t);
             let triangle = &self.triangles[triangle_index as usize];
-            let light_dir = (light_pos - hit_pos).normalize();
+            let light_vec = light_pos - hit_pos;
+            let light_dist = light_vec.magnitude();
+            let light_dir = light_vec / light_dist;
 
             // Interpolate the vertex normals
             let normal =
@@ -167,9 +169,24 @@ impl Raytracer {
                 //trace(new ray, depth + 1, accel_index)
             }
 
-            result = light_dir.dot(normal) * self.materials[triangle.material_index as usize].base_color_factor;
+            let shadow_ray = Ray { origin: hit_pos + 0.001 * normal, direction: light_dir };
+            let mut shadowed = false;
+
+            if let TraceResult::Hit{ t, .. } = self.trace(&shadow_ray, accel_index) {
+                if t < light_dist {
+                    shadowed = true;
+                }
+            }
+
+            if !shadowed {
+                result += light_dir.dot(normal) * self.materials[triangle.material_index as usize].base_color_factor;
+            }
         }
 
         result
+    }
+
+    fn trace(&self, ray: &Ray, accel_index: usize) -> TraceResult {
+        self.accel_structures[accel_index].intersect(&ray, &self.verts, &self.triangles)
     }
 }
