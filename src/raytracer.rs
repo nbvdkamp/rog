@@ -152,13 +152,15 @@ impl Raytracer {
         let mut result = Color::new(0., 0., 0., 1.);
         let light_pos: Point3<f32> = Point3::new(0., 2., 2.);
 
-        if let TraceResult::Hit(triangle_index, hit_pos) = self.accel_structures[accel_index].intersect(&ray, &self.verts, &self.triangles) {
+        if let TraceResult::Hit{ triangle_index, t, u, v } = self.accel_structures[accel_index].intersect(&ray, &self.verts, &self.triangles) {
+            let hit_pos = ray.traverse(t);
             let triangle = &self.triangles[triangle_index as usize];
             let light_dir = light_pos - hit_pos;
             let normal =  self.verts[triangle.index1 as usize].normal;
             if depth < self.max_depth {
                 //trace(new ray, depth + 1, accel_index)
             }
+
             result = light_dir.dot(normal) * self.materials[triangle.material_index as usize].base_color_factor;
         }
 

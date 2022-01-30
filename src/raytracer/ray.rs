@@ -8,7 +8,11 @@ pub struct Ray {
 #[derive(PartialEq, Debug)]
 pub enum IntersectionResult {
     Miss,
-    Hit(Point3<f32>),
+    Hit {
+        t: f32,
+        u: f32,
+        v: f32,
+    },
 }
 
 impl Ray {
@@ -43,11 +47,15 @@ impl Ray {
         let t = f * edge2.dot(q);
 
         if t > epsilon {
-            IntersectionResult::Hit(self.origin + self.direction * t)
+            IntersectionResult::Hit{ t, u, v }
         }
         else {
             IntersectionResult::Miss
         }
+    }
+
+    pub fn traverse(&self, t: f32) -> Point3<f32> {
+        self.origin + t * self.direction
     }
 }
 
@@ -58,7 +66,7 @@ mod tests {
     #[test]
     fn hit_triangle() {
         let ray = Ray { origin: Point3::new(0., 0., -1.), direction: Vector3::unit_z() };
-        assert_eq!(IntersectionResult::Hit(Point3::new(0., 0., 0.)), ray.intersect_triangle(
+        assert_eq!(IntersectionResult::Hit{ t: 1., u: 0.25, v: 0.5 }, ray.intersect_triangle(
             Point3::new(-1.0, -1.0, 0.0),
             Point3::new(1.0, -1.0, 0.0),
             Point3::new(0.0, 1.0, 0.0)
@@ -68,7 +76,7 @@ mod tests {
     #[test]
     fn barely_hit_triangle() {
         let ray = Ray { origin: Point3::new(0.0, 0.0, -1.0), direction: Vector3::unit_z() };
-        assert_eq!(IntersectionResult::Hit(Point3::new(0.0, 0.0, 0.0)), ray.intersect_triangle(
+        assert_eq!(IntersectionResult::Hit{ t: 1., u: 0., v: 0.5 }, ray.intersect_triangle(
             Point3::new(0.0, -1.0, 0.0),
             Point3::new(1.0, -1.0, 0.0),
             Point3::new(0.0, 1.0, 0.0)

@@ -3,12 +3,14 @@ use crate::raytracer::triangle::Triangle;
 use crate::raytracer::Ray;
 use super::statistics::StatisticsStore;
 
-use cgmath::Point3;
-
 pub enum TraceResult {
     Miss,
-    // Represents the triangle index and hit position
-    Hit(i32, Point3<f32>),
+    Hit {
+        triangle_index: i32,
+        t: f32,
+        u: f32,
+        v: f32,
+    },
 }
 
 pub trait AccelerationStructure {
