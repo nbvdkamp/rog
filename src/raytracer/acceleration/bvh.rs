@@ -46,7 +46,7 @@ impl BoundingVolumeHierarchy {
     pub fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
         let mut nodes = Vec::new();
 
-        let bounds = compute_bounding_box(&verts);
+        let bounds = compute_bounding_box(verts);
         let mut item_indices = Vec::new();
 
         for i in 0..triangles.len() {
@@ -103,8 +103,8 @@ impl BoundingVolumeHierarchy {
                         right_indices.push(*item);
                     }
 
-                    left_bounds = compute_bounding_box_triangle_indexed(&verts, &triangles, &left_indices);
-                    right_bounds = compute_bounding_box_triangle_indexed(&verts,  &triangles,&right_indices);
+                    left_bounds = compute_bounding_box_triangle_indexed(verts, triangles, &left_indices);
+                    right_bounds = compute_bounding_box_triangle_indexed(verts,  triangles,&right_indices);
 
                     left_is_leaf = left_indices.len() < 2;
                     right_is_leaf = right_indices.len() < 2;

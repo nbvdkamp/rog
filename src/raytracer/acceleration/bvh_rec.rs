@@ -106,7 +106,7 @@ impl BoundingVolumeHierarchyRec {
     fn intersect_both_children_hit(&self, first_hit_child: &Option<Box<Node>>, second_hit_child: &Option<Box<Node>>, dist_to_second_box: f32,
                         ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
 
-        let first_result = self.intersect(&first_hit_child, ray, inv_dir, verts, triangles);
+        let first_result = self.intersect(first_hit_child, ray, inv_dir, verts, triangles);
 
         if let TraceResult::Hit{ t: t_first, .. } = first_result {
             let hit_pos_first = ray.traverse(t_first);
@@ -180,7 +180,7 @@ fn intersects_bounds_distance(node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: 
 }
 
 fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: &mut Vec<usize>) -> Option<Box<Node>> {
-    if triangle_indices.len() == 0 {
+    if triangle_indices.is_empty() {
         return None
     }
 

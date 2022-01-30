@@ -78,7 +78,7 @@ impl App {
         let surface = GlfwSurface::new(|glfw| {
             let (mut window, events) = glfw
                 .create_window(960, 540, "Rust renderer", WindowMode::Windowed)
-                .ok_or_else(|| GlfwSurfaceError::UserError(PlatformError::CannotCreateWindow))?;
+                .ok_or(GlfwSurfaceError::UserError(PlatformError::CannotCreateWindow))?;
             
             window.make_current();
             window.set_all_polling(true);

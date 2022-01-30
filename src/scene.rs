@@ -56,7 +56,7 @@ fn parse_nodes(
         let transform = base_transform * transform_to_mat(node.transform());
 
         if let Some(mesh) = node.mesh() {
-            add_meshes_from_gltf_mesh(mesh, &buffers, transform, meshes);
+            add_meshes_from_gltf_mesh(mesh, buffers, transform, meshes);
         } else if let Some(cam) = node.camera() {
             if let Projection::Perspective(perspective) = cam.projection() {
                 *camera = PerspectiveCamera {

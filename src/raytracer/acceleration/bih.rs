@@ -121,7 +121,7 @@ impl BoundingIntervalHierarchy {
                         second_hit_child: &Option<Box<Node>>, second_bounds: BoundingBox, dist_to_second_box: f32,
                         ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
 
-        let first_result = self.intersect(&first_hit_child, ray, inv_dir, verts, triangles, first_bounds);
+        let first_result = self.intersect(first_hit_child, ray, inv_dir, verts, triangles, first_bounds);
 
         if let TraceResult::Hit{ t: t_first, .. } = first_result {
             let hit_pos_first = ray.traverse(t_first);
@@ -169,7 +169,7 @@ impl BoundingIntervalHierarchy {
 }
 
 fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<usize>, depth: i32, bounds: &BoundingBox) -> Option<Box<Node>> {
-    if triangle_indices.len() == 0 {
+    if triangle_indices.is_empty() {
         return None
     } else if triangle_indices.len() == 1 {
         return Some(Box::new(Node::Leaf {
@@ -227,9 +227,9 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<u
         }
     }
 
-    let mut left_bounds = bounds.clone();
+    let mut left_bounds = *bounds;
     left_bounds.set_max(&axis, left_plane);
-    let mut right_bounds = bounds.clone();
+    let mut right_bounds = *bounds;
     right_bounds.set_min(&axis, right_plane);
 
     let left = create_node(verts, triangles, left_indices, depth + 1, &left_bounds);
