@@ -155,7 +155,7 @@ impl Raytracer {
         if let TraceResult::Hit{ triangle_index, t, u, v } = self.accel_structures[accel_index].intersect(&ray, &self.verts, &self.triangles) {
             let hit_pos = ray.traverse(t);
             let triangle = &self.triangles[triangle_index as usize];
-            let light_dir = light_pos - hit_pos;
+            let light_dir = (light_pos - hit_pos).normalize();
 
             // Interpolate the vertex normals
             let normal =
