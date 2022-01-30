@@ -156,7 +156,13 @@ impl Raytracer {
             let hit_pos = ray.traverse(t);
             let triangle = &self.triangles[triangle_index as usize];
             let light_dir = light_pos - hit_pos;
-            let normal =  self.verts[triangle.index1 as usize].normal;
+
+            // Interpolate the vertex normals
+            let normal =
+                (1. - u - v) * self.verts[triangle.index1 as usize].normal +
+                u * self.verts[triangle.index2 as usize].normal +
+                v * self.verts[triangle.index3 as usize].normal;
+
             if depth < self.max_depth {
                 //trace(new ray, depth + 1, accel_index)
             }
