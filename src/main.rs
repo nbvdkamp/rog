@@ -24,6 +24,7 @@ mod camera;
 mod material;
 mod raytracer;
 mod util;
+mod sampling;
 use mesh::{LuminanceVertex, VertexIndex, VertexSemantics};
 use scene::Scene;
 use material::Material;

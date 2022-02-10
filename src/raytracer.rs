@@ -2,7 +2,7 @@ use std::time::Instant;
 use std::sync::{Arc, Mutex};
 
 use crossbeam_utils::thread;
-use cgmath::{InnerSpace, Point3, Vector2, Vector4};
+use cgmath::{InnerSpace, Point3, Vector2, Vector4, ElementWise};
 
 mod ray;
 mod triangle;
@@ -14,7 +14,13 @@ mod axis;
 use triangle::Triangle;
 use ray::{Ray, IntersectionResult};
 use color::{Color, ColorNormalizable};
-use crate::{camera::PerspectiveCamera, material::Material, mesh::Vertex, scene::Scene};
+use crate::{
+    camera::PerspectiveCamera,
+    material::Material,
+    mesh::Vertex,
+    scene::Scene,
+    sampling::cos_weighted_sample_hemisphere,
+};
 
 use self::aabb::BoundingBox;
 use self::acceleration::{
@@ -155,6 +161,7 @@ impl Raytracer {
         if let TraceResult::Hit{ triangle_index, t, u, v } = self.trace(&ray, accel_index) {
             let hit_pos = ray.traverse(t);
             let triangle = &self.triangles[triangle_index as usize];
+            let material = &self.materials[triangle.material_index as usize];
             let light_vec = light_pos - hit_pos;
             let light_dist = light_vec.magnitude();
             let light_dir = light_vec / light_dist;
@@ -165,11 +172,14 @@ impl Raytracer {
                 u * self.verts[triangle.index2 as usize].normal +
                 v * self.verts[triangle.index3 as usize].normal;
 
+            let hit_pos_offset = hit_pos + 0.001 * normal;
+
             if depth < self.max_depth {
-                //trace(new ray, depth + 1, accel_index)
+                let bounce_ray = Ray { origin: hit_pos_offset, direction: cos_weighted_sample_hemisphere(normal) };
+                result += material.base_color_factor.mul_element_wise(self.radiance(bounce_ray, depth + 1, accel_index));
             }
 
-            let shadow_ray = Ray { origin: hit_pos + 0.001 * normal, direction: light_dir };
+            let shadow_ray = Ray { origin: hit_pos_offset, direction: light_dir };
             let mut shadowed = false;
 
             if let TraceResult::Hit{ t, .. } = self.trace(&shadow_ray, accel_index) {
@@ -179,7 +189,7 @@ impl Raytracer {
             }
 
             if !shadowed {
-                result += light_dir.dot(normal) * self.materials[triangle.material_index as usize].base_color_factor;
+                result += light_dir.dot(normal) * material.base_color_factor;
             }
         }
 
@@ -187,6 +197,6 @@ impl Raytracer {
     }
 
     fn trace(&self, ray: &Ray, accel_index: usize) -> TraceResult {
-        self.accel_structures[accel_index].intersect(&ray, &self.verts, &self.triangles)
+        self.accel_structures[accel_index].intersect(ray, &self.verts, &self.triangles)
     }
 }
