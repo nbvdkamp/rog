@@ -7,14 +7,13 @@ use cgmath::{InnerSpace, Point3, Vector2, Vector4, ElementWise};
 mod ray;
 mod triangle;
 mod acceleration;
-mod color;
 mod aabb;
 mod axis;
 
 use triangle::Triangle;
 use ray::{Ray, IntersectionResult};
-use color::{Color, ColorNormalizable};
 use crate::{
+    color::{Color, ColorNormalizable},
     camera::PerspectiveCamera,
     material::Material,
     mesh::Vertex,
