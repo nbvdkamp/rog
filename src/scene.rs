@@ -67,6 +67,8 @@ fn parse_nodes(
                     view: transform.invert().unwrap(),
                     model: transform
                 }
+            } else {
+                println!("Non-perspective cameras are not supported");
             }
         }
 
