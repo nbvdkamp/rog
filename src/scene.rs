@@ -1,15 +1,20 @@
 use std::path::Path;
 
-use cgmath::{Matrix4, Quaternion, Vector4, SquareMatrix};
+use cgmath::{Matrix4, Quaternion, Vector4, SquareMatrix, vec4, Vector3};
 use gltf::scene::Transform;
 use gltf::camera::Projection;
 
-use crate::mesh::{Vertex, VertexIndex, Mesh};
-use crate::camera::PerspectiveCamera;
-use crate::material::Material;
+use crate::{
+    mesh::{Vertex, VertexIndex, Mesh},
+    camera::PerspectiveCamera,
+    material::Material,
+    light::Light, util::from_homogenous,
+    color::Color,
+};
 
 pub struct Scene {
     pub meshes: Vec<Mesh>,
+    pub lights: Vec<Light>,
     pub camera: PerspectiveCamera,
 }
 
@@ -32,13 +37,14 @@ impl Scene {
     {
         if let Ok((document, buffers, _)) = gltf::import(path) {
             let mut meshes = Vec::<Mesh>::new();
+            let mut lights = Vec::<Light>::new();
             let mut camera = PerspectiveCamera::default();
             
             for scene in document.scenes() {
-                parse_nodes(scene.nodes().collect(), &buffers, &mut meshes, &mut camera, Matrix4::identity());
+                parse_nodes(scene.nodes().collect(), &buffers, &mut meshes, &mut lights, &mut camera, Matrix4::identity());
             }
 
-            Ok(Scene { meshes, camera })
+            Ok(Scene { meshes, lights, camera })
         }
         else {
             Err("Couldn't open glTF file.".into())
@@ -50,8 +56,10 @@ fn parse_nodes(
     nodes: Vec<gltf::Node>,
     buffers: &[gltf::buffer::Data], 
     meshes: &mut Vec<Mesh>, 
+    lights: &mut Vec<Light>,
     camera: &mut PerspectiveCamera,
     base_transform: Matrix4<f32>) {
+
     for node in nodes {
         let transform = base_transform * transform_to_mat(node.transform());
 
@@ -70,10 +78,38 @@ fn parse_nodes(
             } else {
                 println!("Non-perspective cameras are not supported");
             }
+        } else if let Some(light) = node.light() {
+            if let Some(light) = parse_light(light, transform) {
+                lights.push(light);
+            }
         }
 
-        parse_nodes(node.children().collect(), buffers, meshes, camera, transform);
+        parse_nodes(node.children().collect(), buffers, meshes, lights, camera, transform);
     }
+}
+
+fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>) -> Option<Light> {
+    let kind = match light.kind() {
+        gltf::khr_lights_punctual::Kind::Point => crate::light::Kind::Point,
+        gltf::khr_lights_punctual::Kind::Directional => crate::light::Kind::Directional,
+        gltf::khr_lights_punctual::Kind::Spot { .. }=> crate::light::Kind::Spot,
+    };
+
+    // FIXME: remove this once all light types are supported.
+    if kind != crate::light::Kind::Point {
+        println!("Lights of type {:?} are not yet implemented.", kind);
+        return None;
+    }
+
+    let c = light.color();
+    let color = Color::new(c[0], c[1], c[2], 1.0);
+
+    Some(Light {
+        pos: from_homogenous(transform * vec4(0.0, 0.0, 0.0, 1.0)),
+        intensity: light.intensity(),
+        color,
+        kind
+    })
 }
 
 fn add_meshes_from_gltf_mesh(mesh: gltf::Mesh, buffers: &[gltf::buffer::Data], transform: Matrix4<f32>, meshes: &mut Vec<Mesh>) {

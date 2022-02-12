@@ -1,4 +1,4 @@
-use cgmath::{Vector3, Vector4, Matrix4};
+use cgmath::{Vector3, Point3, point3, Vector4, Matrix4};
 use luminance_front::shader::types::{Mat44, Vec4};
 
 pub fn elementwise_min(a: Vector3<f32>, b: Vector3<f32>) -> Vector3<f32> {
@@ -23,6 +23,10 @@ pub fn min_element(v: Vector3<f32>) -> f32 {
 
 pub fn max_element(v: Vector3<f32>) -> f32 {
     f32::max(v.x, f32::max(v.y, v.z))
+}
+
+pub fn from_homogenous(v: Vector4<f32>) -> Point3<f32> {
+    point3(v.x / v.w, v.y / v.w, v.z / v.w)
 }
 
 pub fn mat_to_shader_type<T>(m: Matrix4<T>) -> Mat44<T> {

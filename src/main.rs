@@ -18,16 +18,19 @@ use std::path::Path;
 use std::env;
 use std::vec;
 
+mod color;
 mod mesh;
 mod scene;
 mod camera;
 mod material;
+mod light;
 mod raytracer;
 mod util;
 mod sampling;
 use mesh::{LuminanceVertex, VertexIndex, VertexSemantics};
 use scene::Scene;
 use material::Material;
+use light::{Light, Kind};
 use raytracer::Raytracer;
 use util::{mat_to_shader_type, vec_to_shader_type};
 

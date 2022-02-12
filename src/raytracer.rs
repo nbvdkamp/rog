@@ -2,7 +2,7 @@ use std::time::Instant;
 use std::sync::{Arc, Mutex};
 
 use crossbeam_utils::thread;
-use cgmath::{InnerSpace, Point3, Vector2, Vector4, ElementWise};
+use cgmath::{InnerSpace, Point3, Vector2, vec2, Vector4, ElementWise};
 
 mod ray;
 mod triangle;
@@ -16,6 +16,7 @@ use crate::{
     color::{Color, ColorNormalizable},
     camera::PerspectiveCamera,
     material::Material,
+    light::Light,
     mesh::Vertex,
     scene::Scene,
     sampling::cos_weighted_sample_hemisphere,
@@ -35,6 +36,7 @@ pub struct Raytracer {
     verts: Vec<Vertex>,
     triangles: Vec<Triangle>,
     materials: Vec<Material>,
+    lights: Vec<Light>,
     camera: PerspectiveCamera,
     max_depth: usize,
     pub accel_structures: Vec<Box<dyn AccelerationStructure + Sync>>,
@@ -75,6 +77,7 @@ impl Raytracer {
             verts,
             triangles,
             materials,
+            lights: scene.lights.clone(),
             camera: scene.camera.clone(),
             max_depth: 10,
             accel_structures: Vec::new(),
@@ -161,9 +164,6 @@ impl Raytracer {
             let hit_pos = ray.traverse(t);
             let triangle = &self.triangles[triangle_index as usize];
             let material = &self.materials[triangle.material_index as usize];
-            let light_vec = light_pos - hit_pos;
-            let light_dist = light_vec.magnitude();
-            let light_dir = light_vec / light_dist;
 
             // Interpolate the vertex normals
             let normal =
@@ -178,17 +178,28 @@ impl Raytracer {
                 result += material.base_color_factor.mul_element_wise(self.radiance(bounce_ray, depth + 1, accel_index));
             }
 
-            let shadow_ray = Ray { origin: hit_pos_offset, direction: light_dir };
-            let mut shadowed = false;
+            // Next event estimation (directly sampling lights)
+            for light in &self.lights {
+                // FIXME: Properly sample different light types and account for:
+                //      - falloff
+                //      - range
 
-            if let TraceResult::Hit{ t, .. } = self.trace(&shadow_ray, accel_index) {
-                if t < light_dist {
-                    shadowed = true;
+                let light_vec = light.pos - hit_pos;
+                let light_dist = light_vec.magnitude();
+                let light_dir = light_vec / light_dist;
+
+                let shadow_ray = Ray { origin: hit_pos_offset, direction: light_dir };
+                let mut shadowed = false;
+
+                if let TraceResult::Hit{ t, .. } = self.trace(&shadow_ray, accel_index) {
+                    if t < light_dist {
+                        shadowed = true;
+                    }
                 }
-            }
 
-            if !shadowed {
-                result += light_dir.dot(normal) * material.base_color_factor;
+                if !shadowed {
+                    result += light_dir.dot(normal) * light.color.mul_element_wise(material.base_color_factor);
+                }
             }
         }
 
