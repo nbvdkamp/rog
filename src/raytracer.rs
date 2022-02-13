@@ -158,7 +158,6 @@ impl Raytracer {
 
     fn radiance(&self, ray: Ray, depth: usize, accel_index: usize) -> Color {
         let mut result = Color::new(0., 0., 0., 1.);
-        let light_pos: Point3<f32> = Point3::new(0., 2., 2.);
 
         if let TraceResult::Hit{ triangle_index, t, u, v } = self.trace(&ray, accel_index) {
             let hit_pos = ray.traverse(t);
