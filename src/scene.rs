@@ -103,10 +103,18 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>)
 
     let c = light.color();
     let color = Color::new(c[0], c[1], c[2], 1.0);
+    let range;
+
+    if let Some(r) = light.range() {
+        range = r;
+    } else {
+        range = f32::INFINITY;
+    }
 
     Some(Light {
         pos: from_homogenous(transform * vec4(0.0, 0.0, 0.0, 1.0)),
         intensity: light.intensity(),
+        range,
         color,
         kind
     })

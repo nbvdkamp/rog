@@ -180,12 +180,15 @@ impl Raytracer {
 
             // Next event estimation (directly sampling lights)
             for light in &self.lights {
-                // FIXME: Properly sample different light types and account for:
-                //      - falloff
-                //      - range
+                // FIXME: Properly sample light types other than point
 
                 let light_vec = light.pos - hit_pos;
                 let light_dist = light_vec.magnitude();
+
+                if light_dist > light.range {
+                    continue;
+                }
+
                 let light_dir = light_vec / light_dist;
 
                 let shadow_ray = Ray { origin: hit_pos_offset, direction: light_dir };
@@ -198,7 +201,8 @@ impl Raytracer {
                 }
 
                 if !shadowed {
-                    result += light_dir.dot(normal) * light.color.mul_element_wise(material.base_color_factor);
+                    let intensity = 0.1 * light.intensity / (light_dist * light_dist);
+                    result +=  intensity * light_dir.dot(normal) * light.color.mul_element_wise(material.base_color_factor);
                 }
             }
         }
