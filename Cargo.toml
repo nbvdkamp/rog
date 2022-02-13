@@ -12,7 +12,7 @@ stats = []
 [dependencies]
 impl_ops = "0.1.1"
 cgmath = "0.18.0"
-image = "0.23.14"
+image = "0.24.0"
 rand = "0.8.4"
 crossbeam-utils = "0.8.6"
 num_cpus = "1.13.1"
