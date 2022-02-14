@@ -26,5 +26,5 @@ luminance-glfw = "0.18.0"
 luminance-windowing = "0.10.1"
 
 [dependencies.gltf]
-version = "0.16.0"
+version = "1.0.0"
 features = ["KHR_lights_punctual"]
