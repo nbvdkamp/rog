@@ -9,40 +9,38 @@ pub struct RGBf32 {
     b: f32,
 }
 
-impl RGBf32 {
-    #[inline]
-    pub fn new(r: f32, g: f32, b: f32) -> Self {
-        Self {r, g, b}
-    }
-    
-    pub fn r_normalized(&self) -> u8 {
-        (self.r * 255.0) as u8
-    }
 
-    pub fn g_normalized(&self) -> u8 {
-        (self.g * 255.0) as u8
-    }
+macro_rules! impl_f32_color_tuple {
+    ($name:ident { $($field:ident),+ }, { $($field_normalized:ident),+ }, $n:expr) => {
+        impl $name {
+            #[inline]
+            pub fn new($($field: f32),+) -> Self {
+                Self { $($field),+ }
+            }
+            
+            $(
+            pub fn $field_normalized(&self) -> u8 {
+                (self.$field * 255.0) as u8
+            })+
+        }
 
-    pub fn b_normalized(&self) -> u8 {
-        (self.b * 255.0) as u8
-    }
+        impl_op_ex!(+ |a: &$name, b: &$name| -> $name { $name::new($(a.$field + b.$field),+)} );
+        impl_op_ex!(- |a: &$name, b: &$name| -> $name { $name::new($(a.$field - b.$field),+)} );
+        impl_op_ex!(* |a: &$name, b: &$name| -> $name { $name::new($(a.$field * b.$field),+)} );
+        impl_op_ex!(/ |a: &$name, b: &$name| -> $name { $name::new($(a.$field / b.$field),+)} );
+
+        impl_op_commutative!(* |a: $name, b: f32| -> $name { $name::new($(a.$field * b),+)} );
+        impl_op_commutative!(/ |a: $name, b: f32| -> $name { $name::new($(a.$field / b),+)} );
+
+        impl AddAssign for $name {
+            fn add_assign(&mut self, other: Self) {
+                $(self.$field += other.$field);+
+            }
+        }
+    };
 }
 
-impl_op_ex!(+ |a: &RGBf32, b: &RGBf32| -> RGBf32 { RGBf32::new(a.r + b.r, a.g + b.g, a.b + b.b)} );
-impl_op_ex!(- |a: &RGBf32, b: &RGBf32| -> RGBf32 { RGBf32::new(a.r - b.r, a.g - b.g, a.b - b.b)} );
-impl_op_ex!(* |a: &RGBf32, b: &RGBf32| -> RGBf32 { RGBf32::new(a.r * b.r, a.g * b.g, a.b * b.b)} );
-impl_op_ex!(/ |a: &RGBf32, b: &RGBf32| -> RGBf32 { RGBf32::new(a.r / b.r, a.g / b.g, a.b / b.b)} );
-
-impl_op_commutative!(* |a: RGBf32, b: f32| -> RGBf32 { RGBf32::new(a.r * b, a.g * b, a.b * b)} );
-impl_op_commutative!(/ |a: RGBf32, b: f32| -> RGBf32 { RGBf32::new(a.r / b, a.g / b, a.b / b)} );
-
-impl AddAssign for RGBf32 {
-    fn add_assign(&mut self, other: Self) {
-        self.r += other.r;
-        self.g += other.g;
-        self.b += other.b;
-    }
-}
+impl_f32_color_tuple!(RGBf32 { r, g, b }, { r_normalized, g_normalized, b_normalized }, 3);
 
 impl From<RGBf32> for Vec4<f32> {
     #[inline]
