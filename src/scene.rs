@@ -9,7 +9,7 @@ use crate::{
     camera::PerspectiveCamera,
     material::Material,
     light::Light, util::from_homogenous,
-    color::Color,
+    color::RGBf32,
 };
 
 pub struct Scene {
@@ -101,8 +101,6 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>)
         return None;
     }
 
-    let c = light.color();
-    let color = Color::new(c[0], c[1], c[2], 1.0);
     let range;
 
     if let Some(r) = light.range() {
@@ -115,7 +113,7 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>)
         pos: from_homogenous(transform * vec4(0.0, 0.0, 0.0, 1.0)),
         intensity: light.intensity(),
         range,
-        color,
+        color: light.color().into(),
         kind
     })
 }
@@ -126,9 +124,10 @@ fn add_meshes_from_gltf_mesh(mesh: gltf::Mesh, buffers: &[gltf::buffer::Data], t
 
         let mat = primitive.material();
         let pbr = mat.pbr_metallic_roughness();
+        let base = pbr.base_color_factor();
         
         let material = Material {
-            base_color_factor: pbr.base_color_factor().into(),
+            base_color_factor: RGBf32::new(base[0], base[1], base[2]),
             roughness_factor: pbr.roughness_factor(),
             metallic_factor: pbr.metallic_factor(),
             emissive_factor: mat.emissive_factor().into(),

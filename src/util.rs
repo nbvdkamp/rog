@@ -33,8 +33,3 @@ pub fn mat_to_shader_type<T>(m: Matrix4<T>) -> Mat44<T> {
     let x: [[T; 4]; 4] = m.into();
     x.into()
 }
-
-pub fn vec_to_shader_type<T>(v: Vector4<T>) -> Vec4<T> {
-    let x: [T; 4] = v.into();
-    x.into()
-}

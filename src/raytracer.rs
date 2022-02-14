@@ -13,7 +13,7 @@ mod axis;
 use triangle::Triangle;
 use ray::{Ray, IntersectionResult};
 use crate::{
-    color::{Color, ColorNormalizable},
+    color::RGBf32,
     camera::PerspectiveCamera,
     material::Material,
     light::Light,
@@ -156,8 +156,8 @@ impl Raytracer {
         self.triangles.len()
     }
 
-    fn radiance(&self, ray: Ray, depth: usize, accel_index: usize) -> Color {
-        let mut result = Color::new(0., 0., 0., 1.);
+    fn radiance(&self, ray: Ray, depth: usize, accel_index: usize) -> RGBf32 {
+        let mut result = RGBf32::new(0., 0., 0.);
 
         if let TraceResult::Hit{ triangle_index, t, u, v } = self.trace(&ray, accel_index) {
             let hit_pos = ray.traverse(t);
@@ -174,7 +174,7 @@ impl Raytracer {
 
             if depth < self.max_depth {
                 let bounce_ray = Ray { origin: hit_pos_offset, direction: cos_weighted_sample_hemisphere(normal) };
-                result += material.base_color_factor.mul_element_wise(self.radiance(bounce_ray, depth + 1, accel_index));
+                result += material.base_color_factor * self.radiance(bounce_ray, depth + 1, accel_index);
             }
 
             // Next event estimation (directly sampling lights)
@@ -201,7 +201,7 @@ impl Raytracer {
 
                 if !shadowed {
                     let intensity = 0.1 * light.intensity / (light_dist * light_dist);
-                    result +=  intensity * light_dir.dot(normal) * light.color.mul_element_wise(material.base_color_factor);
+                    result +=  intensity * light_dir.dot(normal) * light.color * material.base_color_factor;
                 }
             }
         }

@@ -1,3 +1,5 @@
+#[macro_use] extern crate impl_ops;
+
 use glfw::{Context as _, WindowEvent, Key, Action, WindowMode, SwapInterval};
 use cgmath::Vector2;
 
@@ -32,7 +34,7 @@ use scene::Scene;
 use material::Material;
 use light::{Light, Kind};
 use raytracer::Raytracer;
-use util::{mat_to_shader_type, vec_to_shader_type};
+use util::{mat_to_shader_type};
 
 fn main() {
     if env::args().any(|arg| arg == "--bench") {
@@ -131,7 +133,7 @@ impl App {
                             shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
                                 iface.set(&unif.u_projection, mat_to_shader_type(projection));
                                 iface.set(&unif.u_view, mat_to_shader_type(view));
-                                iface.set(&unif.u_base_color , vec_to_shader_type(material.base_color_factor));
+                                iface.set(&unif.u_base_color , material.base_color_factor.into());
 
                                 rdr_gate.render(&RenderState::default(), |mut tess_gate| {
                                     tess_gate.render(tess)
