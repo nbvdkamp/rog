@@ -109,15 +109,15 @@ impl Raytracer {
         let buffer= Arc::new(Mutex::new(buffer));
 
         let thread_count = usize::max(num_cpus::get() - 2, 1);
-        let rows_per_thread = image_size.y / thread_count;
+        let rows_per_thread = image_size.y as f32 / thread_count as f32;
 
         thread::scope(|s| {
             for thread_index in 0..thread_count {
                 let buffer = Arc::clone(&buffer);
 
                 s.spawn(move |_| {
-                    let y_start = thread_index * rows_per_thread;
-                    let y_end = (thread_index + 1) * rows_per_thread;
+                    let y_start = (thread_index as f32 * rows_per_thread) as usize;
+                    let y_end = ((thread_index + 1) as f32 * rows_per_thread) as usize;
 
                     // Simple row-wise split of work
                     for y in y_start..y_end {
