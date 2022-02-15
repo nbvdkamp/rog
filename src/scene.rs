@@ -10,12 +10,14 @@ use crate::{
     material::Material,
     light::Light, util::from_homogenous,
     color::RGBf32,
+    environment::Environment,
 };
 
 pub struct Scene {
     pub meshes: Vec<Mesh>,
     pub lights: Vec<Light>,
     pub camera: PerspectiveCamera,
+    pub environment: Environment,
 }
 
 fn transform_to_mat(t: Transform) -> Matrix4<f32> {
@@ -44,7 +46,11 @@ impl Scene {
                 parse_nodes(scene.nodes().collect(), &buffers, &mut meshes, &mut lights, &mut camera, Matrix4::identity());
             }
 
-            Ok(Scene { meshes, lights, camera })
+            let environment = Environment {
+                color: RGBf32::from_hex("#404040"),
+            };
+
+            Ok(Scene { meshes, lights, camera, environment })
         }
         else {
             Err("Couldn't open glTF file.".into())

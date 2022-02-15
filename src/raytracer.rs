@@ -17,6 +17,7 @@ use crate::{
     camera::PerspectiveCamera,
     material::Material,
     light::Light,
+    environment::Environment,
     mesh::Vertex,
     scene::Scene,
     sampling::cos_weighted_sample_hemisphere,
@@ -37,6 +38,7 @@ pub struct Raytracer {
     triangles: Vec<Triangle>,
     materials: Vec<Material>,
     lights: Vec<Light>,
+    environment: Environment,
     camera: PerspectiveCamera,
     max_depth: usize,
     pub accel_structures: Vec<Box<dyn AccelerationStructure + Sync>>,
@@ -78,6 +80,7 @@ impl Raytracer {
             triangles,
             materials,
             lights: scene.lights.clone(),
+            environment: scene.environment.clone(),
             camera: scene.camera.clone(),
             max_depth: 10,
             accel_structures: Vec::new(),
@@ -204,6 +207,8 @@ impl Raytracer {
                     result +=  intensity * light_dir.dot(normal) * light.color * material.base_color_factor;
                 }
             }
+        } else {
+            result += self.environment.sample(ray.direction);
         }
 
         result

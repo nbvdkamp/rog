@@ -26,6 +26,7 @@ mod scene;
 mod camera;
 mod material;
 mod light;
+mod environment;
 mod raytracer;
 mod util;
 mod sampling;
