@@ -203,7 +203,8 @@ impl Raytracer {
                 }
 
                 if !shadowed {
-                    let intensity = 0.1 * light.intensity / (light_dist * light_dist);
+                    let falloff = (1.0 + light_dist) * (1.0 + light_dist);
+                    let intensity = 0.1 * light.intensity / falloff;
                     result +=  intensity * light_dir.dot(normal) * light.color * material.base_color_factor;
                 }
             }
