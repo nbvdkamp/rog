@@ -32,7 +32,6 @@ mod sampling;
 use mesh::{LuminanceVertex, VertexIndex, VertexSemantics};
 use scene::Scene;
 use material::Material;
-use light::{Light, Kind};
 use raytracer::Raytracer;
 use util::{mat_to_shader_type};
 

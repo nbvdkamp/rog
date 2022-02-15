@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use cgmath::{Matrix4, Quaternion, Vector4, SquareMatrix, vec4, Vector3};
+use cgmath::{Matrix4, Quaternion, Vector4, SquareMatrix, vec4};
 use gltf::scene::Transform;
 use gltf::camera::Projection;
 

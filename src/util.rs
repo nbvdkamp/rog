@@ -1,5 +1,5 @@
 use cgmath::{Vector3, Point3, point3, Vector4, Matrix4};
-use luminance_front::shader::types::{Mat44, Vec4};
+use luminance_front::shader::types::{Mat44};
 
 pub fn elementwise_min(a: Vector3<f32>, b: Vector3<f32>) -> Vector3<f32> {
     Vector3 {
