@@ -124,7 +124,7 @@ impl BoundingVolumeHierarchy {
                         right_triangle_index = right_indices[0] as i32;
                     }
                 }
-                _ => panic!("Unreachable")
+                _ => unreachable!()
             }
 
 

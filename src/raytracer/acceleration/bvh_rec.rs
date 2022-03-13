@@ -175,7 +175,7 @@ fn intersects_bounds_distance(node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: 
                 Node::Leaf {  bounds , .. } => bounds.t_distance_from_ray(ray, &inv_dir)
             }
         }
-        None => { panic!("Unreachable"); }
+        None => { unreachable!() }
     }
 }
 
