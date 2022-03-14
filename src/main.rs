@@ -37,10 +37,13 @@ use raytracer::Raytracer;
 use util::{mat_to_shader_type};
 
 fn main() {
+    let scene_filename = "res/simple_raytracer_test.glb";
+
     if env::args().any(|arg| arg == "--bench") {
         accel_benchmark();
+    } else if env::args().any(|arg| arg == "--headless") {
+        headless_render(scene_filename);
     } else {
-        let scene_filename = "res/simple_raytracer_test.glb";
         let app = App::new(scene_filename);
         app.run();
     }
@@ -210,5 +213,24 @@ fn accel_benchmark() {
             #[cfg(not(feature = "stats"))]
             println!("{: <25} | {: <10}", raytracer.accel_structures[i].get_name(), time_elapsed);
         }
+    }
+}
+
+fn headless_render<P>(scene_path: P)
+        where P: AsRef<Path>,
+{
+    let scene = Scene::load(scene_path).unwrap();
+    let raytracer = Raytracer::new(&scene);
+
+    let image_size = Vector2::new(1920, 1080);
+
+    let (buffer, time_elapsed) = raytracer.render(image_size, 2);
+    println!("Finished rendering in {} seconds", time_elapsed);
+
+    let save_result = image::save_buffer("output/result.png", &buffer, image_size.x as u32, image_size.y as u32, image::ColorType::Rgb8);
+
+    match save_result {
+        Ok(_) => println!("File was saved succesfully"),
+        Err(e) => println!("Couldn't save file: {}", e),
     }
 }
