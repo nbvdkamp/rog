@@ -168,10 +168,11 @@ impl Raytracer {
             let material = &self.materials[triangle.material_index as usize];
 
             // Interpolate the vertex normals
-            let normal =
+            let normal = (
                 (1. - u - v) * self.verts[triangle.index1 as usize].normal +
                 u * self.verts[triangle.index2 as usize].normal +
-                v * self.verts[triangle.index3 as usize].normal;
+                v * self.verts[triangle.index3 as usize].normal
+            ).normalize();
 
             let hit_pos_offset = hit_pos + 0.001 * normal;
 
