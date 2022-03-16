@@ -129,7 +129,15 @@ impl Raytracer {
                             let dir4 = cam_model * Vector4::new(screen.x, screen.y, -1., 0.).normalize();
                             let ray = Ray { origin: camera_pos, direction: dir4.truncate().normalize() };
 
-                            let color = self.radiance(ray, 0, accel_index);
+                            let mut color = RGBf32::new(0.0, 0.0, 0.0);
+
+                            let samples = 1;
+
+                            for _ in 0..samples {
+                                color +=  self.radiance(&ray, 0, accel_index);
+                            }
+
+                            color = color / samples as f32;
 
                             let pixel_index = 3 * (image_size.x * y + x) as usize;
                             let mut buffer = buffer.lock().unwrap();
