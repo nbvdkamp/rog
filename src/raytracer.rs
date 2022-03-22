@@ -138,6 +138,8 @@ impl Raytracer {
                             }
 
                             color = color / samples as f32;
+                            let gamma = 2.2;
+                            color = color.pow(1.0 / gamma);
 
                             let pixel_index = 3 * (image_size.x * y + x) as usize;
                             let mut buffer = buffer.lock().unwrap();

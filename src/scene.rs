@@ -46,8 +46,9 @@ impl Scene {
                 parse_nodes(scene.nodes().collect(), &buffers, &mut meshes, &mut lights, &mut camera, Matrix4::identity());
             }
 
+            let gamma = 2.2;
             let environment = Environment {
-                color: RGBf32::from_hex("#404040"),
+                color: RGBf32::from_hex("#404040").pow(gamma),
             };
 
             Ok(Scene { meshes, lights, camera, environment })

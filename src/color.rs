@@ -29,6 +29,10 @@ macro_rules! impl_f32_color_tuple {
                 $(let $field = i32::from_str_radix(&h[(i * 2)..((i + 1) * 2)], 16).unwrap(); i += 1;)+
                 Self::new($($field as f32 / 255.0),+)
             }
+
+            pub fn pow(&self, exponent: f32) -> Self {
+                Self::new($(self.$field.powf(exponent)),+)
+            }
         }
 
         impl_op_ex!(+ |a: &$name, b: &$name| -> $name { $name::new($(a.$field + b.$field),+)} );
