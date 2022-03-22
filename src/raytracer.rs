@@ -2,13 +2,14 @@ use std::time::Instant;
 use std::sync::{Arc, Mutex};
 
 use crossbeam_utils::thread;
-use cgmath::{InnerSpace, Point3, Vector2, vec2, Vector4, ElementWise};
+use cgmath::{InnerSpace, Point3, Vector2, Vector4};
 
 mod ray;
 mod triangle;
 mod acceleration;
 mod aabb;
 mod axis;
+mod bsdf;
 
 use triangle::Triangle;
 use ray::{Ray, IntersectionResult};
@@ -20,17 +21,21 @@ use crate::{
     environment::Environment,
     mesh::Vertex,
     scene::Scene,
-    sampling::cos_weighted_sample_hemisphere,
 };
 
-use self::aabb::BoundingBox;
-use self::acceleration::{
+use aabb::BoundingBox;
+use acceleration::{
     bih::BoundingIntervalHierarchy,
     bvh::BoundingVolumeHierarchy,
     bvh_rec::BoundingVolumeHierarchyRec,
     kdtree::KdTree, 
     structure::AccelerationStructure,
     structure::TraceResult,
+};
+use bsdf::{
+    brdf_sample,
+    brdf_eval,
+    mis2,
 };
 
 pub struct Raytracer {
@@ -169,7 +174,7 @@ impl Raytracer {
         self.triangles.len()
     }
 
-    fn radiance(&self, ray: Ray, depth: usize, accel_index: usize) -> RGBf32 {
+    fn radiance(&self, ray: &Ray, depth: usize, accel_index: usize) -> RGBf32 {
         let mut result = RGBf32::new(0., 0., 0.);
 
         if let TraceResult::Hit{ triangle_index, t, u, v } = self.trace(&ray, accel_index) {
@@ -187,15 +192,21 @@ impl Raytracer {
             let hit_pos_offset = hit_pos + 0.001 * normal;
 
             if depth < self.max_depth {
-                let bounce_ray = Ray { origin: hit_pos_offset, direction: cos_weighted_sample_hemisphere(normal) };
-                result += material.base_color_factor * self.radiance(bounce_ray, depth + 1, accel_index);
+                let (bounce_dir, brdf, pdf) = brdf_sample(material.roughness_factor, -ray.direction, normal);
+                let mis_weight = mis2(100.0, pdf);
+
+                if brdf > 0.0 {
+                    let bounce_ray = Ray { origin: hit_pos_offset, direction: bounce_dir };
+                    result += material.base_color_factor *  brdf / pdf * mis_weight * self.radiance(&bounce_ray, depth + 1, accel_index);
+                }
             }
 
             // Next event estimation (directly sampling lights)
             for light in &self.lights {
                 // FIXME: Properly sample light types other than point
 
-                let light_vec = light.pos - hit_pos;
+                // TODO: Should this be hit_pos_offset? 
+                let light_vec = light.pos - hit_pos_offset;
                 let light_dist = light_vec.magnitude();
 
                 if light_dist > light.range {
@@ -215,8 +226,15 @@ impl Raytracer {
 
                 if !shadowed {
                     let falloff = (1.0 + light_dist) * (1.0 + light_dist);
-                    let intensity = 0.1 * light.intensity / falloff;
-                    result +=  intensity * light_dir.dot(normal) * light.color * material.base_color_factor;
+                    let intensity = light.intensity / falloff;
+                    let (brdf, pdf) = brdf_eval(material.roughness_factor, -ray.direction, light_dir, normal);
+                    let light_pick_prob= 1.0;
+                    let light_sample_pdf = 100.0; 
+                    let mis_weight = mis2(light_pick_prob * light_sample_pdf, pdf);
+
+                    if brdf > 0.0 {
+                        result +=  normal.dot(light_dir) * intensity * brdf * mis_weight * light.color * material.base_color_factor;
+                    }
                 }
             }
         } else {
