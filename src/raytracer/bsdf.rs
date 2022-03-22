@@ -53,20 +53,9 @@ mod ggx {
     }
 }
 
-pub fn brdf_sample(roughness: f32, incident: Vector3<f32>, normal: Vector3<f32>) -> (Vector3<f32>, f32, f32) {
+fn brdf(roughness: f32, i_dot_n: f32, o_dot_n: f32, m_dot_n: f32, i_dot_m: f32) -> (f32, f32) {
     let alpha = roughness * roughness;
     let alpha_squared = alpha * alpha;
-
-    let micronormal = to_tangent_space(normal, ggx::sample_micronormal(alpha_squared).normalize()).normalize();
-    let outgoing = reflect(incident, micronormal);
-    let i_dot_n = incident.dot(normal);
-    let o_dot_n = outgoing.dot(normal);
-    let i_dot_m = incident.dot(micronormal).max(0.0);
-    let m_dot_n = micronormal.dot(normal);
-
-    if i_dot_n <= 0.0 || o_dot_n <= 0.0 || m_dot_n <= 0.0 {
-        return (vec3(0.0, 0.0, 0.0), 0.0, 0.0);
-    }
 
     let g_i = ggx::smith_shadow_term(i_dot_n, alpha_squared);
     let g_o = ggx::smith_shadow_term(o_dot_n, alpha_squared);
@@ -80,13 +69,27 @@ pub fn brdf_sample(roughness: f32, incident: Vector3<f32>, normal: Vector3<f32>)
     let brdf = fresnel * shadow_masking * normal_distrib / (4.0 * i_dot_n * o_dot_n);
     let pdf = g_o * normal_distrib / (4.0 * i_dot_n * o_dot_n);
 
+    (brdf, pdf)
+}
+
+pub fn brdf_sample(roughness: f32, incident: Vector3<f32>, normal: Vector3<f32>) -> (Vector3<f32>, f32, f32) {
+    let alpha = roughness * roughness;
+    let micronormal = to_tangent_space(normal, ggx::sample_micronormal(alpha * alpha).normalize()).normalize();
+    let outgoing = reflect(incident, micronormal);
+    let i_dot_n = incident.dot(normal);
+    let o_dot_n = outgoing.dot(normal);
+    let i_dot_m = incident.dot(micronormal).max(0.0);
+    let m_dot_n = micronormal.dot(normal);
+
+    if i_dot_n <= 0.0 || o_dot_n <= 0.0 || m_dot_n <= 0.0 {
+        return (vec3(0.0, 0.0, 0.0), 0.0, 0.0);
+    }
+
+    let (brdf, pdf) = brdf(roughness, i_dot_n, o_dot_n, m_dot_n, i_dot_m);
     (outgoing, brdf, pdf)
 }
 
 pub fn brdf_eval(roughness: f32, incident: Vector3<f32>, outgoing: Vector3<f32>, normal: Vector3<f32>) -> (f32, f32) {
-    let alpha = roughness * roughness;
-    let alpha_squared = alpha * alpha;
-
     let micronormal = (incident + outgoing).normalize();
     let outgoing = reflect(incident, micronormal);
     let i_dot_n = incident.dot(normal);
@@ -98,19 +101,7 @@ pub fn brdf_eval(roughness: f32, incident: Vector3<f32>, outgoing: Vector3<f32>,
         return (0.0, 0.0);
     }
 
-    let g_i = ggx::smith_shadow_term(i_dot_n, alpha_squared);
-    let g_o = ggx::smith_shadow_term(o_dot_n, alpha_squared);
-    let shadow_masking = g_o * g_i;
-    let normal_distrib = ggx::normal_distribution(alpha_squared, m_dot_n);
-
-    let fresnel_m = schlick_fresnel_approximation(i_dot_m, fresnel_f_zero(1.45));
-    let specular_color = 0.2;
-    let fresnel = specular_color.lerp(1.0, fresnel_m);
-
-    let brdf = fresnel * shadow_masking * normal_distrib / (4.0 * i_dot_n * o_dot_n);
-    let pdf = g_o * normal_distrib / (4.0 * i_dot_n * o_dot_n);
-    
-    (brdf, pdf)
+    brdf(roughness, i_dot_n, o_dot_n, m_dot_n, i_dot_m)
 }
 
 #[cfg(test)]
