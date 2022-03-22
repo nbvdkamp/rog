@@ -81,7 +81,7 @@ pub fn brdf_sample(roughness: f32, incident: Vector3<f32>, normal: Vector3<f32>)
     let i_dot_m = incident.dot(micronormal).max(0.0);
     let m_dot_n = micronormal.dot(normal);
 
-    if i_dot_n <= 0.0 || o_dot_n <= 0.0 || m_dot_n <= 0.0 {
+    if i_dot_n <= 0.0 || o_dot_n <= 0.0 {
         return (vec3(0.0, 0.0, 0.0), 0.0, 0.0);
     }
 
@@ -97,7 +97,7 @@ pub fn brdf_eval(roughness: f32, incident: Vector3<f32>, outgoing: Vector3<f32>,
     let o_dot_n = outgoing.dot(normal);
     let m_dot_n = micronormal.dot(normal);
 
-    if i_dot_n <= 0.0 || o_dot_n <= 0.0 || m_dot_n <= 0.0 {
+    if i_dot_n <= 0.0 || o_dot_n <= 0.0 {
         return (0.0, 0.0);
     }
 
