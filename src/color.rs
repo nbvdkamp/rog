@@ -73,7 +73,25 @@ impl From<[f32; 3]> for RGBf32 {
     }
 }
 
+pub fn _debug_color(x: f32) -> RGBf32 {
+    if x >= 0.0 && x <= 1.0 { // green
+        RGBf32::new(0.0, x, 0.0)
+    } else if x > 1.0 &&  x <= 10.0 { // blue
+        RGBf32::new(0.0, 0.0, x / 10.0)
+    } else if x > 10.0 &&  x <= 100.0 { // red
+        RGBf32::new(x / 100.0, 0.0, 0.0)
+    } else if x > 100.0 { // white
+        RGBf32::new(1.0, 1.0, 1.0)
+    } else if x < 0.0 { // magenta to yellow
+        RGBf32::new(1.0, -x, 1.0 + x)
+    } else {
+        RGBf32::new(0.0, 0.0, 0.0)
+    }
+}
 
+pub fn _vec_debug_color(x: cgmath::Vector3<f32>) -> RGBf32 {
+    RGBf32::new(x.x, x.y, x.z)
+}
 
 #[cfg(test)]
 mod tests {
