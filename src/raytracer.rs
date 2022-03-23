@@ -99,7 +99,7 @@ impl Raytracer {
         result
     }
 
-    pub fn render(&self, image_size: Vector2<usize>, accel_index: usize) -> (Vec::<u8>, f64) {
+    pub fn render(&self, image_size: Vector2<usize>, samples: usize, accel_index: usize) -> (Vec::<u8>, f64) {
         let aspect_ratio = image_size.x as f32 / image_size.y as f32;
         let fov_factor = (self.camera.y_fov / 2.).tan();
 
@@ -135,8 +135,6 @@ impl Raytracer {
                             let ray = Ray { origin: camera_pos, direction: dir4.truncate().normalize() };
 
                             let mut color = RGBf32::new(0.0, 0.0, 0.0);
-
-                            let samples = 1;
 
                             for _ in 0..samples {
                                 color +=  self.radiance(&ray, 0, accel_index);

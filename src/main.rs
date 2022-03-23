@@ -1,7 +1,7 @@
 #[macro_use] extern crate impl_ops;
 
 use glfw::{Context as _, WindowEvent, Key, Action, WindowMode, SwapInterval};
-use cgmath::Vector2;
+use cgmath::{Vector2, vec2};
 
 use luminance_glfw::{GlfwSurface, GlfwSurfaceError};
 use luminance_derive::UniformInterface;
@@ -16,10 +16,9 @@ use luminance_front::{
     tess::{Tess, Interleaved}
 };
 
-use std::path::Path;
-use std::env;
 use std::vec;
 
+mod args;
 mod color;
 mod mesh;
 mod scene;
@@ -30,21 +29,24 @@ mod environment;
 mod raytracer;
 mod util;
 mod sampling;
+
+use args::Args;
 use mesh::{LuminanceVertex, VertexIndex, VertexSemantics};
 use scene::Scene;
 use material::Material;
 use raytracer::Raytracer;
-use util::{mat_to_shader_type};
+use util::mat_to_shader_type;
 
 fn main() {
-    let scene_filename = "res/simple_raytracer_test.glb";
+    let args = Args::parse();
+    // FIXME: Verify scene aspect ratio with given image size
 
-    if env::args().any(|arg| arg == "--bench") {
+    if args.benchmark {
         accel_benchmark();
-    } else if env::args().any(|arg| arg == "--headless") {
-        headless_render(scene_filename);
+    } else if args.headless {
+        headless_render(args);
     } else {
-        let app = App::new(scene_filename);
+        let app = App::new(args);
         app.run();
     }
 }
@@ -66,6 +68,8 @@ const FS_STR: &str = include_str!("color.fs");
 struct App {
     raytracer: Raytracer,
     scene: Scene,
+    image_size: Vector2<usize>,
+    samples_per_pixel: usize,
 }
 
 #[derive(Debug)]
@@ -74,13 +78,18 @@ pub enum PlatformError {
 }
 
 impl App {
-    fn new<P>(scene_path: P) -> Self
-        where P: AsRef<Path>,
+    fn new(args: Args) -> Self
     {
-        let scene = Scene::load(scene_path).unwrap();
+        let scene = Scene::load(args.file).unwrap();
         let raytracer = Raytracer::new(&scene);
+        let image_size = vec2(args.width, args.height);
 
-        App { raytracer, scene }
+        App {
+            raytracer,
+            scene,
+            image_size,
+            samples_per_pixel: args.samples
+        }
     }
 
     fn run(&self) {
@@ -159,12 +168,11 @@ impl App {
 
     fn handle_key_event(&self, key: Key, action: Action) {
         if key == Key::Enter && action == Action::Press {
-            let image_size = Vector2::new(1920, 1080);
-
-            let (buffer, time_elapsed) = self.raytracer.render(image_size, 2);
+            let (buffer, time_elapsed) = self.raytracer.render(self.image_size, self.samples_per_pixel, 2);
             println!("Finished rendering in {} seconds", time_elapsed);
 
-            let save_result = image::save_buffer("output/result.png", &buffer, image_size.x as u32, image_size.y as u32, image::ColorType::Rgb8);
+            let save_result = image::save_buffer("output/result.png", 
+                &buffer, self.image_size.x as u32, self.image_size.y as u32, image::ColorType::Rgb8);
 
             match save_result {
                 Ok(_) => println!("File was saved succesfully"),
@@ -188,6 +196,7 @@ fn accel_benchmark() {
     
     let resolution_factor = 15;
     let image_size = Vector2::new(16 * resolution_factor, 9 * resolution_factor);
+    let samples = 1;
 
     for path in test_scene_filenames {
         let scene = Scene::load(format!("res/{}.glb", path)).unwrap();
@@ -200,7 +209,7 @@ fn accel_benchmark() {
         println!("{: <25} | {: <10}", "Acceleration structure", "Time (s)");
 
         for i in 0..raytracer.accel_structures.len() {
-            let (_, time_elapsed) = raytracer.render(image_size, i);
+            let (_, time_elapsed) = raytracer.render(image_size, samples, i);
 
             #[cfg(feature = "stats")]
             {
@@ -216,15 +225,14 @@ fn accel_benchmark() {
     }
 }
 
-fn headless_render<P>(scene_path: P)
-        where P: AsRef<Path>,
+fn headless_render(args: Args)
 {
-    let scene = Scene::load(scene_path).unwrap();
+    let scene = Scene::load(args.file).unwrap();
     let raytracer = Raytracer::new(&scene);
 
-    let image_size = Vector2::new(1920, 1080);
+    let image_size = vec2(args.width, args.height);
 
-    let (buffer, time_elapsed) = raytracer.render(image_size, 2);
+    let (buffer, time_elapsed) = raytracer.render(image_size, args.samples, 2);
     println!("Finished rendering in {} seconds", time_elapsed);
 
     let save_result = image::save_buffer("output/result.png", &buffer, image_size.x as u32, image_size.y as u32, image::ColorType::Rgb8);

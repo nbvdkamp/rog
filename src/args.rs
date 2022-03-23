@@ -1,0 +1,57 @@
+use clap::{arg, Command};
+
+pub struct Args {
+    pub file: String,
+    pub headless: bool,
+    pub samples: usize,
+    pub width: usize,
+    pub height: usize,
+    pub benchmark: bool,
+}
+
+impl Args {
+    pub fn parse() -> Self {
+        let matches = Command::new("RustRays")
+            .version("0.1.0")
+            .author("Nathan van der Kamp")
+            .about("A pathtracer")
+            .args(&[
+                arg!(-f --file <FILE> "Path to .gltf or .glb file to render")
+                    .default_value("res/simple_raytracer_test.glb")
+                    .display_order(1),
+                arg!(-h --headless "Run without a window")
+                    .display_order(2),
+                arg!(--samples --spp <NUM> "Number of samples per pixel")
+                    .default_value("1")
+                    .display_order(3),
+                arg!(--width <NUM> "Image width")
+                    .default_value("1920")
+                    .display_order(4),
+                arg!(--height <NUM> "Image height")
+                    .default_value("1080")
+                    .display_order(5),
+                arg!(-b --benchmark "Benchmark acceleration structures"),
+            ]).get_matches();
+
+        let read_usize = |name, default| {
+            let opt = matches.value_of(name).unwrap().parse::<usize>();
+
+            match opt {
+                Ok(v) => v,
+                Err(_) => {
+                    println!("Unable to parse argument {} as an integer, using value {} instead", name, default);
+                    default
+                }
+            }
+        };
+
+        Args {
+            file: matches.value_of("file").unwrap().into(),
+            headless: matches.is_present("headless"),
+            samples: read_usize("samples", 1),
+            width: read_usize("width", 1920),
+            height: read_usize("height", 1080),
+            benchmark: matches.is_present("benchmark"),
+        }
+    }
+}
