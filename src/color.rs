@@ -1,4 +1,4 @@
-use std::ops::{self, AddAssign};
+use std::ops::{self, AddAssign, MulAssign};
 
 use luminance::shader::types::Vec4;
 
@@ -46,6 +46,12 @@ macro_rules! impl_f32_color_tuple {
         impl AddAssign for $name {
             fn add_assign(&mut self, other: Self) {
                 $(self.$field += other.$field);+
+            }
+        }
+        
+        impl MulAssign<f32> for $name {
+            fn mul_assign(&mut self, s: f32) {
+                $(self.$field *= s);+
             }
         }
     };
