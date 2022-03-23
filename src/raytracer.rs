@@ -175,7 +175,7 @@ impl Raytracer {
     fn radiance(&self, ray: &Ray, depth: usize, accel_index: usize) -> RGBf32 {
         let mut result = RGBf32::new(0., 0., 0.);
 
-        if let TraceResult::Hit{ triangle_index, t, u, v } = self.trace(&ray, accel_index) {
+        if let TraceResult::Hit{ triangle_index, t, u, v } = self.trace(ray, accel_index) {
             let hit_pos = ray.traverse(t);
             let triangle = &self.triangles[triangle_index as usize];
             let material = &self.materials[triangle.material_index as usize];

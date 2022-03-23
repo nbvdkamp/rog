@@ -25,8 +25,8 @@ macro_rules! impl_f32_color_tuple {
 
             pub fn from_hex(hex: &str) -> Self {
                 let h = hex.trim_start_matches("#");
-                let mut i = 0;
-                $(let $field = i32::from_str_radix(&h[(i * 2)..((i + 1) * 2)], 16).unwrap(); i += 1;)+
+                let mut _i = 0;
+                $(let $field = i32::from_str_radix(&h[(_i * 2)..((_i + 1) * 2)], 16).unwrap(); _i += 1;)+
                 Self::new($($field as f32 / 255.0),+)
             }
 
