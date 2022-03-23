@@ -187,14 +187,14 @@ impl Raytracer {
                 v * self.verts[triangle.index3 as usize].normal
             ).normalize();
 
-            let hit_pos_offset = hit_pos + 0.001 * normal;
+            let offset_hit_pos = hit_pos + 0.0000023 * normal;
 
             if depth < self.max_depth {
                 let (bounce_dir, brdf, pdf) = brdf_sample(material.roughness_factor, -ray.direction, normal);
                 let mis_weight = mis2(100.0, pdf);
 
                 if brdf > 0.0 {
-                    let bounce_ray = Ray { origin: hit_pos_offset, direction: bounce_dir };
+                    let bounce_ray = Ray { origin: offset_hit_pos, direction: bounce_dir };
                     result += material.base_color_factor *  brdf / pdf * mis_weight * self.radiance(&bounce_ray, depth + 1, accel_index);
                 }
             }
@@ -203,8 +203,7 @@ impl Raytracer {
             for light in &self.lights {
                 // FIXME: Properly sample light types other than point
 
-                // TODO: Should this be hit_pos_offset? 
-                let light_vec = light.pos - hit_pos_offset;
+                let light_vec = light.pos - offset_hit_pos;
                 let light_dist = light_vec.magnitude();
 
                 if light_dist > light.range {
@@ -213,7 +212,7 @@ impl Raytracer {
 
                 let light_dir = light_vec / light_dist;
 
-                let shadow_ray = Ray { origin: hit_pos_offset, direction: light_dir };
+                let shadow_ray = Ray { origin: offset_hit_pos, direction: light_dir };
                 let mut shadowed = false;
 
                 if let TraceResult::Hit{ t, .. } = self.trace(&shadow_ray, accel_index) {
