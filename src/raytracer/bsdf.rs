@@ -25,8 +25,7 @@ fn fresnel_f_zero(ior: f32) -> f32 {
 
 mod ggx {
     use rand::Rng;
-    use cgmath::Vector3;
-    use crate::util::spherical_to_cartesian;
+    use cgmath::{Vector3, vec3};
 
     pub fn smith_shadow_term(v_dot_n: f32, alpha_squared: f32) -> f32 {
         let cos2 = v_dot_n * v_dot_n;
@@ -46,10 +45,12 @@ mod ggx {
         let r1 = rng.gen::<f32>();
         let r2 = rng.gen::<f32>();
 
-        let cos_theta = ((1.0 - r1) / (r1 * (alpha_squared - 1.0) + 1.0)).sqrt();
-        let theta = cos_theta.acos();
         let phi = 2.0 * std::f32::consts::PI * r2;
-        spherical_to_cartesian(theta, phi)
+        let cos_theta_squared = (1.0 - r1) / (r1 * (alpha_squared - 1.0) + 1.0);
+        let cos_theta = cos_theta_squared.sqrt();
+        let sin_theta= (1.0 - cos_theta_squared).sqrt();
+
+        vec3(sin_theta * phi.cos(), sin_theta * phi.sin(), cos_theta)
     }
 }
 
@@ -72,14 +73,14 @@ fn brdf(roughness: f32, i_dot_n: f32, o_dot_n: f32, m_dot_n: f32, i_dot_m: f32) 
     (brdf, pdf)
 }
 
-pub fn brdf_sample(roughness: f32, incident: Vector3<f32>, normal: Vector3<f32>) -> (Vector3<f32>, f32, f32) {
+pub fn brdf_sample(roughness: f32, incident: Vector3<f32>) -> (Vector3<f32>, f32, f32) {
     let alpha = roughness * roughness;
-    let micronormal = to_tangent_space(normal, ggx::sample_micronormal(alpha * alpha).normalize()).normalize();
+    let micronormal = ggx::sample_micronormal(alpha * alpha);
     let outgoing = reflect(incident, micronormal);
-    let i_dot_n = incident.dot(normal);
-    let o_dot_n = outgoing.dot(normal);
+    let i_dot_n = incident.z;
+    let o_dot_n = outgoing.z;
+    let m_dot_n = micronormal.z;
     let i_dot_m = incident.dot(micronormal).max(0.0);
-    let m_dot_n = micronormal.dot(normal);
 
     if i_dot_n <= 0.0 || o_dot_n <= 0.0 {
         return (vec3(0.0, 0.0, 0.0), 0.0, 0.0);
@@ -89,13 +90,13 @@ pub fn brdf_sample(roughness: f32, incident: Vector3<f32>, normal: Vector3<f32>)
     (outgoing, brdf, pdf)
 }
 
-pub fn brdf_eval(roughness: f32, incident: Vector3<f32>, outgoing: Vector3<f32>, normal: Vector3<f32>) -> (f32, f32) {
+pub fn brdf_eval(roughness: f32, incident: Vector3<f32>, outgoing: Vector3<f32>) -> (f32, f32) {
     let micronormal = (incident + outgoing).normalize();
     let outgoing = reflect(incident, micronormal);
-    let i_dot_n = incident.dot(normal);
+    let i_dot_n = incident.z;
+    let o_dot_n = outgoing.z;
+    let m_dot_n = micronormal.z;
     let i_dot_m = incident.dot(micronormal).max(0.0);
-    let o_dot_n = outgoing.dot(normal);
-    let m_dot_n = micronormal.dot(normal);
 
     if i_dot_n <= 0.0 || o_dot_n <= 0.0 {
         return (0.0, 0.0);

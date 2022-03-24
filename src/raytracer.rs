@@ -10,6 +10,7 @@ mod acceleration;
 mod aabb;
 mod axis;
 mod bsdf;
+mod shadingframe;
 
 use triangle::Triangle;
 use ray::{Ray, IntersectionResult};
@@ -24,6 +25,7 @@ use crate::{
 };
 
 use aabb::BoundingBox;
+use shadingframe::ShadingFrame;
 use acceleration::{
     bih::BoundingIntervalHierarchy,
     bvh::BoundingVolumeHierarchy,
@@ -189,12 +191,16 @@ impl Raytracer {
 
             let offset_hit_pos = hit_pos + 0.0000023 * normal;
 
+            let frame = ShadingFrame::new(normal);
+            let local_incident = frame.to_local(-ray.direction);
+
             if depth < self.max_depth {
-                let (bounce_dir, brdf, pdf) = brdf_sample(material.roughness_factor, -ray.direction, normal);
-                let mis_weight = mis2(100.0, pdf);
+                let (local_bounce_dir, brdf, pdf) = brdf_sample(material.roughness_factor, local_incident);
 
                 if brdf > 0.0 {
-                    let bounce_ray = Ray { origin: offset_hit_pos, direction: bounce_dir };
+                    let mis_weight = mis2(100.0, pdf);
+                    let bounce_ray = Ray { origin: offset_hit_pos, direction: frame.to_global(local_bounce_dir) };
+
                     result += material.base_color_factor *  brdf / pdf * mis_weight * self.radiance(&bounce_ray, depth + 1, accel_index);
                 }
             }
@@ -222,15 +228,17 @@ impl Raytracer {
                 }
 
                 if !shadowed {
-                    let falloff = (1.0 + light_dist) * (1.0 + light_dist);
-                    let intensity = light.intensity / falloff;
-                    let (brdf, pdf) = brdf_eval(material.roughness_factor, -ray.direction, light_dir, normal);
-                    let light_pick_prob= 1.0;
-                    let light_sample_pdf = 100.0; 
-                    let mis_weight = mis2(light_pick_prob * light_sample_pdf, pdf);
+                    let local_outgoing = frame.to_local(light_dir);
+                    let (brdf, pdf) = brdf_eval(material.roughness_factor, local_incident, local_outgoing);
 
                     if brdf > 0.0 {
-                        result +=  normal.dot(light_dir) * intensity * brdf * mis_weight * light.color * material.base_color_factor;
+                        let falloff = (1.0 + light_dist) * (1.0 + light_dist);
+                        let intensity = light.intensity / falloff;
+                        let light_pick_prob= 1.0;
+                        let light_sample_pdf = 100.0; 
+                        let mis_weight = mis2(light_pick_prob * light_sample_pdf, pdf);
+
+                        result += normal.dot(light_dir) * intensity * brdf * mis_weight * light.color * material.base_color_factor;
                     }
                 }
             }

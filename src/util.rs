@@ -34,7 +34,7 @@ pub fn mat_to_shader_type<T>(m: Matrix4<T>) -> Mat44<T> {
     x.into()
 }
 
-fn orthogonal_vector(v: Vector3<f32>) -> Vector3<f32> {
+pub fn orthogonal_vector(v: Vector3<f32>) -> Vector3<f32> {
     if v.x == 0.0 {
         Vector3::new(0.0, -v.z, v.y)
     } else if v.y == 0.0 {
