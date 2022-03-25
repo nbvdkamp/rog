@@ -195,13 +195,13 @@ impl Raytracer {
             let local_incident = frame.to_local(-ray.direction);
 
             if depth < self.max_depth {
-                let (local_bounce_dir, brdf, pdf) = brdf_sample(material.roughness_factor, local_incident);
+                let (local_bounce_dir, brdf, pdf) = brdf_sample(material.roughness, local_incident);
 
                 if brdf > 0.0 {
                     let mis_weight = mis2(100.0, pdf);
                     let bounce_ray = Ray { origin: offset_hit_pos, direction: frame.to_global(local_bounce_dir) };
 
-                    result += material.base_color_factor *  brdf / pdf * mis_weight * self.radiance(&bounce_ray, depth + 1, accel_index);
+                    result += material.base_color * brdf / pdf * mis_weight * self.radiance(&bounce_ray, depth + 1, accel_index);
                 }
             }
 
@@ -229,7 +229,7 @@ impl Raytracer {
 
                 if !shadowed {
                     let local_outgoing = frame.to_local(light_dir);
-                    let (brdf, pdf) = brdf_eval(material.roughness_factor, local_incident, local_outgoing);
+                    let (brdf, pdf) = brdf_eval(material.roughness, local_incident, local_outgoing);
 
                     if brdf > 0.0 {
                         let falloff = (1.0 + light_dist) * (1.0 + light_dist);
@@ -238,7 +238,7 @@ impl Raytracer {
                         let light_sample_pdf = 100.0; 
                         let mis_weight = mis2(light_pick_prob * light_sample_pdf, pdf);
 
-                        result += normal.dot(light_dir) * intensity * brdf * mis_weight * light.color * material.base_color_factor;
+                        result += normal.dot(light_dir) * intensity * brdf * mis_weight * light.color * material.base_color;
                     }
                 }
             }

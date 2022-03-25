@@ -152,7 +152,7 @@ impl App {
                             shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
                                 iface.set(&unif.u_projection, mat_to_shader_type(projection));
                                 iface.set(&unif.u_view, mat_to_shader_type(view));
-                                iface.set(&unif.u_base_color , material.base_color_factor.into());
+                                iface.set(&unif.u_base_color , material.base_color.into());
 
                                 rdr_gate.render(&RenderState::default(), |mut tess_gate| {
                                     tess_gate.render(tess)

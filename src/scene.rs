@@ -136,10 +136,10 @@ fn add_meshes_from_gltf_mesh(mesh: gltf::Mesh, buffers: &[gltf::buffer::Data], t
         let base = pbr.base_color_factor();
         
         let material = Material {
-            base_color_factor: RGBf32::new(base[0], base[1], base[2]),
-            roughness_factor: pbr.roughness_factor(),
-            metallic_factor: pbr.metallic_factor(),
-            emissive_factor: mat.emissive_factor().into(),
+            base_color: RGBf32::new(base[0], base[1], base[2]),
+            roughness: pbr.roughness_factor(),
+            metallic: pbr.metallic_factor(),
+            emissive: mat.emissive_factor().into(),
         };
 
         let positions = {
