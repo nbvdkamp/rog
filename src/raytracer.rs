@@ -1,5 +1,6 @@
 use std::time::Instant;
 use std::sync::{Arc, Mutex};
+use rand::Rng;
 
 use crossbeam_utils::thread;
 use cgmath::{InnerSpace, Point3, Vector2, Vector4};
@@ -129,16 +130,17 @@ impl Raytracer {
                     // Simple row-wise split of work
                     for y in y_start..y_end {
                         for x in 0..image_size.x {
-                            let offset = Vector2::new(0.5, 0.5);
-                            let screen = self.pixel_to_screen(Vector2::new(x, y), offset, image_size, aspect_ratio, fov_factor);
-
-                            // Using w = 0 because this is a direction vector
-                            let dir4 = cam_model * Vector4::new(screen.x, screen.y, -1., 0.).normalize();
-                            let ray = Ray { origin: camera_pos, direction: dir4.truncate().normalize() };
-
                             let mut color = RGBf32::new(0.0, 0.0, 0.0);
 
                             for _ in 0..samples {
+                                let mut rng = rand::thread_rng();
+                                let offset = Vector2::new(rng.gen(), rng.gen());
+                                let screen = self.pixel_to_screen(Vector2::new(x, y), offset, image_size, aspect_ratio, fov_factor);
+
+                                // Using w = 0 because this is a direction vector
+                                let dir4 = cam_model * Vector4::new(screen.x, screen.y, -1., 0.).normalize();
+                                let ray = Ray { origin: camera_pos, direction: dir4.truncate().normalize() };
+
                                 color +=  self.radiance(&ray, 0, accel_index);
                             }
 
