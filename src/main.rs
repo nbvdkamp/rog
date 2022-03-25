@@ -80,7 +80,14 @@ pub enum PlatformError {
 impl App {
     fn new(args: Args) -> Self
     {
-        let scene = Scene::load(args.file).unwrap();
+        let scene = match Scene::load(args.file) {
+            Ok(scene) => scene,
+            Err(message) => {
+                eprintln!("{}", message);
+                std::process::exit(-1);
+            }
+        };
+
         let raytracer = Raytracer::new(&scene);
         let image_size = vec2(args.width, args.height);
 
@@ -227,9 +234,15 @@ fn accel_benchmark() {
 
 fn headless_render(args: Args)
 {
-    let scene = Scene::load(args.file).unwrap();
-    let raytracer = Raytracer::new(&scene);
+    let scene = match Scene::load(args.file) {
+        Ok(scene) => scene,
+        Err(message) => {
+            eprintln!("{}", message);
+            std::process::exit(-1);
+        }
+    };
 
+    let raytracer = Raytracer::new(&scene);
     let image_size = vec2(args.width, args.height);
 
     let (buffer, time_elapsed) = raytracer.render(image_size, args.samples, 2);

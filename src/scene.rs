@@ -37,24 +37,26 @@ impl Scene {
     where
         P: AsRef<Path>,
     {
-        if let Ok((document, buffers, _)) = gltf::import(path) {
-            let mut meshes = Vec::<Mesh>::new();
-            let mut lights = Vec::<Light>::new();
-            let mut camera = PerspectiveCamera::default();
-            
-            for scene in document.scenes() {
-                parse_nodes(scene.nodes().collect(), &buffers, &mut meshes, &mut lights, &mut camera, Matrix4::identity());
+        match  gltf::import(path) {
+            Ok((document, buffers, _)) => {
+                let mut meshes = Vec::<Mesh>::new();
+                let mut lights = Vec::<Light>::new();
+                let mut camera = PerspectiveCamera::default();
+                
+                for scene in document.scenes() {
+                    parse_nodes(scene.nodes().collect(), &buffers, &mut meshes, &mut lights, &mut camera, Matrix4::identity());
+                }
+
+                let gamma = 2.2;
+                let environment = Environment {
+                    color: RGBf32::from_hex("#404040").pow(gamma),
+                };
+
+                Ok(Scene { meshes, lights, camera, environment })
             }
-
-            let gamma = 2.2;
-            let environment = Environment {
-                color: RGBf32::from_hex("#404040").pow(gamma),
-            };
-
-            Ok(Scene { meshes, lights, camera, environment })
-        }
-        else {
-            Err("Couldn't open glTF file.".into())
+            Err(e) => {
+                Err(format!("An error occured while opening the glTF file:\n\t{}", e))
+            }
         }
     }
 }
