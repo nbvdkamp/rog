@@ -25,10 +25,6 @@ pub fn max_element(v: Vector3<f32>) -> f32 {
     f32::max(v.x, f32::max(v.y, v.z))
 }
 
-pub fn from_homogenous(v: Vector4<f32>) -> Point3<f32> {
-    point3(v.x / v.w, v.y / v.w, v.z / v.w)
-}
-
 pub fn mat_to_shader_type<T>(m: Matrix4<T>) -> Mat44<T> {
     let x: [[T; 4]; 4] = m.into();
     x.into()
