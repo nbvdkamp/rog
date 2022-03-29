@@ -118,16 +118,18 @@ impl Scene {
             let pbr = mat.pbr_metallic_roughness();
             let base = pbr.base_color_factor();
 
-            let base_color_texture = pbr.base_color_texture().map(|texture| {
-                self.add_texture(texture, buffers)
+            let mut add_texture = |texture_info: Option<gltf::texture::Info>| texture_info.map(|texture_info| {
+                self.add_texture(texture_info, buffers)
             });
-            
+
             let material = Material {
                 base_color: RGBf32::new(base[0], base[1], base[2]),
-                base_color_texture,
+                base_color_texture: add_texture(pbr.base_color_texture()),
                 roughness: pbr.roughness_factor(),
                 metallic: pbr.metallic_factor(),
+                metallic_roughness_texture: add_texture(pbr.metallic_roughness_texture()),
                 emissive: mat.emissive_factor().into(),
+                emissive_texture: add_texture(mat.emissive_texture()),
             };
 
             let positions = reader
