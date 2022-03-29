@@ -130,35 +130,24 @@ impl Scene {
                 emissive: mat.emissive_factor().into(),
             };
 
-            let positions = {
-                let iter = reader
+            let positions = reader
                     .read_positions()
                     .unwrap_or_else(||
                         panic!("Primitive does not have POSITION attribute (mesh: {}, primitive: {})", mesh.index(), primitive.index())
                     )
-                    .map(|pos| {
-                        let v = transform * Vector4::new(pos[0], pos[1], pos[2], 1.0);
-                        [v[0] / v[3], v[1] / v[3], v[2] / v[3]]
-                    });
-                
-                iter.collect::<Vec<_>>()
-            };
+                    .map(|pos| Point3::from_homogeneous(transform * Vector4::new(pos[0], pos[1], pos[2], 1.0)));
             
-            let normals= {
-                let iter = reader
+            let normals = reader
                     .read_normals()
                     .unwrap_or_else(||
                         panic!("Primitive does not have NORMAL attribute (mesh: {}, primitive: {})", mesh.index(), primitive.index())
                     );
-                iter.collect::<Vec<_>>()
-            };
 
-            let vertices: Vec<Vertex> = positions
-                .into_iter()
-                .zip(normals.into_iter())
+            let vertices = positions
+                .zip(normals)
                 .map(|(position, normal)| {
                     Vertex {
-                        position: position.into(),
+                        position,
                         normal: normal.into(),
                     }
                 }).collect();
