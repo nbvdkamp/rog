@@ -2,11 +2,11 @@ use std::ops::{self, AddAssign, MulAssign};
 
 use luminance::shader::types::Vec4;
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
 pub struct RGBf32 {
-    r: f32,
-    g: f32,
-    b: f32,
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
 }
 
 
@@ -28,6 +28,14 @@ macro_rules! impl_f32_color_tuple {
                 let mut _i = 0;
                 $(let $field = i32::from_str_radix(&h[(_i * 2)..((_i + 1) * 2)], 16).unwrap(); _i += 1;)+
                 Self::new($($field as f32 / 255.0),+)
+            }
+
+            pub fn from_grayscale(value: f32) -> Self {
+                Self { $($field: value),+ }
+            }
+
+            pub fn white() -> Self {
+                Self::from_grayscale(1.0)
             }
 
             pub fn pow(&self, exponent: f32) -> Self {
