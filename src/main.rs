@@ -24,6 +24,7 @@ mod mesh;
 mod scene;
 mod camera;
 mod material;
+mod texture;
 mod light;
 mod environment;
 mod raytracer;

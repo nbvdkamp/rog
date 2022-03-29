@@ -1,13 +1,15 @@
+use std::collections::HashMap;
 use std::path::Path;
 
 use cgmath::{Matrix4, Quaternion, Point3, Vector4, SquareMatrix, vec4};
-use gltf::scene::Transform;
+use gltf::{scene::Transform};
 use gltf::camera::Projection;
 
 use crate::{
     mesh::{Vertex, VertexIndex, Mesh},
     camera::PerspectiveCamera,
     material::Material,
+    texture::Texture,
     light::Light, 
     color::RGBf32,
     environment::Environment,
@@ -16,8 +18,17 @@ use crate::{
 pub struct Scene {
     pub meshes: Vec<Mesh>,
     pub lights: Vec<Light>,
+    pub textures: Vec<Texture>,
     pub camera: PerspectiveCamera,
     pub environment: Environment,
+    texture_indices: HashMap<TextureView, usize>,
+}
+
+/// Used to keep track of which Textures were loaded from the glTF
+#[derive(PartialEq, Eq, Hash)]
+struct TextureView {
+    buffer_index: usize,
+    offset: usize,
 }
 
 fn transform_to_mat(t: Transform) -> Matrix4<f32> {
@@ -47,8 +58,10 @@ impl Scene {
                 let mut result = Scene {
                     meshes: Vec::new(),
                     lights: Vec::new(),
+                    textures: Vec::new(),
                     camera: PerspectiveCamera::default(),
                     environment,
+                    texture_indices: HashMap::new(),
                 };
                 
                 for scene in document.scenes() {
@@ -104,9 +117,14 @@ impl Scene {
             let mat = primitive.material();
             let pbr = mat.pbr_metallic_roughness();
             let base = pbr.base_color_factor();
+
+            let base_color_texture = pbr.base_color_texture().map(|texture| {
+                self.add_texture(texture, buffers)
+            });
             
             let material = Material {
                 base_color: RGBf32::new(base[0], base[1], base[2]),
+                base_color_texture,
                 roughness: pbr.roughness_factor(),
                 metallic: pbr.metallic_factor(),
                 emissive: mat.emissive_factor().into(),
@@ -156,6 +174,49 @@ impl Scene {
             
             //TODO get more optional vertex data.
             self.meshes.push(Mesh::new(vertices, indices, material));
+        }
+    }
+
+    /// Adds the texture if it hasn't been added yet, returns its index 
+    fn add_texture(&mut self, texture_info: gltf::texture::Info, buffers: &[gltf::buffer::Data]) -> usize {
+        let texture = texture_info.texture().source().source();
+
+        match texture {
+            gltf::image::Source::View { view, .. } => {
+                let buffer_index = view.buffer().index();
+                let start = view.offset();
+                let end = start + view.length();
+                let texture_view = TextureView { buffer_index, offset: start };
+
+                if let Some(index) = self.texture_indices.get(&texture_view) {
+                    return *index;
+                }
+
+                let cursor = std::io::Cursor::new(&buffers[buffer_index][start..end]);
+
+                let reader = match image::io::Reader::new(cursor).with_guessed_format() {
+                    Ok(reader) => reader,
+                    Err(e) => {
+                        panic!("Inferring image type failed: {}", e);
+                    }
+                };
+
+                let image = match reader.decode() {
+                    Ok(image) => image.to_rgba8(),
+                    Err(e) => {
+                        panic!("Decoding image failed: {}", e);
+                    }
+                };
+
+                self.textures.push(Texture::new(image));
+                let index = self.textures.len();
+                self.texture_indices.insert(texture_view, index);
+
+                index
+            },
+            gltf::image::Source::Uri { .. } => {
+                panic!("Loading images from URIs is not yet implemented!");
+            },
         }
     }
 }
