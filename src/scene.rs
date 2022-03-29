@@ -215,7 +215,7 @@ impl Scene {
                 };
 
                 self.textures.push(Texture::new(image));
-                let index = self.textures.len();
+                let index = self.textures.len() - 1;
                 self.texture_indices.insert(texture_view, index);
 
                 index
