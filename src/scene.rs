@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use cgmath::{Matrix4, Quaternion, Point3, Vector4, SquareMatrix, vec4};
+use cgmath::{Matrix4, Quaternion, Point3, Vector4, SquareMatrix, vec2, vec4, Vector2};
 use gltf::{scene::Transform};
 use gltf::camera::Projection;
 
@@ -143,16 +143,33 @@ impl Scene {
                         panic!("Primitive does not have NORMAL attribute (mesh: {}, primitive: {})", mesh.index(), primitive.index())
                     );
 
-            let vertices = positions
-                .zip(normals)
+            let tex_coords = reader.read_tex_coords(0)
+                    .map(|read_tex_coords| 
+                        read_tex_coords.into_f32()
+                    ).map(|iter| iter.map(|uv| Vector2::<f32>::new(uv[0], uv[1])));
+
+            // FIXME: Find a way to remove the duplication
+            let vertices = if let Some(tex_coords) = tex_coords {
+                positions.zip(normals).zip(tex_coords)
+                .map(|((position, normal), tex_coord)| {
+                    Vertex {
+                        position,
+                        normal: normal.into(),
+                        tex_coord: Some(tex_coord),
+                    }
+                }).collect()
+            } else {
+                positions.zip(normals)
                 .map(|(position, normal)| {
                     Vertex {
                         position,
                         normal: normal.into(),
+                        tex_coord: None,
                     }
-                }).collect();
+                }).collect()
+            };
             
-            let indices: Vec<VertexIndex> = reader
+            let indices = reader
                 .read_indices()
                 .map(|read_indices| {
                     read_indices.into_u32().collect::<Vec<_>>()
