@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use cgmath::{Matrix4, Quaternion, Point3, Vector4, SquareMatrix, vec2, vec4, Vector2};
+use cgmath::{Matrix4, Quaternion, Point3, Vector4, SquareMatrix, vec4, Vector2};
 use gltf::{scene::Transform};
 use gltf::camera::Projection;
 
 use crate::{
-    mesh::{Vertex, VertexIndex, Mesh},
+    mesh::{Vertex, Mesh},
     camera::PerspectiveCamera,
     material::Material,
     texture::Texture,
