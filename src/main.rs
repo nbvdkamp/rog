@@ -66,6 +66,8 @@ struct ShaderInterface {
 const VS_STR: &str = include_str!("passthrough.vs");
 const FS_STR: &str = include_str!("color.fs");
 
+const ACCEL_INDEX: usize = 1;
+
 struct App {
     raytracer: Raytracer,
     scene: Scene,
@@ -176,7 +178,7 @@ impl App {
 
     fn handle_key_event(&self, key: Key, action: Action) {
         if key == Key::Enter && action == Action::Press {
-            let (buffer, time_elapsed) = self.raytracer.render(self.image_size, self.samples_per_pixel, 2);
+            let (buffer, time_elapsed) = self.raytracer.render(self.image_size, self.samples_per_pixel, ACCEL_INDEX);
             println!("Finished rendering in {} seconds", time_elapsed);
 
             let save_result = image::save_buffer("output/result.png", 
@@ -246,7 +248,7 @@ fn headless_render(args: Args)
     let raytracer = Raytracer::new(&scene);
     let image_size = vec2(args.width, args.height);
 
-    let (buffer, time_elapsed) = raytracer.render(image_size, args.samples, 2);
+    let (buffer, time_elapsed) = raytracer.render(image_size, args.samples, ACCEL_INDEX);
     println!("Finished rendering in {} seconds", time_elapsed);
 
     let save_result = image::save_buffer("output/result.png", &buffer, image_size.x as u32, image_size.y as u32, image::ColorType::Rgb8);

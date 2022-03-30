@@ -6,8 +6,6 @@ use super::super::aabb::BoundingBox;
 use super::statistics::{Statistics, StatisticsStore};
 use super::structure::{AccelerationStructure, TraceResult};
 
-use cgmath::MetricSpace;
-
 pub struct BoundingVolumeHierarchy {
     nodes: Vec<Node>,
     stats: Statistics,
@@ -179,11 +177,8 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                         if let IntersectionResult::Hit{ t, u, v } = ray.intersect_triangle(p1.position, p2.position, p3.position) {
                             self.stats.count_intersection_hit();
 
-                            let hit_pos = ray.traverse(t);
-                            let distance = hit_pos.distance2(ray.origin);
-
-                            if distance < min_distance {
-                                min_distance = distance;
+                            if t < min_distance {
+                                min_distance = t;
                                 result = TraceResult::Hit{ triangle_index: *triangle_index, t, u, v };
                             }
                         }

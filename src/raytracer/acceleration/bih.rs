@@ -124,19 +124,13 @@ impl BoundingIntervalHierarchy {
         let first_result = self.intersect(first_hit_child, ray, inv_dir, verts, triangles, first_bounds);
 
         if let TraceResult::Hit{ t: t_first, .. } = first_result {
-            let hit_pos_first = ray.traverse(t_first);
-            let distance_first_hit = hit_pos_first.distance2(ray.origin);
-
-            if distance_first_hit < dist_to_second_box * dist_to_second_box {
+            if t_first < dist_to_second_box {
                 first_result
             } else {
                 let second_result = self.intersect(second_hit_child, ray, inv_dir, verts, triangles, second_bounds);
 
                 if let TraceResult::Hit{ t: t_second, .. } = second_result {
-                    let hit_pos_second= ray.traverse(t_second);
-                    let distance_second_hit = hit_pos_second.distance2(ray.origin);
-
-                    if distance_second_hit < distance_first_hit {
+                    if t_second < t_first {
                         second_result
                     } else {
                         first_result
