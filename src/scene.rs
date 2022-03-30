@@ -242,18 +242,10 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>)
         return None;
     }
 
-    let range;
-
-    if let Some(r) = light.range() {
-        range = r;
-    } else {
-        range = f32::INFINITY;
-    }
-
     Some(Light {
         pos: Point3::from_homogeneous(transform * vec4(0.0, 0.0, 0.0, 1.0)),
         intensity: light.intensity(),
-        range,
+        range: light.range().unwrap_or(f32::INFINITY),
         color: light.color().into(),
         kind
     })

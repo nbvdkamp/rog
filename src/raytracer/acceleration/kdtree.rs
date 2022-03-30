@@ -28,6 +28,7 @@ enum Node {
 }
 
 impl AccelerationStructure for KdTree {
+    #[allow(clippy::only_used_in_recursion)]
     fn intersect(&self, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
         self.stats.count_ray();
 

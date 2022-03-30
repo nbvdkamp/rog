@@ -26,6 +26,7 @@ enum Node {
 }
 
 impl AccelerationStructure for BoundingVolumeHierarchyRec {
+    #[allow(clippy::only_used_in_recursion)]
     fn intersect(&self, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
         self.stats.count_ray();
 
@@ -179,7 +180,7 @@ fn intersects_bounds_distance(node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: 
     }
 }
 
-fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: &mut Vec<usize>) -> Option<Box<Node>> {
+fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: &mut [usize]) -> Option<Box<Node>> {
     if triangle_indices.is_empty() {
         return None
     }

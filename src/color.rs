@@ -82,7 +82,7 @@ impl From<[f32; 3]> for RGBf32 {
 }
 
 pub fn _debug_color(x: f32) -> RGBf32 {
-    if x >= 0.0 && x <= 1.0 { // green
+    if (0.0..=1.0).contains(&x) { // green
         RGBf32::new(0.0, x, 0.0)
     } else if x > 1.0 &&  x <= 10.0 { // blue
         RGBf32::new(0.0, 0.0, x / 10.0)

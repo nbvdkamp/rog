@@ -23,7 +23,7 @@ pub struct MaterialSample {
 }
 
 impl Material {
-    pub fn sample(&self, texture_coordinates: Vector2<f32>, textures: &Vec::<Texture>) -> MaterialSample {
+    pub fn sample(&self, texture_coordinates: Vector2<f32>, textures: &[Texture]) -> MaterialSample {
         let sample = |tex: Option<usize>| match tex {
             Some(index) => textures[index].sample(texture_coordinates.x, texture_coordinates.y),
             None => RGBf32::white()
