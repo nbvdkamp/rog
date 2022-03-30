@@ -122,7 +122,7 @@ impl App {
             .map(|mesh| (mesh.to_tess(&mut context).unwrap(), mesh.material.clone()))
             .collect::<Vec<(Tess<LuminanceVertex, VertexIndex, (), Interleaved>, Material)>>();
 
-        let [width, height] = back_buffer.size();
+        let [_width, _height] = back_buffer.size();
         let projection = self.scene.camera.projection();
         let view = self.scene.camera.view;
         

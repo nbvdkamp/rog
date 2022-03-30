@@ -1,4 +1,4 @@
-use cgmath::{Vector3, vec3, Point3, point3, Vector4, Matrix3, Matrix4, InnerSpace};
+use cgmath::{Vector3, Matrix4, InnerSpace};
 use luminance_front::shader::types::{Mat44};
 
 pub fn elementwise_min(a: Vector3<f32>, b: Vector3<f32>) -> Vector3<f32> {
@@ -40,26 +40,14 @@ pub fn orthogonal_vector(v: Vector3<f32>) -> Vector3<f32> {
     }
 }
 
-pub fn to_tangent_space(normal: Vector3<f32>, v: Vector3<f32> ) -> Vector3<f32> {
-    let tangent = orthogonal_vector(normal).normalize();
-    let bitangent = normal.cross(tangent);
-
-    Matrix3::from_cols(tangent, bitangent, normal) * v
-}
-
 /// normal must be a unit vector
 pub fn reflect(v: Vector3<f32>, normal: Vector3<f32>) -> Vector3<f32> {
     -v + 2.0 * normal.dot(v) * normal
 }
 
-pub fn spherical_to_cartesian(theta: f32, phi: f32) -> Vector3<f32> {
-    let sin_theta = theta.sin();
-    vec3(sin_theta * phi.cos(), sin_theta * phi.sin(), theta.cos())
-}
-
 #[cfg(test)]
 mod tests {
-    use cgmath::assert_abs_diff_eq;
+    use cgmath::{assert_abs_diff_eq, vec3};
     use super::*;
 
     #[test]

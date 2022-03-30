@@ -29,7 +29,7 @@ use crate::{
 use aabb::BoundingBox;
 use shadingframe::ShadingFrame;
 use acceleration::{
-    bih::BoundingIntervalHierarchy,
+    // bih::BoundingIntervalHierarchy,
     bvh::BoundingVolumeHierarchy,
     bvh_rec::BoundingVolumeHierarchyRec,
     kdtree::KdTree, 

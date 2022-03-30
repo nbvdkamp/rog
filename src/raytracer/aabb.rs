@@ -74,16 +74,6 @@ impl BoundingBox {
 
         max_element(tmin)
     }
-
-    pub fn intersects_bounding_box(&self, other: &BoundingBox) -> bool {
-        ranges_intersect(self.min.x, self.max.x, other.min.x, other.max.x) &&
-        ranges_intersect(self.min.y, self.max.y, other.min.y, other.max.y) &&
-        ranges_intersect(self.min.z, self.max.z, other.min.z, other.max.z)
-    }
-}
-
-fn ranges_intersect(a_min: f32, a_max: f32, b_min: f32, b_max: f32) -> bool {
-    !(a_min > b_max || a_max < b_min)
 }
 
 #[cfg(test)]
@@ -124,32 +114,6 @@ mod tests {
         let inv_dir = 1.0 / ray.direction;
 
         assert_eq!(bb.intersects_ray(&ray, &inv_dir), false);
-    }
-
-    #[test]
-    fn intersect_bounding_box_hit() {
-        let mut bb = BoundingBox::new();
-        bb.add(&Point3::new(-1.0, -1.0, -1.0));
-        bb.add(&Point3::new(1.0, 1.0, 1.0));
-
-        let mut other = BoundingBox::new();
-        other.add(&Point3::new(0.0, 0.0, 0.0));
-        other.add(&Point3::new(3.0, 3.0, 3.0));
-
-        assert_eq!(bb.intersects_bounding_box(&other), true);
-    }
-
-    #[test]
-    fn intersect_bounding_box_miss() {
-        let mut bb = BoundingBox::new();
-        bb.add(&Point3::new(-1.0, -1.0, -1.0));
-        bb.add(&Point3::new(1.0, 1.0, 1.0));
-
-        let mut other = BoundingBox::new();
-        other.add(&Point3::new(2.0, 2.0, 2.0));
-        other.add(&Point3::new(3.0, 3.0, 3.0));
-
-        assert_eq!(bb.intersects_bounding_box(&other), false);
     }
 
     #[test]

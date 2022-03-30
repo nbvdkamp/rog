@@ -11,13 +11,4 @@ impl Axis {
             Axis::Z => 2,
         }
     }
-
-    pub fn from_index(index: usize) -> Self {
-        match index {
-            0 => Axis::X,
-            1 => Axis::Y,
-            2 => Axis::Z,
-            _ => { panic!("Invalid axis index"); }
-        }
-    }
 }
