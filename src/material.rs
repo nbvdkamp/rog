@@ -35,7 +35,7 @@ impl Material {
         MaterialSample {
             base_color: self.base_color * sample(self.base_color_texture),
             metallic: self.metallic * metallic_roughness.b,
-            roughness: self.roughness * metallic_roughness.g, 
+            roughness: (self.roughness * metallic_roughness.g).max(0.001), 
             emissive: self.emissive * sample(self.emissive_texture),
             specular: 0.5,
         }
