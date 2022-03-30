@@ -1,8 +1,9 @@
 use cgmath::{Vector3, vec3, InnerSpace};
 use lerp::Lerp;
-use crate::util::{
-    to_tangent_space,
-    reflect,
+use crate::{
+    util::reflect,
+    material::MaterialSample,
+    color::RGBf32,
 };
 
 pub fn mis2(pdf1: f32, pdf2: f32) -> f32 {
@@ -54,8 +55,8 @@ mod ggx {
     }
 }
 
-fn brdf(roughness: f32, i_dot_n: f32, o_dot_n: f32, m_dot_n: f32, i_dot_m: f32) -> (f32, f32) {
-    let alpha = roughness * roughness;
+fn brdf(mat: &MaterialSample, i_dot_n: f32, o_dot_n: f32, m_dot_n: f32, i_dot_m: f32) -> (RGBf32, f32) {
+    let alpha = mat.roughness * mat.roughness;
     let alpha_squared = alpha * alpha;
 
     let g_i = ggx::smith_shadow_term(i_dot_n, alpha_squared);
@@ -67,14 +68,14 @@ fn brdf(roughness: f32, i_dot_n: f32, o_dot_n: f32, m_dot_n: f32, i_dot_m: f32) 
     let specular_color = 0.2;
     let fresnel = specular_color.lerp(1.0, fresnel_m);
 
-    let brdf = fresnel * shadow_masking * normal_distrib / (4.0 * i_dot_n * o_dot_n);
+    let brdf = RGBf32::white() * fresnel * shadow_masking * normal_distrib / (4.0 * i_dot_n * o_dot_n);
     let pdf = g_o * normal_distrib / (4.0 * i_dot_n * o_dot_n);
 
     (brdf, pdf)
 }
 
-pub fn brdf_sample(roughness: f32, incident: Vector3<f32>) -> (Vector3<f32>, f32, f32) {
-    let alpha = roughness * roughness;
+pub fn brdf_sample(mat: &MaterialSample, incident: Vector3<f32>) -> (Vector3<f32>, RGBf32, f32) {
+    let alpha = mat.roughness * mat.roughness;
     let micronormal = ggx::sample_micronormal(alpha * alpha);
     let outgoing = reflect(incident, micronormal);
     let i_dot_n = incident.z;
@@ -83,14 +84,14 @@ pub fn brdf_sample(roughness: f32, incident: Vector3<f32>) -> (Vector3<f32>, f32
     let i_dot_m = incident.dot(micronormal).max(0.0);
 
     if i_dot_n <= 0.0 || o_dot_n <= 0.0 {
-        return (vec3(0.0, 0.0, 0.0), 0.0, 0.0);
+        return (vec3(0.0, 0.0, 0.0), RGBf32::from_grayscale(0.0), 0.0);
     }
 
-    let (brdf, pdf) = brdf(roughness, i_dot_n, o_dot_n, m_dot_n, i_dot_m);
+    let (brdf, pdf) = brdf(mat, i_dot_n, o_dot_n, m_dot_n, i_dot_m);
     (outgoing, brdf, pdf)
 }
 
-pub fn brdf_eval(roughness: f32, incident: Vector3<f32>, outgoing: Vector3<f32>) -> (f32, f32) {
+pub fn brdf_eval(mat: &MaterialSample, incident: Vector3<f32>, outgoing: Vector3<f32>) -> (RGBf32, f32) {
     let micronormal = (incident + outgoing).normalize();
     let outgoing = reflect(incident, micronormal);
     let i_dot_n = incident.z;
@@ -99,10 +100,10 @@ pub fn brdf_eval(roughness: f32, incident: Vector3<f32>, outgoing: Vector3<f32>)
     let i_dot_m = incident.dot(micronormal).max(0.0);
 
     if i_dot_n <= 0.0 || o_dot_n <= 0.0 {
-        return (0.0, 0.0);
+        return (RGBf32::from_grayscale(0.0), 0.0);
     }
 
-    brdf(roughness, i_dot_n, o_dot_n, m_dot_n, i_dot_m)
+    brdf(mat, i_dot_n, o_dot_n, m_dot_n, i_dot_m)
 }
 
 #[cfg(test)]

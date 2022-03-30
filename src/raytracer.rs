@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use rand::Rng;
 
 use crossbeam_utils::thread;
-use cgmath::{InnerSpace, Point3, Vector2, Vector4};
+use cgmath::{InnerSpace, Point3, Vector2, vec2, Vector4};
 
 mod ray;
 mod triangle;
@@ -20,6 +20,7 @@ use crate::{
     camera::PerspectiveCamera,
     material::Material,
     light::Light,
+    texture::Texture,
     environment::Environment,
     mesh::Vertex,
     scene::Scene,
@@ -46,6 +47,7 @@ pub struct Raytracer {
     triangles: Vec<Triangle>,
     materials: Vec<Material>,
     lights: Vec<Light>,
+    textures: Vec<Texture>,
     environment: Environment,
     camera: PerspectiveCamera,
     max_depth: usize,
@@ -88,6 +90,7 @@ impl Raytracer {
             triangles,
             materials,
             lights: scene.lights.clone(),
+            textures: scene.textures.clone(), // FIXME: This wastes a lot of memory
             environment: scene.environment.clone(),
             camera: scene.camera.clone(),
             max_depth: 10,
@@ -190,16 +193,28 @@ impl Raytracer {
                 u * self.verts[triangle.index2 as usize].normal +
                 v * self.verts[triangle.index3 as usize].normal
             ).normalize();
+            
+            let has_texture_coords = self.verts[triangle.index1 as usize].tex_coord.is_some();
+
+            let texture_coords = if has_texture_coords {
+                (1. - u - v) * self.verts[triangle.index1 as usize].tex_coord.unwrap() +
+                u * self.verts[triangle.index2 as usize].tex_coord.unwrap() +
+                v * self.verts[triangle.index3 as usize].tex_coord.unwrap()
+            } else {
+                vec2(0.0, 0.0)
+            };
 
             let offset_hit_pos = hit_pos + 0.0000023 * normal;
 
+            // FIXME: Only evaluate these when required?
             let frame = ShadingFrame::new(normal);
             let local_incident = frame.to_local(-ray.direction);
+            let mat_sample = material.sample(texture_coords, &self.textures);
 
             if depth < self.max_depth {
-                let (local_bounce_dir, brdf, pdf) = brdf_sample(material.roughness, local_incident);
+                let (local_bounce_dir, brdf, pdf) = brdf_sample(&mat_sample, local_incident);
 
-                if brdf > 0.0 {
+                if brdf > RGBf32::from_grayscale(0.0) {
                     let mis_weight = mis2(100.0, pdf);
                     let bounce_ray = Ray { origin: offset_hit_pos, direction: frame.to_global(local_bounce_dir) };
 
@@ -231,9 +246,9 @@ impl Raytracer {
 
                 if !shadowed {
                     let local_outgoing = frame.to_local(light_dir);
-                    let (brdf, pdf) = brdf_eval(material.roughness, local_incident, local_outgoing);
+                    let (brdf, pdf) = brdf_eval(&mat_sample, local_incident, local_outgoing);
 
-                    if brdf > 0.0 {
+                    if brdf > RGBf32::from_grayscale(0.0) {
                         let falloff = (1.0 + light_dist) * (1.0 + light_dist);
                         let intensity = light.intensity / falloff;
                         let light_pick_prob= 1.0;
