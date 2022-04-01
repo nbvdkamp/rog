@@ -18,17 +18,21 @@ impl Args {
             .args(&[
                 arg!(-f --file <FILE> "Path to .gltf or .glb file to render")
                     .default_value("res/simple_raytracer_test.glb")
+                    .required(false)
                     .display_order(1),
                 arg!(-h --headless "Run without a window")
                     .display_order(2),
                 arg!(--samples --spp <NUM> "Number of samples per pixel")
                     .default_value("1")
+                    .required(false)
                     .display_order(3),
                 arg!(--width <NUM> "Image width")
                     .default_value("1920")
+                    .required(false)
                     .display_order(4),
                 arg!(--height <NUM> "Image height")
                     .default_value("1080")
+                    .required(false)
                     .display_order(5),
                 arg!(-b --benchmark "Benchmark acceleration structures"),
             ]).get_matches();
