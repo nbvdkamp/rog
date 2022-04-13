@@ -187,19 +187,25 @@ impl Raytracer {
             let triangle = &self.triangles[triangle_index as usize];
             let material = &self.materials[triangle.material_index as usize];
 
+            let verts = [
+                &self.verts[triangle.index1 as usize],
+                &self.verts[triangle.index2 as usize],
+                &self.verts[triangle.index3 as usize],
+            ];
+
             // Interpolate the vertex normals
             let normal = (
-                (1. - u - v) * self.verts[triangle.index1 as usize].normal +
-                u * self.verts[triangle.index2 as usize].normal +
-                v * self.verts[triangle.index3 as usize].normal
+                (1. - u - v) * verts[0].normal +
+                u * verts[1].normal +
+                v * verts[2].normal
             ).normalize();
             
             let has_texture_coords = self.verts[triangle.index1 as usize].tex_coord.is_some();
 
             let texture_coords = if has_texture_coords {
-                (1. - u - v) * self.verts[triangle.index1 as usize].tex_coord.unwrap() +
-                u * self.verts[triangle.index2 as usize].tex_coord.unwrap() +
-                v * self.verts[triangle.index3 as usize].tex_coord.unwrap()
+                (1. - u - v) * verts[0].tex_coord.unwrap() +
+                u * verts[1].tex_coord.unwrap() +
+                v * verts[2].tex_coord.unwrap()
             } else {
                 vec2(0.0, 0.0)
             };
