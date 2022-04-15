@@ -34,11 +34,12 @@ mod ggx {
         2.0 / (1.0 + (1.0 + alpha_squared * tan2).sqrt())
     }
 
-    pub fn normal_distribution(alpha_squared: f32, cos_theta: f32) -> f32 {
+    /// Using f64 since single precision leads to nans for near perfect mirror surfaces
+    pub fn normal_distribution(alpha_squared: f64, cos_theta: f64) -> f32 {
         let cos_theta_squared = cos_theta * cos_theta;
         let b = (alpha_squared - 1.0) * cos_theta_squared + 1.0;
 
-        alpha_squared / (std::f32::consts::PI * b * b)
+        (alpha_squared / (std::f64::consts::PI * b * b)) as f32
     }
 
     pub fn sample_micronormal(alpha_squared: f32) -> Vector3<f32> {
@@ -62,7 +63,7 @@ fn brdf(mat: &MaterialSample, i_dot_n: f32, o_dot_n: f32, m_dot_n: f32, i_dot_m:
     let g_i = ggx::smith_shadow_term(i_dot_n, alpha_squared);
     let g_o = ggx::smith_shadow_term(o_dot_n, alpha_squared);
     let shadow_masking = g_o * g_i;
-    let normal_distrib = ggx::normal_distribution(alpha_squared, m_dot_n);
+    let normal_distrib = ggx::normal_distribution(alpha_squared as f64, m_dot_n as f64);
 
     let fresnel_m = schlick_fresnel_approximation(i_dot_m, fresnel_f_zero(1.45));
     let specular_color = 0.2;
