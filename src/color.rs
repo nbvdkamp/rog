@@ -38,6 +38,10 @@ macro_rules! impl_f32_color_tuple {
                 Self::from_grayscale(1.0)
             }
 
+            pub fn has_nan_component(&self) -> bool {
+                $(self.$field.is_nan())||+
+            }
+
             pub fn pow(&self, exponent: f32) -> Self {
                 Self::new($(self.$field.powf(exponent)),+)
             }
@@ -133,5 +137,13 @@ mod tests {
         assert_abs_diff_eq!(c.r, 0.25, epsilon = 0.01);
         assert_abs_diff_eq!(c.g, 0.5, epsilon = 0.01);
         assert_abs_diff_eq!(c.b, 0.75, epsilon = 0.01);
+    }
+
+    #[test]
+    fn has_nan_component() {
+        let mut c = RGBf32::new(f32::NAN, 0.0, 0.0);
+        assert_eq!(c.has_nan_component(), true);
+        c.r = 0.0;
+        assert_eq!(c.has_nan_component(), false);
     }
 }
