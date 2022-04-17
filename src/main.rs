@@ -37,6 +37,7 @@ use scene::Scene;
 use material::Material;
 use raytracer::Raytracer;
 use util::mat_to_shader_type;
+use color::{RGBf32, RGBu8};
 
 fn main() {
     let args = Args::parse();
@@ -181,13 +182,7 @@ impl App {
             let (buffer, time_elapsed) = self.raytracer.render(self.image_size, self.samples_per_pixel, ACCEL_INDEX);
             println!("Finished rendering in {} seconds", time_elapsed);
 
-            let save_result = image::save_buffer("output/result.png", 
-                &buffer, self.image_size.x as u32, self.image_size.y as u32, image::ColorType::Rgb8);
-
-            match save_result {
-                Ok(_) => println!("File was saved succesfully"),
-                Err(e) => println!("Couldn't save file: {}", e),
-            }
+            save_image(&buffer, self.image_size);
         }
     }
 }
@@ -251,7 +246,18 @@ fn headless_render(args: Args)
     let (buffer, time_elapsed) = raytracer.render(image_size, args.samples, ACCEL_INDEX);
     println!("Finished rendering in {} seconds", time_elapsed);
 
-    let save_result = image::save_buffer("output/result.png", &buffer, image_size.x as u32, image_size.y as u32, image::ColorType::Rgb8);
+    save_image(&buffer, image_size);
+}
+
+fn save_image(buffer: &[RGBf32], image_size: Vector2<usize>) {
+    let pixels: Vec<RGBu8> = buffer.into_iter().map(|c| c.normalized()).collect();
+
+    let byte_buffer: &[u8] = unsafe { 
+        std::slice::from_raw_parts(pixels.as_ptr() as *const u8, pixels.len() * std::mem::size_of::<RGBu8>())
+    };
+
+    let save_result = image::save_buffer("output/result.png", &byte_buffer,
+        image_size.x as u32, image_size.y as u32, image::ColorType::Rgb8);
 
     match save_result {
         Ok(_) => println!("File was saved succesfully"),

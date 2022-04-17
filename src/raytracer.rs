@@ -105,7 +105,7 @@ impl Raytracer {
         result
     }
 
-    pub fn render(&self, image_size: Vector2<usize>, samples: usize, accel_index: usize) -> (Vec::<u8>, f64) {
+    pub fn render(&self, image_size: Vector2<usize>, samples: usize, accel_index: usize) -> (Vec::<RGBf32>, f64) {
         let aspect_ratio = image_size.x as f32 / image_size.y as f32;
         let fov_factor = (self.camera.y_fov / 2.).tan();
 
@@ -114,8 +114,8 @@ impl Raytracer {
         let cam_model = self.camera.model;
         let cam_pos4 =  cam_model * Vector4::new(0., 0., 0., 1.);
         let camera_pos = Point3::from_homogeneous(cam_pos4);
-        let mut buffer = Vec::<u8>::new();
-        buffer.resize(3 * (image_size.x * image_size.y) as usize, 0);
+        let mut buffer = Vec::<RGBf32>::new();
+        buffer.resize(image_size.x * image_size.y, RGBf32::from_grayscale(0.0));
 
         let buffer= Arc::new(Mutex::new(buffer));
 
@@ -151,11 +151,8 @@ impl Raytracer {
                             let gamma = 2.2;
                             color = color.pow(1.0 / gamma);
 
-                            let pixel_index = 3 * (image_size.x * y + x) as usize;
                             let mut buffer = buffer.lock().unwrap();
-                            buffer[pixel_index] = color.r_normalized();
-                            buffer[pixel_index + 1] = color.g_normalized();
-                            buffer[pixel_index + 2] = color.b_normalized();
+                            buffer[image_size.x * y + x] = color;
                         }
                     }
                 });

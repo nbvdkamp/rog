@@ -9,19 +9,26 @@ pub struct RGBf32 {
     pub b: f32,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct RGBu8 {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+}
 
 macro_rules! impl_f32_color_tuple {
-    ($name:ident { $($field:ident),+ }, { $($field_normalized:ident),+ }, $n:expr) => {
+    ($name:ident { $($field:ident),+ }, $normalized_type:ident, $n:expr) => {
         impl $name {
             #[inline]
             pub fn new($($field: f32),+) -> Self {
                 Self { $($field),+ }
             }
             
-            $(
-            pub fn $field_normalized(&self) -> u8 {
-                (self.$field * 255.0) as u8
-            })+
+            pub fn normalized(&self) -> $normalized_type {
+                $normalized_type {
+                    $($field: (self.$field * 255.0) as u8),+
+                }
+            }
 
             pub fn from_hex(hex: &str) -> Self {
                 let h = hex.trim_start_matches("#");
@@ -69,7 +76,33 @@ macro_rules! impl_f32_color_tuple {
     };
 }
 
-impl_f32_color_tuple!(RGBf32 { r, g, b }, { r_normalized, g_normalized, b_normalized }, 3);
+macro_rules! impl_u8_color_tuple {
+    ($name:ident { $($field:ident),+ }) => {
+        impl $name {
+            #[inline]
+            pub fn new($($field: u8),+) -> Self {
+                Self { $($field),+ }
+            }
+            
+            pub fn from_grayscale(value: u8) -> Self {
+                Self { $($field: value),+ }
+            }
+        }
+
+        impl_op_ex!(+ |a: &$name, b: &$name| -> $name { $name::new($(a.$field + b.$field),+)} );
+        impl_op_ex!(- |a: &$name, b: &$name| -> $name { $name::new($(a.$field - b.$field),+)} );
+
+        impl AddAssign for $name {
+            fn add_assign(&mut self, other: Self) {
+                $(self.$field += other.$field);+
+            }
+        }
+    };
+}
+
+impl_f32_color_tuple!(RGBf32 { r, g, b }, RGBu8, 3);
+impl_u8_color_tuple!(RGBu8 { r, g, b });
+
 
 impl From<RGBf32> for Vec4<f32> {
     #[inline]
