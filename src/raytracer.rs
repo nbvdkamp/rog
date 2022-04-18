@@ -137,7 +137,18 @@ impl Raytracer {
 
                             for _ in 0..samples {
                                 let mut rng = rand::thread_rng();
-                                let offset = Vector2::new(rng.gen(), rng.gen());
+
+                                let mut tent_sample = || {
+                                    let r = 2.0 * rng.gen::<f32>();
+
+                                    if r < 1.0 {
+                                        r.sqrt() - 1.0
+                                    } else {
+                                        1.0 - (2.0 - r).sqrt()
+                                    }
+                                };
+
+                                let offset = vec2(0.5 + tent_sample(), 0.5 + tent_sample());
                                 let screen = self.pixel_to_screen(Vector2::new(x, y), offset, image_size, aspect_ratio, fov_factor);
 
                                 // Using w = 0 because this is a direction vector
