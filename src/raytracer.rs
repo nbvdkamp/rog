@@ -135,7 +135,7 @@ impl Raytracer {
                         for x in 0..image_size.x {
                             let mut color = RGBf32::new(0.0, 0.0, 0.0);
 
-                            for _ in 0..samples {
+                            for sample in 0..samples {
                                 let mut rng = rand::thread_rng();
 
                                 let mut tent_sample = || {
@@ -148,7 +148,12 @@ impl Raytracer {
                                     }
                                 };
 
-                                let offset = vec2(0.5 + tent_sample(), 0.5 + tent_sample());
+                                let mut offset = vec2(0.5, 0.5);
+
+                                if sample > 0 {
+                                    offset += vec2(tent_sample(), tent_sample());
+                                }
+
                                 let screen = self.pixel_to_screen(Vector2::new(x, y), offset, image_size, aspect_ratio, fov_factor);
 
                                 // Using w = 0 because this is a direction vector
