@@ -223,7 +223,7 @@ impl Raytracer {
                 vec2(0.0, 0.0)
             };
 
-            let offset_hit_pos = hit_pos + 0.0000023 * normal;
+            let offset_hit_pos = hit_pos + 0.0001 * normal;
 
             // FIXME: Only evaluate these when required?
             let frame = ShadingFrame::new(normal);
