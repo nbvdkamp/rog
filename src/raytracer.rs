@@ -234,10 +234,9 @@ impl Raytracer {
                 let (local_bounce_dir, brdf, pdf) = brdf_sample(&mat_sample, local_incident);
 
                 if brdf > RGBf32::from_grayscale(0.0) {
-                    let mis_weight = mis2(100.0, pdf);
                     let bounce_ray = Ray { origin: offset_hit_pos, direction: frame.to_global(local_bounce_dir) };
 
-                    result += material.base_color * brdf / pdf * mis_weight * self.radiance(&bounce_ray, depth + 1, accel_index);
+                    result += material.base_color * brdf / pdf * self.radiance(&bounce_ray, depth + 1, accel_index);
                 }
             }
 
@@ -268,13 +267,14 @@ impl Raytracer {
                     let (brdf, pdf) = brdf_eval(&mat_sample, local_incident, local_outgoing);
 
                     if brdf > RGBf32::from_grayscale(0.0) {
-                        let falloff = (1.0 + light_dist) * (1.0 + light_dist);
+                        let falloff = light_dist * light_dist;
                         let intensity = light.intensity / falloff;
                         let light_pick_prob= 1.0;
                         let light_sample_pdf = 100.0; 
                         let mis_weight = mis2(light_pick_prob * light_sample_pdf, pdf);
+                        let magic_constant = 1.0 / (4.0 * std::f32::consts::PI);
 
-                        result += normal.dot(light_dir) * intensity * brdf * mis_weight * light.color * material.base_color;
+                        result += normal.dot(light_dir) * magic_constant * intensity * brdf * light.color * material.base_color;
                     }
                 }
             }
