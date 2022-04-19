@@ -18,7 +18,7 @@ pub enum IntersectionResult {
 impl Ray {
     // Möller–Trumbore intersection algorithm:
     pub fn intersect_triangle(&self, p1: Point3<f32>, p2: Point3<f32>, p3: Point3<f32>) -> IntersectionResult {
-        const EPSILON: f32 = 1.0e-5;
+        const EPSILON: f32 = 1.0e-7;
         let edge1 = p2 - p1;
         let edge2 = p3 - p1;
 
@@ -33,15 +33,17 @@ impl Ray {
         let s = self.origin - p1;
         let u = f * s.dot(h);
 
+        const BIG_EPSILON: f32 = 1.0e-5;
+
         // Wider range to prevent rays from passing through seams between triangles
-        if u < -EPSILON || u > 1.0 + EPSILON {
+        if u < -BIG_EPSILON || u > 1.0 + BIG_EPSILON {
             return IntersectionResult::Miss;
         }
 
         let q = s.cross(edge1);
         let v = f * self.direction.dot(q);
 
-        if v < -EPSILON || u + v > 1.0 + EPSILON {
+        if v < -BIG_EPSILON || u + v > 1.0 + BIG_EPSILON {
             return IntersectionResult::Miss;
         }
 
