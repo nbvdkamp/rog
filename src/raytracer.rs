@@ -225,7 +225,6 @@ impl Raytracer {
 
             let offset_hit_pos = hit_pos + 0.0001 * normal;
 
-            // FIXME: Only evaluate these when required?
             let frame = ShadingFrame::new(normal);
             let local_incident = frame.to_local(-ray.direction);
             let mat_sample = material.sample(texture_coords, &self.textures);
@@ -274,7 +273,7 @@ impl Raytracer {
                         let mis_weight = mis2(light_pick_prob * light_sample_pdf, pdf);
                         let magic_constant = 1.0 / (4.0 * std::f32::consts::PI);
 
-                        result += normal.dot(light_dir) * magic_constant * intensity * brdf * light.color * material.base_color;
+                        result += magic_constant * intensity * brdf * light.color * material.base_color;
                     }
                 }
             }
