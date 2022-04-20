@@ -90,7 +90,7 @@ impl Scene {
             } else if let Some(cam) = node.camera() {
                 if let Projection::Perspective(perspective) = cam.projection() {
                     self.camera = PerspectiveCamera {
-                        aspect_ratio: perspective.aspect_ratio().unwrap(),
+                        aspect_ratio: perspective.aspect_ratio().unwrap_or(16.0 / 9.0),
                         y_fov: perspective.yfov(),
                         z_far: perspective.zfar().unwrap(),
                         z_near: perspective.znear(),
