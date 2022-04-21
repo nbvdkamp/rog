@@ -118,9 +118,10 @@ impl Scene {
             let pbr = mat.pbr_metallic_roughness();
             let base = pbr.base_color_factor();
 
-            let mut add_texture = |texture_info: Option<gltf::texture::Info>| texture_info.map(|texture_info| {
-                self.add_texture(texture_info, buffers)
-            });
+            let mut add_texture = |texture_info: Option<gltf::texture::Info>|
+                texture_info.map(|t| {
+                    self.add_texture(t.texture(), buffers)
+                });
 
             let material = Material {
                 base_color: RGBf32::new(base[0], base[1], base[2]),
@@ -130,6 +131,7 @@ impl Scene {
                 metallic_roughness_texture: add_texture(pbr.metallic_roughness_texture()),
                 emissive: mat.emissive_factor().into(),
                 emissive_texture: add_texture(mat.emissive_texture()),
+                normal_texture: mat.normal_texture().map(|t| self.add_texture(t.texture(), buffers)),
             };
 
             let positions = reader
@@ -186,8 +188,8 @@ impl Scene {
     }
 
     /// Adds the texture if it hasn't been added yet, returns its index 
-    fn add_texture(&mut self, texture_info: gltf::texture::Info, buffers: &[gltf::buffer::Data]) -> usize {
-        let texture = texture_info.texture().source().source();
+    fn add_texture(&mut self, texture: gltf::Texture, buffers: &[gltf::buffer::Data]) -> usize {
+        let texture = texture.source().source();
 
         match texture {
             gltf::image::Source::View { view, .. } => {
