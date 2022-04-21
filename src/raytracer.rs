@@ -105,7 +105,7 @@ impl Raytracer {
         result
     }
 
-    pub fn render(&self, image_size: Vector2<usize>, samples: usize, accel_index: usize) -> (Vec::<RGBf32>, f64) {
+    pub fn render(&self, image_size: Vector2<usize>, samples: usize, accel_index: usize) -> (Vec::<RGBf32>, f32) {
         let aspect_ratio = image_size.x as f32 / image_size.y as f32;
         let fov_factor = (self.camera.y_fov / 2.).tan();
 
@@ -177,7 +177,7 @@ impl Raytracer {
 
         let lock = Arc::try_unwrap(buffer).expect("Buffer lock has multiple owners");
 
-        (lock.into_inner().expect("Cannot unlock buffer mutex"), start.elapsed().as_millis() as f64 / 1000.0)
+        (lock.into_inner().expect("Cannot unlock buffer mutex"), start.elapsed().as_secs_f32())
     }
 
     fn pixel_to_screen(&self, pixel: Vector2<usize>, offset: Vector2<f32>, image_size: Vector2<usize>, aspect_ratio: f32, fov_factor: f32) -> Vector2<f32> {

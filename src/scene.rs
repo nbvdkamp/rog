@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
+use std::time::Instant;
 
 use cgmath::{Matrix4, Quaternion, Point3, Vector4, SquareMatrix, vec4, Vector2};
 use gltf::{scene::Transform};
@@ -48,8 +49,12 @@ impl Scene {
     where
         P: AsRef<Path>,
     {
+        let start = Instant::now();
+
         match  gltf::import(path) {
             Ok((document, buffers, _)) => {
+                let lib_time = start.elapsed().as_secs_f32();
+
                 let gamma = 2.2;
                 let environment = Environment {
                     color: RGBf32::from_hex("#404040").pow(gamma),
@@ -68,6 +73,8 @@ impl Scene {
                     result.parse_nodes(scene.nodes().collect(), &buffers, Matrix4::identity());
                 }
 
+                let total_time = start.elapsed().as_secs_f32();
+                println!("Parsed scene in {} seconds ({} in library, {} in own code)", total_time, lib_time, total_time - lib_time);
 
                 Ok(result)
             }
