@@ -15,6 +15,14 @@ impl ShadingFrame {
         ShadingFrame { normal, tangent, bitangent }
     }
 
+    pub fn new_with_tangent(normal: Vector3<f32>, tangent: Vector3<f32>) -> Self {
+        // Reorthogonalize with Gram-Schmidt
+        let tangent = (tangent - tangent.dot(normal) * normal).normalize();
+        let bitangent = normal.cross(tangent);
+
+        ShadingFrame { normal, tangent, bitangent }
+    }
+
     pub fn to_local(&self, global: Vector3<f32>) -> Vector3<f32> {
         vec3(self.tangent.dot(global), self.bitangent.dot(global), self.normal.dot(global))
     }

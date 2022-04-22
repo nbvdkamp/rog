@@ -223,11 +223,33 @@ impl Raytracer {
                 vec2(0.0, 0.0)
             };
 
-            let offset_hit_pos = hit_pos + 0.0001 * normal;
+            let has_tangents = self.verts[triangle.index1 as usize].tangent.is_some();
 
-            let frame = ShadingFrame::new(normal);
-            let local_incident = frame.to_local(-ray.direction);
+            let tangent = if has_tangents {
+                Some((1. - u - v) * verts[0].tangent.unwrap() +
+                     u * verts[1].tangent.unwrap() +
+                     v * verts[2].tangent.unwrap()
+                )
+            } else {
+               None
+            };
+
+            let offset_hit_pos = hit_pos + 0.0001 * normal;
             let mat_sample = material.sample(texture_coords, &self.textures);
+
+            let frame = if let Some(tangent) = tangent {
+                let f = ShadingFrame::new_with_tangent(normal, tangent);
+
+                if let Some(shading_normal) = mat_sample.shading_normal {
+                    ShadingFrame::new(f.to_global(shading_normal).normalize())
+                } else {
+                    f
+                }
+            } else {
+                ShadingFrame::new(normal)
+            };
+
+            let local_incident = frame.to_local(-ray.direction);
 
             if depth < self.max_depth {
                 let (local_bounce_dir, brdf, pdf) = brdf_sample(&mat_sample, local_incident);
@@ -235,7 +257,7 @@ impl Raytracer {
                 if brdf > RGBf32::from_grayscale(0.0) {
                     let bounce_ray = Ray { origin: offset_hit_pos, direction: frame.to_global(local_bounce_dir) };
 
-                    result += material.base_color * brdf / pdf * self.radiance(&bounce_ray, depth + 1, accel_index);
+                    result += mat_sample.base_color * brdf / pdf * self.radiance(&bounce_ray, depth + 1, accel_index);
                 }
             }
 
@@ -269,11 +291,12 @@ impl Raytracer {
                         let falloff = light_dist * light_dist;
                         let intensity = light.intensity / falloff;
                         let light_pick_prob= 1.0;
-                        let light_sample_pdf = 100.0; 
-                        let mis_weight = mis2(light_pick_prob * light_sample_pdf, pdf);
+                        let light_sample_pdf = 1.0; 
+                        let light_pdf = light_pick_prob * light_sample_pdf;
+                        let mis_weight = mis2(light_pdf, pdf);
                         let magic_constant = 1.0 / (4.0 * std::f32::consts::PI);
 
-                        result += magic_constant * intensity * brdf * light.color * material.base_color;
+                        result += mat_sample.base_color * magic_constant * intensity * brdf / light_pdf * light.color;
                     }
                 }
             }
