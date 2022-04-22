@@ -1,7 +1,10 @@
 use cgmath::{Vector2, Vector3, vec3};
 use super::color::RGBf32;
 
-use crate::texture::Texture;
+use crate::{
+    texture::Texture,
+    constants::GAMMA,
+};
 
 #[derive(Clone)]
 pub struct Material {
@@ -43,10 +46,10 @@ impl Material {
         });
 
         MaterialSample {
-            base_color: self.base_color * sample(self.base_color_texture),
+            base_color: self.base_color * sample(self.base_color_texture).pow(GAMMA),
             metallic: self.metallic * metallic_roughness.b,
             roughness: (self.roughness * metallic_roughness.g).max(0.001), 
-            emissive: self.emissive * sample(self.emissive_texture),
+            emissive: self.emissive * sample(self.emissive_texture).pow(GAMMA),
             specular: 0.5,
             shading_normal,
         }

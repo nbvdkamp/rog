@@ -20,6 +20,7 @@ use std::vec;
 
 mod args;
 mod color;
+mod constants;
 mod mesh;
 mod scene;
 mod camera;

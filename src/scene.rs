@@ -16,6 +16,7 @@ use gltf::camera::Projection;
 use crate::{
     mesh::{Vertex, Mesh},
     camera::PerspectiveCamera,
+    constants::GAMMA,
     material::Material,
     texture::Texture,
     light::Light, 
@@ -62,9 +63,8 @@ impl Scene {
             Ok((document, buffers, _)) => {
                 let lib_time = start.elapsed().as_secs_f32();
 
-                let gamma = 2.2;
                 let environment = Environment {
-                    color: RGBf32::from_hex("#404040").pow(gamma),
+                    color: RGBf32::from_hex("#404040").pow(GAMMA),
                 };
 
                 let mut result = Scene {

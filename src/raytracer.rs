@@ -16,8 +16,9 @@ mod shadingframe;
 use triangle::Triangle;
 use ray::{Ray, IntersectionResult};
 use crate::{
-    color::RGBf32,
     camera::PerspectiveCamera,
+    color::RGBf32,
+    constants::GAMMA,
     material::Material,
     light::Light,
     texture::Texture,
@@ -164,8 +165,7 @@ impl Raytracer {
                             }
 
                             color = color / samples as f32;
-                            let gamma = 2.2;
-                            color = color.pow(1.0 / gamma);
+                            color = color.pow(1.0 / GAMMA);
 
                             let mut buffer = buffer.lock().unwrap();
                             buffer[image_size.x * y + x] = color;
