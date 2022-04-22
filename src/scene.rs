@@ -2,8 +2,15 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::Instant;
 
-use cgmath::{Matrix4, Quaternion, Point3, Vector4, SquareMatrix, vec4, Vector2};
-use gltf::{scene::Transform};
+use gltf::scene::Transform;
+use cgmath::{
+    Quaternion,
+    Point3,
+    Vector2, Vector3, Vector4,
+    vec3, vec4,
+    Matrix, SquareMatrix,
+    Matrix3, Matrix4,
+};
 use gltf::camera::Projection;
 
 use crate::{
@@ -118,6 +125,9 @@ impl Scene {
     }
 
     fn add_meshes_from_gltf_mesh(&mut self, mesh: gltf::Mesh, buffers: &[gltf::buffer::Data], transform: Matrix4<f32>) {
+        let m = Matrix3::from_cols(transform.x.truncate(), transform.y.truncate(), transform.z.truncate());
+        let normal_transform = m.invert().unwrap().transpose();
+
         for primitive in mesh.primitives() {
             let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
@@ -152,7 +162,16 @@ impl Scene {
                     .read_normals()
                     .unwrap_or_else(||
                         panic!("Primitive does not have NORMAL attribute (mesh: {}, primitive: {})", mesh.index(), primitive.index())
-                    );
+                    ).map(|normal| {
+                        normal_transform * Vector3::from(normal)
+                    });
+
+            let tangents = reader.read_tangents();
+
+            if material.normal_texture.is_some() && !tangents.is_some() {
+                println!("Primitive has normal map but no TANGENT attribute! (mesh: {}, primitive: {})",
+                    mesh.name().unwrap_or(&mesh.index().to_string()), primitive.index());
+            }
 
             let tex_coords = reader.read_tex_coords(0)
                     .map(|read_tex_coords| 
@@ -161,20 +180,39 @@ impl Scene {
 
             // FIXME: Find a way to remove the duplication
             let vertices = if let Some(tex_coords) = tex_coords {
-                positions.zip(normals).zip(tex_coords)
-                .map(|((position, normal), tex_coord)| {
-                    Vertex {
-                        position,
-                        normal: normal.into(),
-                        tex_coord: Some(tex_coord),
-                    }
-                }).collect()
+                if let Some(tangents) = tangents {
+                    let tangents = tangents
+                            .map(|tangent| {
+                                normal_transform * (tangent[3] * vec3(tangent[0], tangent[1], tangent[2]))
+                            });
+
+                    positions.zip(normals).zip(tex_coords.zip(tangents))
+                    .map(|((position, normal), (tex_coord, tangent))| {
+                        Vertex {
+                            position,
+                            normal,
+                            tangent: Some(tangent),
+                            tex_coord: Some(tex_coord),
+                        }
+                    }).collect()
+                } else {
+                    positions.zip(normals).zip(tex_coords)
+                    .map(|((position, normal), tex_coord)| {
+                        Vertex {
+                            position,
+                            normal,
+                            tangent: None,
+                            tex_coord: Some(tex_coord),
+                        }
+                    }).collect()
+                }
             } else {
                 positions.zip(normals)
                 .map(|(position, normal)| {
                     Vertex {
                         position,
-                        normal: normal.into(),
+                        normal,
+                        tangent: None,
                         tex_coord: None,
                     }
                 }).collect()
@@ -189,7 +227,6 @@ impl Scene {
                     panic!("Primitive has no indices (mesh: {}, primitive: {})", mesh.index(), primitive.index())
                 );
             
-            //TODO get more optional vertex data.
             self.meshes.push(Mesh::new(vertices, indices, material));
         }
     }
