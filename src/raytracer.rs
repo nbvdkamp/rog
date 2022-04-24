@@ -262,41 +262,42 @@ impl Raytracer {
             }
 
             // Next event estimation (directly sampling lights)
-            for light in &self.lights {
+            let num_lights = self.lights.len();
+
+            if num_lights > 0 {
+                let light = &self.lights[rand::thread_rng().gen_range(0..num_lights)];
                 // FIXME: Properly sample light types other than point
 
                 let light_vec = light.pos - offset_hit_pos;
                 let light_dist = light_vec.magnitude();
 
-                if light_dist > light.range {
-                    continue;
-                }
+                if light_dist <= light.range {
+                    let light_dir = light_vec / light_dist;
 
-                let light_dir = light_vec / light_dist;
+                    let shadow_ray = Ray { origin: offset_hit_pos, direction: light_dir };
+                    let mut shadowed = false;
 
-                let shadow_ray = Ray { origin: offset_hit_pos, direction: light_dir };
-                let mut shadowed = false;
-
-                if let TraceResult::Hit{ t, .. } = self.trace(&shadow_ray, accel_index) {
-                    if t < light_dist {
-                        shadowed = true;
+                    if let TraceResult::Hit{ t, .. } = self.trace(&shadow_ray, accel_index) {
+                        if t < light_dist {
+                            shadowed = true;
+                        }
                     }
-                }
 
-                if !shadowed {
-                    let local_outgoing = frame.to_local(light_dir);
-                    let (brdf, pdf) = brdf_eval(&mat_sample, local_incident, local_outgoing);
+                    if !shadowed {
+                        let local_outgoing = frame.to_local(light_dir);
+                        let (brdf, pdf) = brdf_eval(&mat_sample, local_incident, local_outgoing);
 
-                    if brdf > RGBf32::from_grayscale(0.0) {
-                        let falloff = light_dist * light_dist;
-                        let intensity = light.intensity / falloff;
-                        let light_pick_prob= 1.0;
-                        let light_sample_pdf = 1.0; 
-                        let light_pdf = light_pick_prob * light_sample_pdf;
-                        let mis_weight = mis2(light_pdf, pdf);
-                        let magic_constant = 1.0 / (4.0 * std::f32::consts::PI);
+                        if brdf > RGBf32::from_grayscale(0.0) {
+                            let falloff = light_dist * light_dist;
+                            let intensity = light.intensity / falloff;
+                            let light_pick_prob= 1.0 / num_lights as f32;
+                            let light_sample_pdf = 1.0;
+                            let light_pdf = light_pick_prob * light_sample_pdf;
+                            let mis_weight = mis2(light_pdf, pdf);
+                            let magic_constant = 1.0 / (4.0 * std::f32::consts::PI);
 
-                        result += mat_sample.base_color * magic_constant * intensity * brdf / light_pdf * light.color;
+                            result += mat_sample.base_color * magic_constant * intensity * brdf / light_pdf * light.color;
+                        }
                     }
                 }
             }
