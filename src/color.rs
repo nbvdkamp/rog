@@ -73,6 +73,12 @@ macro_rules! impl_f32_color_tuple {
                 $(self.$field *= s);+
             }
         }
+
+        impl MulAssign<Self> for $name {
+            fn mul_assign(&mut self, other: Self) {
+                $(self.$field *= other.$field);+
+            }
+        }
     };
 }
 
