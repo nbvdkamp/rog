@@ -161,7 +161,7 @@ impl Raytracer {
                                 let dir4 = cam_model * Vector4::new(screen.x, screen.y, -1., 0.).normalize();
                                 let ray = Ray { origin: camera_pos, direction: dir4.truncate().normalize() };
 
-                                color +=  self.radiance(&ray, 0, accel_index);
+                                color += self.radiance(ray, accel_index);
                             }
 
                             color = color / samples as f32;
@@ -192,117 +192,122 @@ impl Raytracer {
         self.triangles.len()
     }
 
-    fn radiance(&self, ray: &Ray, depth: usize, accel_index: usize) -> RGBf32 {
-        let mut result = RGBf32::new(0., 0., 0.);
+    fn radiance(&self, ray: Ray, accel_index: usize) -> RGBf32 {
+        let mut result = RGBf32::from_grayscale(0.0);
+        let mut path_weight = RGBf32::from_grayscale(1.0);
+        let mut ray = ray;
 
-        if let TraceResult::Hit{ triangle_index, t, u, v } = self.trace(ray, accel_index) {
-            let hit_pos = ray.traverse(t);
-            let triangle = &self.triangles[triangle_index as usize];
-            let material = &self.materials[triangle.material_index as usize];
+        let num_lights = self.lights.len();
 
-            let verts = [
-                &self.verts[triangle.index1 as usize],
-                &self.verts[triangle.index2 as usize],
-                &self.verts[triangle.index3 as usize],
-            ];
+        for _ in 0..self.max_depth {
+            if let TraceResult::Hit{ triangle_index, t, u, v } = self.trace(&ray, accel_index) {
+                let hit_pos = ray.traverse(t);
+                let triangle = &self.triangles[triangle_index as usize];
+                let material = &self.materials[triangle.material_index as usize];
 
-            // Interpolate the vertex normals
-            let normal = (
-                (1. - u - v) * verts[0].normal +
-                u * verts[1].normal +
-                v * verts[2].normal
-            ).normalize();
-            
-            let has_texture_coords = self.verts[triangle.index1 as usize].tex_coord.is_some();
+                let verts = [
+                    &self.verts[triangle.index1 as usize],
+                    &self.verts[triangle.index2 as usize],
+                    &self.verts[triangle.index3 as usize],
+                ];
 
-            let texture_coords = if has_texture_coords {
-                (1. - u - v) * verts[0].tex_coord.unwrap() +
-                u * verts[1].tex_coord.unwrap() +
-                v * verts[2].tex_coord.unwrap()
-            } else {
-                vec2(0.0, 0.0)
-            };
+                // Interpolate the vertex normals
+                let normal = (
+                    (1. - u - v) * verts[0].normal +
+                    u * verts[1].normal +
+                    v * verts[2].normal
+                ).normalize();
 
-            let has_tangents = self.verts[triangle.index1 as usize].tangent.is_some();
+                let has_texture_coords = self.verts[triangle.index1 as usize].tex_coord.is_some();
 
-            let tangent = if has_tangents {
-                Some((1. - u - v) * verts[0].tangent.unwrap() +
-                     u * verts[1].tangent.unwrap() +
-                     v * verts[2].tangent.unwrap()
-                )
-            } else {
-               None
-            };
-
-            let offset_hit_pos = hit_pos + 0.0001 * normal;
-            let mat_sample = material.sample(texture_coords, &self.textures);
-
-            let frame = if let Some(tangent) = tangent {
-                let f = ShadingFrame::new_with_tangent(normal, tangent);
-
-                if let Some(shading_normal) = mat_sample.shading_normal {
-                    ShadingFrame::new(f.to_global(shading_normal).normalize())
+                let texture_coords = if has_texture_coords {
+                    (1. - u - v) * verts[0].tex_coord.unwrap() +
+                    u * verts[1].tex_coord.unwrap() +
+                    v * verts[2].tex_coord.unwrap()
                 } else {
-                    f
+                    vec2(0.0, 0.0)
+                };
+
+                let has_tangents = self.verts[triangle.index1 as usize].tangent.is_some();
+
+                let tangent = if has_tangents {
+                    Some((1. - u - v) * verts[0].tangent.unwrap() +
+                        u * verts[1].tangent.unwrap() +
+                        v * verts[2].tangent.unwrap()
+                    )
+                } else {
+                    None
+                };
+
+                let offset_hit_pos = hit_pos + 0.0001 * normal;
+                let mat_sample = material.sample(texture_coords, &self.textures);
+
+                let frame = if let Some(tangent) = tangent {
+                    let f = ShadingFrame::new_with_tangent(normal, tangent);
+
+                    if let Some(shading_normal) = mat_sample.shading_normal {
+                        ShadingFrame::new(f.to_global(shading_normal).normalize())
+                    } else {
+                        f
+                    }
+                } else {
+                    ShadingFrame::new(normal)
+                };
+
+                let local_incident = frame.to_local(-ray.direction);
+
+                // Next event estimation (directly sampling lights)
+                if num_lights > 0 {
+                    let light = &self.lights[rand::thread_rng().gen_range(0..num_lights)];
+                    // FIXME: Properly sample light types other than point
+
+                    let light_vec = light.pos - offset_hit_pos;
+                    let light_dist = light_vec.magnitude();
+
+                    if light_dist <= light.range {
+                        let light_dir = light_vec / light_dist;
+
+                        let shadow_ray = Ray { origin: offset_hit_pos, direction: light_dir };
+                        let mut shadowed = false;
+
+                        if let TraceResult::Hit{ t, .. } = self.trace(&shadow_ray, accel_index) {
+                            if t < light_dist {
+                                shadowed = true;
+                            }
+                        }
+
+                        if !shadowed {
+                            let local_outgoing = frame.to_local(light_dir);
+                            let (brdf, pdf) = brdf_eval(&mat_sample, local_incident, local_outgoing);
+
+                            if brdf > RGBf32::from_grayscale(0.0) {
+                                let falloff = light_dist * light_dist;
+                                let intensity = light.intensity / falloff;
+                                let light_pick_prob= 1.0 / num_lights as f32;
+                                let light_sample_pdf = 1.0;
+                                let light_pdf = light_pick_prob * light_sample_pdf;
+                                let mis_weight = mis2(light_pdf, pdf);
+                                let magic_constant = 1.0 / (4.0 * std::f32::consts::PI);
+
+                                result += path_weight * mat_sample.base_color * magic_constant * intensity * brdf / light_pdf * light.color;
+                            }
+                        }
+                    }
                 }
-            } else {
-                ShadingFrame::new(normal)
-            };
 
-            let local_incident = frame.to_local(-ray.direction);
-
-            if depth < self.max_depth {
                 let (local_bounce_dir, brdf, pdf) = brdf_sample(&mat_sample, local_incident);
 
-                if brdf > RGBf32::from_grayscale(0.0) {
-                    let bounce_ray = Ray { origin: offset_hit_pos, direction: frame.to_global(local_bounce_dir) };
+                path_weight *= brdf / pdf * mat_sample.base_color;
 
-                    result += mat_sample.base_color * brdf / pdf * self.radiance(&bounce_ray, depth + 1, accel_index);
+                if pdf == 0.0 || path_weight <= RGBf32::from_grayscale(0.0) {
+                    break;
                 }
+
+                ray = Ray { origin: offset_hit_pos, direction: frame.to_global(local_bounce_dir) };
+            } else {
+                result += path_weight * self.environment.sample(ray.direction);
+                break;
             }
-
-            // Next event estimation (directly sampling lights)
-            let num_lights = self.lights.len();
-
-            if num_lights > 0 {
-                let light = &self.lights[rand::thread_rng().gen_range(0..num_lights)];
-                // FIXME: Properly sample light types other than point
-
-                let light_vec = light.pos - offset_hit_pos;
-                let light_dist = light_vec.magnitude();
-
-                if light_dist <= light.range {
-                    let light_dir = light_vec / light_dist;
-
-                    let shadow_ray = Ray { origin: offset_hit_pos, direction: light_dir };
-                    let mut shadowed = false;
-
-                    if let TraceResult::Hit{ t, .. } = self.trace(&shadow_ray, accel_index) {
-                        if t < light_dist {
-                            shadowed = true;
-                        }
-                    }
-
-                    if !shadowed {
-                        let local_outgoing = frame.to_local(light_dir);
-                        let (brdf, pdf) = brdf_eval(&mat_sample, local_incident, local_outgoing);
-
-                        if brdf > RGBf32::from_grayscale(0.0) {
-                            let falloff = light_dist * light_dist;
-                            let intensity = light.intensity / falloff;
-                            let light_pick_prob= 1.0 / num_lights as f32;
-                            let light_sample_pdf = 1.0;
-                            let light_pdf = light_pick_prob * light_sample_pdf;
-                            let mis_weight = mis2(light_pdf, pdf);
-                            let magic_constant = 1.0 / (4.0 * std::f32::consts::PI);
-
-                            result += mat_sample.base_color * magic_constant * intensity * brdf / light_pdf * light.color;
-                        }
-                    }
-                }
-            }
-        } else {
-            result += self.environment.sample(ray.direction);
         }
 
         result
