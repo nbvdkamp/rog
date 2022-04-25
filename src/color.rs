@@ -1,4 +1,4 @@
-use std::ops::{self, AddAssign, MulAssign};
+use std::ops::{self, AddAssign, MulAssign, DivAssign};
 
 use luminance::shader::types::Vec4;
 
@@ -52,6 +52,13 @@ macro_rules! impl_f32_color_tuple {
             pub fn pow(&self, exponent: f32) -> Self {
                 Self::new($(self.$field.powf(exponent)),+)
             }
+
+            pub fn max_component(&self) -> f32 {
+                let mut r = f32::MIN;
+
+                $(r = r.max(self.$field);)+
+                r
+            }
         }
 
         impl_op_ex!(+ |a: &$name, b: &$name| -> $name { $name::new($(a.$field + b.$field),+)} );
@@ -71,6 +78,12 @@ macro_rules! impl_f32_color_tuple {
         impl MulAssign<f32> for $name {
             fn mul_assign(&mut self, s: f32) {
                 $(self.$field *= s);+
+            }
+        }
+
+        impl DivAssign<f32> for $name {
+            fn div_assign(&mut self, s: f32) {
+                $(self.$field /= s);+
             }
         }
 

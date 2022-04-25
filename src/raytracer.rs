@@ -299,7 +299,11 @@ impl Raytracer {
 
                 path_weight *= brdf / pdf * mat_sample.base_color;
 
-                if pdf == 0.0 || path_weight <= RGBf32::from_grayscale(0.0) {
+                let continue_prob = path_weight.max_component().max(1.0);
+
+                if pdf != 0.0 && rand::thread_rng().gen::<f32>() < continue_prob {
+                    path_weight /= continue_prob;
+                } else {
                     break;
                 }
 
