@@ -33,7 +33,7 @@ impl Ray {
         let s = self.origin - p1;
         let u = f * s.dot(h);
 
-        const BIG_EPSILON: f32 = 1.0e-5;
+        const BIG_EPSILON: f32 = 2.0e-5;
 
         // Wider range to prevent rays from passing through seams between triangles
         if u < -BIG_EPSILON || u > 1.0 + BIG_EPSILON {
