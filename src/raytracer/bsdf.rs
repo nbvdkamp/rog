@@ -108,12 +108,12 @@ pub fn brdf_sample(mat: &MaterialSample, incident: Vector3<f32>) -> (Vector3<f32
     let m_dot_n = micronormal.z;
     let i_dot_m = incident.dot(micronormal).max(0.0);
 
-    if i_dot_n <= 0.0 || o_dot_n <= 0.0 {
-        return (vec3(0.0, 0.0, 0.0), RGBf32::from_grayscale(0.0), 0.0);
+    if i_dot_n > 0.0 && o_dot_n > 0.0 {
+        let (brdf, pdf) = brdf(mat, i_dot_n, o_dot_n, m_dot_n, i_dot_m);
+        (outgoing, brdf, pdf)
+    } else {
+        (vec3(0.0, 0.0, 0.0), RGBf32::from_grayscale(0.0), 0.0)
     }
-
-    let (brdf, pdf) = brdf(mat, i_dot_n, o_dot_n, m_dot_n, i_dot_m);
-    (outgoing, brdf, pdf)
 }
 
 pub fn brdf_eval(mat: &MaterialSample, incident: Vector3<f32>, outgoing: Vector3<f32>) -> (RGBf32, f32) {
@@ -124,11 +124,11 @@ pub fn brdf_eval(mat: &MaterialSample, incident: Vector3<f32>, outgoing: Vector3
     let m_dot_n = micronormal.z;
     let i_dot_m = incident.dot(micronormal).max(0.0);
 
-    if i_dot_n <= 0.0 || o_dot_n <= 0.0 {
-        return (RGBf32::from_grayscale(0.0), 0.0);
+    if i_dot_n > 0.0 && o_dot_n > 0.0 {
+        brdf(mat, i_dot_n, o_dot_n, m_dot_n, i_dot_m)
+    } else {
+        (RGBf32::from_grayscale(0.0), 0.0)
     }
-
-    brdf(mat, i_dot_n, o_dot_n, m_dot_n, i_dot_m)
 }
 
 #[cfg(test)]
