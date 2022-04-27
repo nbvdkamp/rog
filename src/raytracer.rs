@@ -211,12 +211,27 @@ impl Raytracer {
                     &self.verts[triangle.index3 as usize],
                 ];
 
+                let edge1 = verts[0].position - verts[1].position;
+                let edge2 = verts[0].position - verts[2].position;
+                let mut geom_normal = edge1.cross(edge2).normalize();
+
                 // Interpolate the vertex normals
-                let normal = (
+                let mut normal = (
                     (1. - u - v) * verts[0].normal +
                     u * verts[1].normal +
                     v * verts[2].normal
                 ).normalize();
+
+                // Flip the computed geometric normal to the same side as the interpolated vertex normal.
+                if geom_normal.dot(normal) < 0.0 {
+                    geom_normal = -geom_normal;
+                }
+
+                let backfacing = geom_normal.dot(-ray.direction) < 0.0;
+
+                if backfacing {
+                    normal = -normal;
+                }
 
                 let has_texture_coords = self.verts[triangle.index1 as usize].tex_coord.is_some();
 
