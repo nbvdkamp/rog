@@ -1,9 +1,13 @@
 use cgmath::{vec2, Vector3, vec3, InnerSpace};
 use lerp::Lerp;
+
 use crate::{
-    util::reflect,
     material::MaterialSample,
     color::RGBf32,
+};
+
+use super::{
+    geometry::reflect,
 };
 
 pub fn mis2(pdf1: f32, pdf2: f32) -> f32 {

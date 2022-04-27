@@ -11,6 +11,7 @@ mod acceleration;
 mod aabb;
 mod axis;
 mod bsdf;
+mod geometry;
 mod shadingframe;
 
 use triangle::Triangle;

@@ -1,4 +1,4 @@
-use cgmath::{Vector3, Matrix4, InnerSpace};
+use cgmath::{Vector3, Matrix4};
 use luminance_front::shader::types::{Mat44};
 
 pub fn elementwise_min(a: Vector3<f32>, b: Vector3<f32>) -> Vector3<f32> {
@@ -28,39 +28,4 @@ pub fn max_element(v: Vector3<f32>) -> f32 {
 pub fn mat_to_shader_type<T>(m: Matrix4<T>) -> Mat44<T> {
     let x: [[T; 4]; 4] = m.into();
     x.into()
-}
-
-pub fn orthogonal_vector(v: Vector3<f32>) -> Vector3<f32> {
-    if v.x == 0.0 {
-        Vector3::new(0.0, -v.z, v.y)
-    } else if v.y == 0.0 {
-        Vector3::new(-v.z, 0.0, v.x)
-    } else {
-        Vector3::new(-v.y, v.x, 0.0)
-    }
-}
-
-/// normal must be a unit vector
-pub fn reflect(v: Vector3<f32>, normal: Vector3<f32>) -> Vector3<f32> {
-    -v + 2.0 * normal.dot(v) * normal
-}
-
-#[cfg(test)]
-mod tests {
-    use cgmath::{assert_abs_diff_eq, vec3};
-    use super::*;
-
-    #[test]
-    fn basic_reflect() {
-        let v = vec3(1.0, 1.0, 0.0);
-        let n = vec3(0.0, 1.0, 0.0);
-        assert_eq!(reflect(v, n), vec3(-1.0, 1.0, 0.0));
-    }
-
-    #[test]
-    fn diag_reflect() {
-        let v = vec3(1.0, 0.0, 0.0);
-        let n = vec3(1.0, 1.0, 0.0).normalize();
-        assert_abs_diff_eq!(reflect(v, n), vec3(0.0, 1.0, 0.0), epsilon=0.0001);
-    }
 }
