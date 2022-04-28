@@ -8,6 +8,7 @@ use cgmath::{
     Point3,
     Vector2, Vector3, Vector4,
     vec3, vec4,
+    InnerSpace,
     Matrix, SquareMatrix,
     Matrix3, Matrix4,
 };
@@ -278,15 +279,16 @@ impl Scene {
 fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>) -> Option<Light> {
     let kind = match light.kind() {
         gltf::khr_lights_punctual::Kind::Point => crate::light::Kind::Point,
-        gltf::khr_lights_punctual::Kind::Directional => crate::light::Kind::Directional,
-        gltf::khr_lights_punctual::Kind::Spot { .. }=> crate::light::Kind::Spot,
+        gltf::khr_lights_punctual::Kind::Directional => {
+            let m = Matrix3::from_cols(transform.x.truncate(), transform.y.truncate(), transform.z.truncate());
+            let normal_transform = m.invert().unwrap().transpose();
+            let direction = -(normal_transform * vec3(0.0, 0.0, -1.0)).normalize();
+            crate::light::Kind::Directional { direction }
+        },
+        gltf::khr_lights_punctual::Kind::Spot { inner_cone_angle, outer_cone_angle} => {
+            crate::light::Kind::Spot { inner_cone_angle, outer_cone_angle }
+        },
     };
-
-    // FIXME: remove this once all light types are supported.
-    if kind != crate::light::Kind::Point {
-        println!("Lights of type {:?} are not yet implemented.", kind);
-        return None;
-    }
 
     Some(Light {
         pos: Point3::from_homogeneous(transform * vec4(0.0, 0.0, 0.0, 1.0)),
