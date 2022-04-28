@@ -44,6 +44,8 @@ use bsdf::{
     mis2,
 };
 
+use geometry::ensure_valid_reflection;
+
 pub struct Raytracer {
     verts: Vec<Vertex>,
     triangles: Vec<Triangle>,
@@ -255,14 +257,16 @@ impl Raytracer {
                     None
                 };
 
-                let offset_hit_pos = hit_pos + 0.0001 * normal;
+                let offset_hit_pos = hit_pos + 0.00002 * normal;
                 let mat_sample = material.sample(texture_coords, &self.textures);
 
                 let frame = if let Some(tangent) = tangent {
                     let f = ShadingFrame::new_with_tangent(normal, tangent);
 
                     if let Some(shading_normal) = mat_sample.shading_normal {
-                        ShadingFrame::new(f.to_global(shading_normal).normalize())
+                        let normal = f.to_global(shading_normal).normalize();
+                        let normal = ensure_valid_reflection(geom_normal, -ray.direction, normal);
+                        ShadingFrame::new(normal)
                     } else {
                         f
                     }
