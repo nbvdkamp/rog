@@ -18,8 +18,9 @@ impl Texture {
         let x = u * (width - 1) as f32;
         let y = v * (height - 1) as f32;
 
-        let x0 = x.trunc() as u32 % width;
-        let y0 = y.trunc() as u32 % height;
+        // Can't use % and u32 here because texture coordinates can be negative
+        let x0 = (x.trunc() as i32).rem_euclid(width as i32) as u32;
+        let y0 = (y.trunc() as i32).rem_euclid(height as i32) as u32;
         let x1 = (x0 + 1) % width;
         let y1 = (y0 + 1) % height;
 
