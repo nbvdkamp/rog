@@ -15,8 +15,8 @@ impl Texture {
 
     pub fn sample(&self, u: f32, v: f32) -> RGBf32 {
         let (width, height) = self.image.dimensions();
-        let x = u * (width - 1) as f32;
-        let y = v * (height - 1) as f32;
+        let x = u * width as f32;
+        let y = v * height as f32;
 
         // Can't use % and u32 here because texture coordinates can be negative
         let x0 = (x.trunc() as i32).rem_euclid(width as i32) as u32;
