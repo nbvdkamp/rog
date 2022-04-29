@@ -17,7 +17,7 @@ pub struct RGBu8 {
 }
 
 macro_rules! impl_f32_color_tuple {
-    ($name:ident { $($field:ident),+ }, $normalized_type:ident, $n:expr) => {
+    ($name:ident { $($field:ident),+ }, $normalized_type:ident) => {
         impl $name {
             #[inline]
             pub fn new($($field: f32),+) -> Self {
@@ -119,7 +119,7 @@ macro_rules! impl_u8_color_tuple {
     };
 }
 
-impl_f32_color_tuple!(RGBf32 { r, g, b }, RGBu8, 3);
+impl_f32_color_tuple!(RGBf32 { r, g, b }, RGBu8);
 impl_u8_color_tuple!(RGBu8 { r, g, b });
 
 
