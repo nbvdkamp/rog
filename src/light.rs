@@ -32,7 +32,7 @@ impl Light {
                 let distance = v.magnitude();
                 let direction = v / distance;
                 let falloff = distance * distance;
-                let intensity = self.intensity / falloff;
+                let intensity = self.intensity / (falloff * 4.0 * std::f32::consts::PI);
 
                 LightSample {
                     direction,
@@ -55,7 +55,7 @@ impl Light {
                 let distance = v.magnitude();
                 let direction = v / distance;
                 let falloff = distance * distance;
-                let intensity = self.intensity / falloff;
+                let intensity = self.intensity / (falloff * 4.0 * std::f32::consts::PI);
 
                 LightSample {
                     direction,

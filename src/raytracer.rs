@@ -299,9 +299,8 @@ impl Raytracer {
                                 let light_pick_prob= 1.0 / num_lights as f32;
                                 let light_pdf = light_pick_prob * light_sample.pdf;
                                 let mis_weight = mis2(light_pdf, pdf);
-                                let magic_constant = 1.0 / (4.0 * std::f32::consts::PI);
 
-                                result += path_weight * mat_sample.base_color * magic_constant * light_sample.intensity * brdf / light_pdf * light.color;
+                                result += path_weight * mat_sample.base_color * light_sample.intensity * brdf / light_pdf * light.color;
                             }
                         }
                     }
