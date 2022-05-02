@@ -743,6 +743,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "rgb2spec-rust"
+version = "0.1.0"
+
+[[package]]
 name = "rustexperiment"
 version = "0.1.0"
 dependencies = [
@@ -761,6 +765,7 @@ dependencies = [
  "luminance-windowing",
  "num_cpus",
  "rand",
+ "rgb2spec-rust",
 ]
 
 [[package]]

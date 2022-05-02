@@ -25,6 +25,8 @@ use crate::{
     environment::Environment,
 };
 
+use rgb2spec::RGB2Spec;
+
 pub struct Scene {
     pub meshes: Vec<Mesh>,
     pub lights: Vec<Light>,
@@ -58,6 +60,11 @@ impl Scene {
     where
         P: AsRef<Path>,
     {
+        let rgb2spec = match RGB2Spec::load("res/out.spec") {
+            Ok(rgb2spec) => rgb2spec,
+            Err(e) => panic!("Can't load rgb2spec file: {}", e),
+        };
+
         let start = Instant::now();
 
         match  gltf::import(path) {
@@ -78,7 +85,7 @@ impl Scene {
                 };
                 
                 for scene in document.scenes() {
-                    result.parse_nodes(scene.nodes().collect(), &buffers, Matrix4::identity());
+                    result.parse_nodes(scene.nodes().collect(), &buffers, Matrix4::identity(), &rgb2spec);
                 }
 
                 let total_time = start.elapsed().as_secs_f32();
@@ -95,13 +102,14 @@ impl Scene {
     fn parse_nodes(&mut self,
         nodes: Vec<gltf::Node>,
         buffers: &[gltf::buffer::Data], 
-        base_transform: Matrix4<f32>) {
+        base_transform: Matrix4<f32>,
+        rgb2spec: &RGB2Spec) {
 
         for node in nodes {
             let transform = base_transform * transform_to_mat(node.transform());
 
             if let Some(mesh) = node.mesh() {
-                self.add_meshes_from_gltf_mesh(mesh, buffers, transform);
+                self.add_meshes_from_gltf_mesh(mesh, buffers, transform, rgb2spec);
             } else if let Some(cam) = node.camera() {
                 if let Projection::Perspective(perspective) = cam.projection() {
                     self.camera = PerspectiveCamera {
@@ -121,11 +129,11 @@ impl Scene {
                 }
             }
 
-            self.parse_nodes(node.children().collect(), buffers, transform);
+            self.parse_nodes(node.children().collect(), buffers, transform, rgb2spec);
         }
     }
 
-    fn add_meshes_from_gltf_mesh(&mut self, mesh: gltf::Mesh, buffers: &[gltf::buffer::Data], transform: Matrix4<f32>) {
+    fn add_meshes_from_gltf_mesh(&mut self, mesh: gltf::Mesh, buffers: &[gltf::buffer::Data], transform: Matrix4<f32>, rgb2spec: &RGB2Spec) {
         let m = Matrix3::from_cols(transform.x.truncate(), transform.y.truncate(), transform.z.truncate());
         let normal_transform = m.invert().unwrap().transpose();
 
@@ -136,20 +144,15 @@ impl Scene {
             let pbr = mat.pbr_metallic_roughness();
             let base = pbr.base_color_factor();
 
-            let mut add_texture = |texture_info: Option<gltf::texture::Info>|
-                texture_info.map(|t| {
-                    self.add_texture(t.texture(), buffers)
-                });
-
             let material = Material {
                 base_color: RGBf32::new(base[0], base[1], base[2]),
-                base_color_texture: add_texture(pbr.base_color_texture()),
+                base_color_texture: pbr.base_color_texture().map(|t| self.add_texture(t.texture(), buffers, Some(&rgb2spec))),
                 roughness: pbr.roughness_factor(),
                 metallic: pbr.metallic_factor(),
-                metallic_roughness_texture: add_texture(pbr.metallic_roughness_texture()),
+                metallic_roughness_texture: pbr.metallic_roughness_texture().map(|t| self.add_texture(t.texture(), buffers, None)),
                 emissive: mat.emissive_factor().into(),
-                emissive_texture: add_texture(mat.emissive_texture()),
-                normal_texture: mat.normal_texture().map(|t| self.add_texture(t.texture(), buffers)),
+                emissive_texture: mat.emissive_texture().map(|t| self.add_texture(t.texture(), buffers, None)),
+                normal_texture: mat.normal_texture().map(|t| self.add_texture(t.texture(), buffers, None)),
             };
 
             let positions = reader
@@ -233,7 +236,7 @@ impl Scene {
     }
 
     /// Adds the texture if it hasn't been added yet, returns its index 
-    fn add_texture(&mut self, texture: gltf::Texture, buffers: &[gltf::buffer::Data]) -> usize {
+    fn add_texture(&mut self, texture: gltf::Texture, buffers: &[gltf::buffer::Data], rgb2spec: Option<&RGB2Spec>) -> usize {
         let texture = texture.source().source();
 
         match texture {
@@ -263,7 +266,7 @@ impl Scene {
                     }
                 };
 
-                self.textures.push(Texture::new(image));
+                self.textures.push(Texture::new(image, rgb2spec));
                 let index = self.textures.len() - 1;
                 self.texture_indices.insert(texture_view, index);
 
