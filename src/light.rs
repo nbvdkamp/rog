@@ -45,7 +45,7 @@ impl Light {
                 LightSample {
                     direction: *direction,
                     distance: f32::INFINITY,
-                    intensity: self.intensity,
+                    intensity: self.intensity * std::f32::consts::PI,
                     pdf: 1.0,
                 }
             }
