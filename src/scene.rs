@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::Path;
 use std::time::Instant;
 
@@ -19,7 +18,7 @@ use crate::{
     camera::PerspectiveCamera,
     constants::GAMMA,
     material::Material,
-    texture::Texture,
+    texture::{Texture, Format},
     light::Light, 
     color::RGBf32,
     environment::Environment,
@@ -33,14 +32,6 @@ pub struct Scene {
     pub textures: Vec<Texture>,
     pub camera: PerspectiveCamera,
     pub environment: Environment,
-    texture_indices: HashMap<TextureView, usize>,
-}
-
-/// Used to keep track of which Textures were loaded from the glTF
-#[derive(PartialEq, Eq, Hash)]
-struct TextureView {
-    buffer_index: usize,
-    offset: usize,
 }
 
 fn transform_to_mat(t: Transform) -> Matrix4<f32> {
@@ -68,8 +59,18 @@ impl Scene {
         let start = Instant::now();
 
         match  gltf::import(path) {
-            Ok((document, buffers, _)) => {
+            Ok((document, buffers, images)) => {
                 let lib_time = start.elapsed().as_secs_f32();
+
+                let textures = images.into_iter().map(|i| {
+                    let format = match i.format {
+                        gltf::image::Format::R8G8B8 => Format::RGB,
+                        gltf::image::Format::R8G8B8A8 => Format::RGBA,
+                        other => panic!("Texture format {:?} is not implemented", other)
+                    };
+
+                    Texture::new(i.pixels, i.width, i.height, format)
+                }).collect();
 
                 let environment = Environment {
                     color: RGBf32::from_hex("#404040").pow(GAMMA),
@@ -78,10 +79,9 @@ impl Scene {
                 let mut result = Scene {
                     meshes: Vec::new(),
                     lights: Vec::new(),
-                    textures: Vec::new(),
+                    textures,
                     camera: PerspectiveCamera::default(),
                     environment,
-                    texture_indices: HashMap::new(),
                 };
                 
                 for scene in document.scenes() {
@@ -144,15 +144,20 @@ impl Scene {
             let pbr = mat.pbr_metallic_roughness();
             let base = pbr.base_color_factor();
 
+            let get_index = |t: gltf::texture::Info| t.texture().source().index();
+            let base_color_texture= pbr.base_color_texture().map(get_index);
+
+            base_color_texture.map(|i| self.textures[i].create_spectrum_coefficients(rgb2spec));
+
             let material = Material {
                 base_color: RGBf32::new(base[0], base[1], base[2]),
-                base_color_texture: pbr.base_color_texture().map(|t| self.add_texture(t.texture(), buffers, Some(&rgb2spec))),
+                base_color_texture,
                 roughness: pbr.roughness_factor(),
                 metallic: pbr.metallic_factor(),
-                metallic_roughness_texture: pbr.metallic_roughness_texture().map(|t| self.add_texture(t.texture(), buffers, None)),
+                metallic_roughness_texture: pbr.metallic_roughness_texture().map(get_index),
                 emissive: mat.emissive_factor().into(),
-                emissive_texture: mat.emissive_texture().map(|t| self.add_texture(t.texture(), buffers, None)),
-                normal_texture: mat.normal_texture().map(|t| self.add_texture(t.texture(), buffers, None)),
+                emissive_texture: mat.emissive_texture().map(get_index),
+                normal_texture: mat.normal_texture().map(|t| t.texture().source().index()),
             };
 
             let positions = reader
@@ -232,49 +237,6 @@ impl Scene {
                 );
             
             self.meshes.push(Mesh::new(vertices, indices, material));
-        }
-    }
-
-    /// Adds the texture if it hasn't been added yet, returns its index 
-    fn add_texture(&mut self, texture: gltf::Texture, buffers: &[gltf::buffer::Data], rgb2spec: Option<&RGB2Spec>) -> usize {
-        let texture = texture.source().source();
-
-        match texture {
-            gltf::image::Source::View { view, .. } => {
-                let buffer_index = view.buffer().index();
-                let start = view.offset();
-                let end = start + view.length();
-                let texture_view = TextureView { buffer_index, offset: start };
-
-                if let Some(index) = self.texture_indices.get(&texture_view) {
-                    return *index;
-                }
-
-                let cursor = std::io::Cursor::new(&buffers[buffer_index][start..end]);
-
-                let reader = match image::io::Reader::new(cursor).with_guessed_format() {
-                    Ok(reader) => reader,
-                    Err(e) => {
-                        panic!("Inferring image type failed: {}", e);
-                    }
-                };
-
-                let image = match reader.decode() {
-                    Ok(image) => image.to_rgba8(),
-                    Err(e) => {
-                        panic!("Decoding image failed: {}", e);
-                    }
-                };
-
-                self.textures.push(Texture::new(image, rgb2spec));
-                let index = self.textures.len() - 1;
-                self.texture_indices.insert(texture_view, index);
-
-                index
-            },
-            gltf::image::Source::Uri { .. } => {
-                panic!("Loading images from URIs is not yet implemented!");
-            },
         }
     }
 }
