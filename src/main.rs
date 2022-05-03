@@ -68,7 +68,7 @@ struct ShaderInterface {
 const VS_STR: &str = include_str!("passthrough.vs");
 const FS_STR: &str = include_str!("color.fs");
 
-const ACCEL_INDEX: usize = 1;
+const ACCEL_INDEX: usize = 2;
 
 struct App {
     raytracer: Raytracer,
