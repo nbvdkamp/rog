@@ -144,13 +144,17 @@ impl Scene {
             let pbr = mat.pbr_metallic_roughness();
             let base = pbr.base_color_factor();
 
+            let base_color = RGBf32::new(base[0], base[1], base[2]);
+            let base_color_coefficients = rgb2spec.fetch([base_color.r, base_color.g, base_color.b]);
+
             let get_index = |t: gltf::texture::Info| t.texture().source().index();
             let base_color_texture= pbr.base_color_texture().map(get_index);
 
             base_color_texture.map(|i| self.textures[i].create_spectrum_coefficients(rgb2spec));
 
             let material = Material {
-                base_color: RGBf32::new(base[0], base[1], base[2]),
+                base_color,
+                base_color_coefficients,
                 base_color_texture,
                 roughness: pbr.roughness_factor(),
                 metallic: pbr.metallic_factor(),

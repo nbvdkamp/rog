@@ -9,6 +9,7 @@ use crate::{
 #[derive(Clone)]
 pub struct Material {
     pub base_color: RGBf32,
+    pub base_color_coefficients: [f32; 3],
     pub base_color_texture: Option<usize>,
     pub metallic: f32,
     pub roughness: f32,
@@ -20,6 +21,7 @@ pub struct Material {
 
 pub struct MaterialSample {
     pub base_color: RGBf32,
+    pub base_color_coefficients: [f32; 3],
     pub metallic: f32,
     pub roughness: f32,
     pub emissive: RGBf32,
@@ -47,6 +49,8 @@ impl Material {
 
         MaterialSample {
             base_color: self.base_color * sample(self.base_color_texture).pow(GAMMA),
+            //TODO: Figure out how to/whether to combine with texture sample
+            base_color_coefficients: self.base_color_coefficients,
             metallic: self.metallic * metallic_roughness.b,
             roughness: (self.roughness * metallic_roughness.g).max(0.001), 
             emissive: self.emissive * sample(self.emissive_texture).pow(GAMMA),
