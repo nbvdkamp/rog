@@ -87,8 +87,8 @@ impl Texture {
         let size = (self.width * self.height * self.format.bytes()) as usize;
         let mut result = Vec::with_capacity(size);
 
-        for x in 0..self.width {
-            for y in 0..self.height {
+        for y in 0..self.height {
+            for x in 0..self.width {
                 let pixel_index = y * self.width + x;
                 let i = (pixel_index * self.format.bytes()) as usize;
 
