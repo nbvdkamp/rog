@@ -122,7 +122,6 @@ pub fn brdf_sample(mat: &MaterialSample, incident: Vector3<f32>) -> (Vector3<f32
 
 pub fn brdf_eval(mat: &MaterialSample, incident: Vector3<f32>, outgoing: Vector3<f32>) -> (RGBf32, f32) {
     let micronormal = (incident + outgoing).normalize();
-    let outgoing = reflect(incident, micronormal);
     let i_dot_n = incident.z;
     let o_dot_n = outgoing.z;
     let m_dot_n = micronormal.z;
