@@ -90,7 +90,7 @@ fn brdf(mat: &MaterialSample, i_dot_n: f32, o_dot_n: f32, m_dot_n: f32, i_dot_m:
     // VNDF eq. 3 (Heitz 2018)
     let visible_normal_distrib = g_i * i_dot_m.max(0.0) * normal_distrib / i_dot_n;
 
-    let fresnel_m = schlick_fresnel_approximation(i_dot_m, fresnel_f_zero(1.45));
+    let fresnel_m = schlick_fresnel_approximation(i_dot_m, fresnel_f_zero(mat.ior));
     let specular_color = 0.2;
     let fresnel = specular_color.lerp(1.0, fresnel_m);
     let fresnel = 1.0;

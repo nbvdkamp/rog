@@ -29,7 +29,11 @@ luminance-windowing = "0.10.1"
 
 [dependencies.gltf]
 version = "1.0.0"
-features = ["KHR_lights_punctual"]
+features = [
+    "KHR_lights_punctual",
+    "KHR_materials_transmission",
+    "KHR_materials_ior",
+]
 
 [dependencies.rgb2spec-rust]
 path = "../rgb2spec-rust"

@@ -142,6 +142,7 @@ impl Scene {
 
             let mat = primitive.material();
             let pbr = mat.pbr_metallic_roughness();
+            let transmission = mat.transmission();
             let base = pbr.base_color_factor();
 
             let base_color = RGBf32::new(base[0], base[1], base[2]);
@@ -159,6 +160,8 @@ impl Scene {
                 roughness: pbr.roughness_factor(),
                 metallic: pbr.metallic_factor(),
                 metallic_roughness_texture: pbr.metallic_roughness_texture().map(get_index),
+                ior: mat.ior().unwrap_or(1.45),
+                transmission: transmission.map(|t| t.transmission_factor()).unwrap_or(0.0),
                 emissive: mat.emissive_factor().into(),
                 emissive_texture: mat.emissive_texture().map(get_index),
                 normal_texture: mat.normal_texture().map(|t| t.texture().source().index()),
