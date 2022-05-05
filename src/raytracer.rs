@@ -2,7 +2,10 @@ use std::time::Instant;
 use std::sync::{Arc, Mutex};
 use rand::Rng;
 
-use crossbeam_utils::thread;
+use crossbeam::{
+    scope,
+    deque::{Injector, Steal},
+};
 use cgmath::{InnerSpace, Point3, Vector2, vec2, Vector4};
 
 mod ray;
@@ -124,54 +127,84 @@ impl Raytracer {
         let buffer= Arc::new(Mutex::new(buffer));
 
         let thread_count = usize::max(num_cpus::get() - 2, 1);
-        let rows_per_thread = image_size.y as f32 / thread_count as f32;
+        let tile_size = 100;
 
-        thread::scope(|s| {
-            for thread_index in 0..thread_count {
+        struct Tile {
+            start: Vector2<usize>,
+            end: Vector2<usize>,
+        }
+
+        let tiles = &{
+            let tiles: Injector<Tile> = Injector::new();
+
+            for x_start in (0..image_size.x).step_by(tile_size) {
+                let x_end = (x_start + tile_size).min(image_size.x);
+
+                for y_start in (0..image_size.y).step_by(tile_size) {
+                    let y_end = (y_start + tile_size).min(image_size.y);
+
+                    tiles.push(Tile {
+                        start: vec2(x_start, y_start),
+                        end: vec2(x_end, y_end),
+                    });
+                }
+            }
+
+            tiles
+        };
+
+        scope(|s| {
+            for _ in 0..thread_count {
                 let buffer = Arc::clone(&buffer);
 
                 s.spawn(move |_| {
-                    let y_start = (thread_index as f32 * rows_per_thread) as usize;
-                    let y_end = ((thread_index + 1) as f32 * rows_per_thread) as usize;
+                    'work: loop {
+                        let tile = loop {
+                            match tiles.steal() {
+                                Steal::Success(tile) => break tile,
+                                Steal::Empty => break 'work,
+                                Steal::Retry => {}
+                            }
+                        };
 
-                    // Simple row-wise split of work
-                    for y in y_start..y_end {
-                        for x in 0..image_size.x {
-                            let mut color = RGBf32::new(0.0, 0.0, 0.0);
+                        for y in tile.start.y..tile.end.y {
+                            for x in tile.start.x..tile.end.x {
+                                let mut color = RGBf32::new(0.0, 0.0, 0.0);
 
-                            for sample in 0..samples {
-                                let mut rng = rand::thread_rng();
+                                for sample in 0..samples {
+                                    let mut rng = rand::thread_rng();
 
-                                let mut tent_sample = || {
-                                    let r = 2.0 * rng.gen::<f32>();
+                                    let mut tent_sample = || {
+                                        let r = 2.0 * rng.gen::<f32>();
 
-                                    if r < 1.0 {
-                                        r.sqrt() - 1.0
-                                    } else {
-                                        1.0 - (2.0 - r).sqrt()
+                                        if r < 1.0 {
+                                            r.sqrt() - 1.0
+                                        } else {
+                                            1.0 - (2.0 - r).sqrt()
+                                        }
+                                    };
+
+                                    let mut offset = vec2(0.5, 0.5);
+
+                                    if sample > 0 {
+                                        offset += vec2(tent_sample(), tent_sample());
                                     }
-                                };
 
-                                let mut offset = vec2(0.5, 0.5);
+                                    let screen = self.pixel_to_screen(Vector2::new(x, y), offset, image_size, aspect_ratio, fov_factor);
 
-                                if sample > 0 {
-                                    offset += vec2(tent_sample(), tent_sample());
+                                    // Using w = 0 because this is a direction vector
+                                    let dir4 = cam_model * Vector4::new(screen.x, screen.y, -1., 0.).normalize();
+                                    let ray = Ray { origin: camera_pos, direction: dir4.truncate().normalize() };
+
+                                    color += self.radiance(ray, accel_index);
                                 }
 
-                                let screen = self.pixel_to_screen(Vector2::new(x, y), offset, image_size, aspect_ratio, fov_factor);
+                                color = color / samples as f32;
+                                color = color.pow(1.0 / GAMMA);
 
-                                // Using w = 0 because this is a direction vector
-                                let dir4 = cam_model * Vector4::new(screen.x, screen.y, -1., 0.).normalize();
-                                let ray = Ray { origin: camera_pos, direction: dir4.truncate().normalize() };
-
-                                color += self.radiance(ray, accel_index);
+                                let mut buffer = buffer.lock().unwrap();
+                                buffer[image_size.x * y + x] = color;
                             }
-
-                            color = color / samples as f32;
-                            color = color.pow(1.0 / GAMMA);
-
-                            let mut buffer = buffer.lock().unwrap();
-                            buffer[image_size.x * y + x] = color;
                         }
                     }
                 });
