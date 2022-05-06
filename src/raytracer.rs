@@ -269,7 +269,7 @@ impl Raytracer {
                     normal = -normal;
                 }
 
-                let has_texture_coords = self.verts[triangle.index1 as usize].tex_coord.is_some();
+                let has_texture_coords = verts[0].tex_coord.is_some();
 
                 let texture_coords = if has_texture_coords {
                     (1. - u - v) * verts[0].tex_coord.unwrap() +
@@ -279,7 +279,7 @@ impl Raytracer {
                     vec2(0.0, 0.0)
                 };
 
-                let has_tangents = self.verts[triangle.index1 as usize].tangent.is_some();
+                let has_tangents = verts[0].tangent.is_some();
 
                 let tangent = if has_tangents {
                     Some((1. - u - v) * verts[0].tangent.unwrap() +
