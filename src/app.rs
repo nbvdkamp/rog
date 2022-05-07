@@ -89,6 +89,11 @@ impl App {
         })
         .expect("Failed to create GLFW surface");
 
+        let background_color = {
+            let c = self.scene.environment.color.pow(1.0 / crate::constants::GAMMA);
+            [c.r, c.g, c.b, 1.0]
+        };
+
         let mut context = surface.context;
         let events = surface.events_rx;
         let mut back_buffer = context.back_buffer().expect("back buffer");
@@ -127,7 +132,7 @@ impl App {
                 .new_pipeline_gate()
                 .pipeline(
                     &back_buffer,
-                    &PipelineState::default().set_clear_color([0.1, 0.1, 0.1, 1.0]),
+                    &PipelineState::default().set_clear_color(background_color),
                     |_, mut shd_gate| {
                         for (tess, material) in &tesses {
                             shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
