@@ -1,7 +1,9 @@
 use luminance_derive::{Semantics, Vertex};
-use luminance_front::context::GraphicsContext;
-use luminance_front::tess::{Mode, Tess, TessError, Interleaved};
-use luminance_front::Backend;
+use luminance_front::{
+    context::GraphicsContext,
+    tess::{Mode, Tess, TessError, Interleaved},
+    Backend,
+};
 
 use cgmath::{Point3, Vector2, Vector3};
 
