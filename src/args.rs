@@ -1,4 +1,5 @@
 use clap::{arg, Command};
+use image::ImageFormat;
 
 pub struct Args {
     pub file: String,
@@ -54,13 +55,23 @@ impl Args {
             }
         };
 
+        let output_file = matches.value_of("output").unwrap().into();
+
+        match ImageFormat::from_path(&output_file) {
+            Err(e) => {
+                eprintln!("Invalid output file specified:\n\t{e}");
+                std::process::exit(-1);
+            }
+            Ok(_) => (),
+        }
+
         Args {
             file: matches.value_of("file").unwrap().into(),
             headless: matches.is_present("headless"),
             samples: read_usize("samples", 1),
             width: read_usize("width", 1920),
             height: read_usize("height", 1080),
-            output_file: matches.value_of("output").unwrap().into(),
+            output_file,
             benchmark: matches.is_present("benchmark"),
         }
     }
