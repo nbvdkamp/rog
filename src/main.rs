@@ -1,5 +1,7 @@
 #[macro_use] extern crate impl_ops;
 
+use std::vec;
+
 use glfw::{Context as _, WindowEvent, Key, Action, WindowMode, SwapInterval};
 use cgmath::{Vector2, vec2};
 
@@ -15,9 +17,6 @@ use luminance_front::{
     },
     tess::{Tess, Interleaved}
 };
-
-use std::vec;
-use std::path::Path;
 
 mod args;
 mod color;
@@ -38,8 +37,7 @@ use mesh::{LuminanceVertex, VertexIndex, VertexSemantics};
 use scene::Scene;
 use material::Material;
 use raytracer::Raytracer;
-use util::mat_to_shader_type;
-use color::{RGBf32, RGBu8};
+use util::{mat_to_shader_type, save_image};
 
 fn main() {
     let args = Args::parse();
@@ -251,23 +249,4 @@ fn headless_render(args: Args)
     println!("Finished rendering in {} seconds", time_elapsed);
 
     save_image(&buffer, image_size, args.output_file);
-}
-
-fn save_image<P>(buffer: &[RGBf32], image_size: Vector2<usize>, path: P)
-where
-    P: AsRef<Path>
-{
-    let pixels: Vec<RGBu8> = buffer.into_iter().map(|c| c.normalized()).collect();
-
-    let byte_buffer: &[u8] = unsafe { 
-        std::slice::from_raw_parts(pixels.as_ptr() as *const u8, pixels.len() * std::mem::size_of::<RGBu8>())
-    };
-
-    let save_result = image::save_buffer(path, &byte_buffer,
-        image_size.x as u32, image_size.y as u32, image::ColorType::Rgb8);
-
-    match save_result {
-        Ok(_) => println!("File was saved succesfully"),
-        Err(e) => println!("Couldn't save file: {}", e),
-    }
 }
