@@ -36,7 +36,7 @@ fn main() {
     } else if args.headless {
         headless_render(args);
     } else {
-        let app = App::new(args);
+        let mut app = App::new(args);
         app.run();
     }
 }

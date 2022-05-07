@@ -75,7 +75,7 @@ impl App {
         }
     }
 
-    pub fn run(&self) {
+    pub fn run(&mut self) {
         let surface = GlfwSurface::new(|glfw| {
             let (mut window, events) = glfw
                 .create_window(960, 540, "Rust renderer", WindowMode::Windowed)
@@ -91,16 +91,14 @@ impl App {
 
         let mut context = surface.context;
         let events = surface.events_rx;
-        let back_buffer = context.back_buffer().expect("back buffer");
+        let mut back_buffer = context.back_buffer().expect("back buffer");
 
         let tesses = self.scene.meshes.as_slice().iter()
             .map(|mesh| (mesh.to_tess(&mut context).unwrap(), mesh.material.clone()))
             .collect::<Vec<(Tess<LuminanceVertex, VertexIndex, (), Interleaved>, Material)>>();
 
-        let [_width, _height] = back_buffer.size();
-        let projection = self.scene.camera.projection();
-        let view = self.scene.camera.view;
-        
+        let mut projection = self.scene.camera.projection();
+
         let mut program = context
             .new_shader_program::<VertexSemantics, (), ShaderInterface>()
             .from_strings(VS_STR, None, None, FS_STR)
@@ -114,9 +112,16 @@ impl App {
                 match event {
                     WindowEvent::Close => break 'app,
                     WindowEvent::Key(key, _, action, _) => self.handle_key_event(key, action),
+                    WindowEvent::Size(width, height) => {
+                        self.scene.camera.aspect_ratio = width as f32 / height as f32;
+                        projection = self.scene.camera.projection();
+                        back_buffer = context.back_buffer().expect("Unable to create new back buffer");
+                    },
                     _ => ()
                 }
             }
+
+            let view = self.scene.camera.view;
 
             let render = context
                 .new_pipeline_gate()
