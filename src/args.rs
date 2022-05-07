@@ -2,6 +2,7 @@ use clap::{arg, Command};
 
 pub struct Args {
     pub file: String,
+    pub output_file: String,
     pub headless: bool,
     pub samples: usize,
     pub width: usize,
@@ -34,6 +35,10 @@ impl Args {
                     .default_value("1080")
                     .required(false)
                     .display_order(5),
+                arg!(-o --output <FILE> "Path/filename where image should be saved")
+                    .default_value("output/result.png")
+                    .required(false)
+                    .display_order(6),
                 arg!(-b --benchmark "Benchmark acceleration structures"),
             ]).get_matches();
 
@@ -55,6 +60,7 @@ impl Args {
             samples: read_usize("samples", 1),
             width: read_usize("width", 1920),
             height: read_usize("height", 1080),
+            output_file: matches.value_of("output").unwrap().into(),
             benchmark: matches.is_present("benchmark"),
         }
     }

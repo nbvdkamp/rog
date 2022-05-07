@@ -17,6 +17,7 @@ use luminance_front::{
 };
 
 use std::vec;
+use std::path::Path;
 
 mod args;
 mod color;
@@ -75,6 +76,7 @@ struct App {
     scene: Scene,
     image_size: Vector2<usize>,
     samples_per_pixel: usize,
+    output_file: String,
 }
 
 #[derive(Debug)]
@@ -100,7 +102,8 @@ impl App {
             raytracer,
             scene,
             image_size,
-            samples_per_pixel: args.samples
+            samples_per_pixel: args.samples,
+            output_file: args.output_file,
         }
     }
 
@@ -183,7 +186,7 @@ impl App {
             let (buffer, time_elapsed) = self.raytracer.render(self.image_size, self.samples_per_pixel, ACCEL_INDEX);
             println!("Finished rendering in {} seconds", time_elapsed);
 
-            save_image(&buffer, self.image_size);
+            save_image(&buffer, self.image_size, &self.output_file);
         }
     }
 }
@@ -247,17 +250,20 @@ fn headless_render(args: Args)
     let (buffer, time_elapsed) = raytracer.render(image_size, args.samples, ACCEL_INDEX);
     println!("Finished rendering in {} seconds", time_elapsed);
 
-    save_image(&buffer, image_size);
+    save_image(&buffer, image_size, args.output_file);
 }
 
-fn save_image(buffer: &[RGBf32], image_size: Vector2<usize>) {
+fn save_image<P>(buffer: &[RGBf32], image_size: Vector2<usize>, path: P)
+where
+    P: AsRef<Path>
+{
     let pixels: Vec<RGBu8> = buffer.into_iter().map(|c| c.normalized()).collect();
 
     let byte_buffer: &[u8] = unsafe { 
         std::slice::from_raw_parts(pixels.as_ptr() as *const u8, pixels.len() * std::mem::size_of::<RGBu8>())
     };
 
-    let save_result = image::save_buffer("output/result.png", &byte_buffer,
+    let save_result = image::save_buffer(path, &byte_buffer,
         image_size.x as u32, image_size.y as u32, image::ColorType::Rgb8);
 
     match save_result {
