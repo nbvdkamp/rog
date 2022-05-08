@@ -1,6 +1,6 @@
 use cgmath::{perspective, Matrix4, SquareMatrix, Rad, Vector3, Point3, EuclideanSpace};
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct PerspectiveCamera {
     pub aspect_ratio: f32,
     pub y_fov: f32,

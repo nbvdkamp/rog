@@ -1,5 +1,5 @@
 
-use cgmath::{Vector2, vec2};
+use cgmath::{Vector2, vec2, Vector3, vec3, Matrix4, SquareMatrix};
 
 use glfw::{Context as _, WindowEvent, Key, Action, WindowMode, SwapInterval};
 
@@ -45,6 +45,7 @@ pub struct App {
     image_size: Vector2<usize>,
     samples_per_pixel: usize,
     output_file: String,
+    movement: Movement,
 }
 
 #[derive(Debug)]
@@ -72,6 +73,7 @@ impl App {
             image_size,
             samples_per_pixel: args.samples,
             output_file: args.output_file,
+            movement: Movement::new(),
         }
     }
 
@@ -109,6 +111,8 @@ impl App {
             .from_strings(VS_STR, None, None, FS_STR)
             .unwrap()
             .ignore_warnings();
+
+        let mut frame_start = context.window.glfw.get_time();
 
         'app: loop {
             context.window.glfw.poll_events();
@@ -155,16 +159,89 @@ impl App {
                 break 'app;
             }
 
+            let frame_end= context.window.glfw.get_time();
+            let frame_time = (frame_end - frame_start) as f32;
+            frame_start = frame_end;
+
+            let translation = 2.0 * self.movement.translation();
+            self.scene.camera.model =  self.scene.camera.model * Matrix4::from_translation(translation * frame_time);
+            self.scene.camera.view = self.scene.camera.model.invert().unwrap();
+
             context.window.swap_buffers();
         }
     }
 
-    fn handle_key_event(&self, key: Key, action: Action) {
-        if key == Key::Enter && action == Action::Press {
-            let (buffer, time_elapsed) = self.raytracer.render(self.image_size, self.samples_per_pixel, super::ACCEL_INDEX);
-            println!("Finished rendering in {} seconds", time_elapsed);
+    fn handle_key_event(&mut self, key: Key, action: Action) {
+        match action {
+            Action::Press => {
+                match key {
+                    Key::Enter => {
+                        self.raytracer.camera = self.scene.camera;
+                        let (buffer, time_elapsed) = self.raytracer.render(self.image_size, self.samples_per_pixel, super::ACCEL_INDEX);
+                        println!("Finished rendering in {} seconds", time_elapsed);
 
-            save_image(&buffer, self.image_size, &self.output_file);
+                        save_image(&buffer, self.image_size, &self.output_file);
+                    }
+                    Key::W => self.movement.forward_backward.set(1),
+                    Key::S => self.movement.forward_backward.set(-1),
+                    Key::A => self.movement.left_right.set(1),
+                    Key::D => self.movement.left_right.set(-1),
+                    Key::Space => self.movement.up_down.set(1),
+                    Key::LeftShift => self.movement.up_down.set(-1),
+                    _ => (),
+                }
+            },
+            Action::Release => {
+                match key {
+                    Key::W => self.movement.forward_backward.reset(1),
+                    Key::S => self.movement.forward_backward.reset(-1),
+                    Key::A => self.movement.left_right.reset(1),
+                    Key::D => self.movement.left_right.reset(-1),
+                    Key::Space => self.movement.up_down.reset(1),
+                    Key::LeftShift => self.movement.up_down.reset(-1),
+                    _ => (),
+                }
+            },
+            Action::Repeat => (),
         }
+
+    }
+}
+
+struct MovementDirection {
+    pub value: i8,
+}
+
+impl MovementDirection {
+    pub fn set(&mut self, value: i8) {
+        self.value = value;
+    }
+
+    pub fn reset(&mut self, released_value: i8) {
+        if self.value == released_value {
+            self.value = 0;
+        }
+    }
+}
+
+struct Movement {
+    pub left_right: MovementDirection,
+    pub forward_backward: MovementDirection,
+    pub up_down: MovementDirection,
+}
+
+impl Movement {
+    pub fn new() -> Self {
+        Movement {
+            forward_backward: MovementDirection { value: 0 },
+            left_right: MovementDirection { value: 0 },
+            up_down: MovementDirection { value: 0 },
+        }
+    }
+
+    pub fn translation(&self) -> Vector3<f32> {
+        self.forward_backward.value as f32 * vec3(0.0, 0.0, -1.0) +
+        self.left_right.value as f32 * vec3(-1.0, 0.0, 0.0) +
+        self.up_down.value as f32 * vec3(0.0, 1.0, 0.0)
     }
 }

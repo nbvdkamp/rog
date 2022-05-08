@@ -56,7 +56,7 @@ pub struct Raytracer {
     lights: Vec<Light>,
     textures: Vec<Texture>,
     environment: Environment,
-    camera: PerspectiveCamera,
+    pub camera: PerspectiveCamera,
     max_depth: usize,
     pub accel_structures: Vec<Box<dyn AccelerationStructure + Sync>>,
 }
