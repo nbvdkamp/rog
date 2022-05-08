@@ -1,7 +1,7 @@
 
-use cgmath::{Vector2, vec2, Vector3, vec3, Matrix4, SquareMatrix};
+use cgmath::{Vector2, vec2, Vector3, vec3, Matrix4, SquareMatrix, Rad};
 
-use glfw::{Context as _, WindowEvent, Key, Action, WindowMode, SwapInterval};
+use glfw::{Context as _, WindowEvent, Key, Action, WindowMode, SwapInterval, MouseButton};
 
 use luminance_glfw::{GlfwSurface, GlfwSurfaceError};
 use luminance_derive::UniformInterface;
@@ -121,6 +121,12 @@ impl App {
                 match event {
                     WindowEvent::Close => break 'app,
                     WindowEvent::Key(key, _, action, _) => self.handle_key_event(key, action),
+                    WindowEvent::MouseButton(button, action, _) => self.handle_mousebutton_event(button, action),
+                    WindowEvent::CursorPos(x, y) => {
+                        let pos = vec2(x, y);
+                        self.movement.mouse_delta = pos - self.movement.mouse_position;
+                        self.movement.mouse_position = pos;
+                    },
                     WindowEvent::Size(width, height) => {
                         self.scene.camera.aspect_ratio = width as f32 / height as f32;
                         projection = self.scene.camera.projection();
@@ -163,9 +169,21 @@ impl App {
             let frame_time = (frame_end - frame_start) as f32;
             frame_start = frame_end;
 
-            let translation = 2.0 * self.movement.translation();
-            self.scene.camera.model =  self.scene.camera.model * Matrix4::from_translation(translation * frame_time);
-            self.scene.camera.view = self.scene.camera.model.invert().unwrap();
+            if self.movement.moving() {
+                let rotation = if self.movement.turning {
+                    Matrix4::from_angle_x(Rad(-self.movement.mouse_delta.y as f32) * frame_time) *
+                    Matrix4::from_angle_y(Rad(-self.movement.mouse_delta.x as f32) * frame_time) *
+                    Matrix4::from_angle_z(Rad(self.movement.roll.value as f32) * frame_time)
+                } else {
+                    Matrix4::from_angle_z(Rad(self.movement.roll.value as f32) * frame_time)
+                };
+
+                let translation = 2.0 * self.movement.translation();
+                self.scene.camera.model =  self.scene.camera.model * rotation *  Matrix4::from_translation(translation * frame_time);
+                self.scene.camera.view = self.scene.camera.model.invert().unwrap();
+            }
+
+            self.movement.mouse_delta =  vec2(0.0, 0.0);
 
             context.window.swap_buffers();
         }
@@ -188,6 +206,8 @@ impl App {
                     Key::D => self.movement.left_right.set(-1),
                     Key::Space => self.movement.up_down.set(1),
                     Key::LeftShift => self.movement.up_down.set(-1),
+                    Key::Q => self.movement.roll.set(1),
+                    Key::E => self.movement.roll.set(-1),
                     _ => (),
                 }
             },
@@ -199,12 +219,26 @@ impl App {
                     Key::D => self.movement.left_right.reset(-1),
                     Key::Space => self.movement.up_down.reset(1),
                     Key::LeftShift => self.movement.up_down.reset(-1),
+                    Key::Q => self.movement.roll.reset(1),
+                    Key::E => self.movement.roll.reset(-1),
                     _ => (),
                 }
             },
             Action::Repeat => (),
         }
+    }
 
+    fn handle_mousebutton_event(&mut self, button: MouseButton, action: Action) {
+        match button {
+            MouseButton::Button1 => {
+                match action {
+                    Action::Press => self.movement.turning = true,
+                    Action::Release => self.movement.turning = false,
+                    Action::Repeat => (),
+                }
+            }
+            _ => (),
+        }
     }
 }
 
@@ -228,6 +262,10 @@ struct Movement {
     pub left_right: MovementDirection,
     pub forward_backward: MovementDirection,
     pub up_down: MovementDirection,
+    pub roll: MovementDirection,
+    pub turning: bool,
+    pub mouse_position: Vector2<f64>,
+    pub mouse_delta: Vector2<f64>,
 }
 
 impl Movement {
@@ -236,6 +274,10 @@ impl Movement {
             forward_backward: MovementDirection { value: 0 },
             left_right: MovementDirection { value: 0 },
             up_down: MovementDirection { value: 0 },
+            roll: MovementDirection { value: 0 },
+            turning: false,
+            mouse_position: vec2(0.0, 0.0),
+            mouse_delta: vec2(0.0, 0.0),
         }
     }
 
@@ -243,5 +285,13 @@ impl Movement {
         self.forward_backward.value as f32 * vec3(0.0, 0.0, -1.0) +
         self.left_right.value as f32 * vec3(-1.0, 0.0, 0.0) +
         self.up_down.value as f32 * vec3(0.0, 1.0, 0.0)
+    }
+
+    pub fn moving(&self) -> bool {
+        self.turning && self.mouse_delta != vec2(0.0, 0.0) ||
+        self.forward_backward.value != 0 ||
+        self.left_right.value != 0 ||
+        self.up_down.value != 0 ||
+        self.roll.value != 0
     }
 }
