@@ -126,12 +126,15 @@ impl App {
                         let pos = vec2(x, y);
                         self.movement.mouse_delta = pos - self.movement.mouse_position;
                         self.movement.mouse_position = pos;
-                    },
+                    }
+                    WindowEvent::Scroll(_, y_offset) => {
+                        self.movement.speed *= if y_offset > 0.0 { 1.2 } else { 0.8 };
+                    }
                     WindowEvent::Size(width, height) => {
                         self.scene.camera.aspect_ratio = width as f32 / height as f32;
                         projection = self.scene.camera.projection();
                         back_buffer = context.back_buffer().expect("Unable to create new back buffer");
-                    },
+                    }
                     _ => ()
                 }
             }
@@ -178,8 +181,8 @@ impl App {
                     Matrix4::from_angle_z(Rad(self.movement.roll.value as f32) * frame_time)
                 };
 
-                let translation = 2.0 * self.movement.translation();
-                self.scene.camera.model =  self.scene.camera.model * rotation *  Matrix4::from_translation(translation * frame_time);
+                let translation = Matrix4::from_translation(frame_time * self.movement.translation());
+                self.scene.camera.model =  self.scene.camera.model * rotation *  translation;
                 self.scene.camera.view = self.scene.camera.model.invert().unwrap();
             }
 
@@ -263,6 +266,7 @@ struct Movement {
     pub forward_backward: MovementDirection,
     pub up_down: MovementDirection,
     pub roll: MovementDirection,
+    pub speed: f32,
     pub turning: bool,
     pub mouse_position: Vector2<f64>,
     pub mouse_delta: Vector2<f64>,
@@ -275,6 +279,7 @@ impl Movement {
             left_right: MovementDirection { value: 0 },
             up_down: MovementDirection { value: 0 },
             roll: MovementDirection { value: 0 },
+            speed: 2.0,
             turning: false,
             mouse_position: vec2(0.0, 0.0),
             mouse_delta: vec2(0.0, 0.0),
@@ -282,9 +287,11 @@ impl Movement {
     }
 
     pub fn translation(&self) -> Vector3<f32> {
-        self.forward_backward.value as f32 * vec3(0.0, 0.0, -1.0) +
-        self.left_right.value as f32 * vec3(-1.0, 0.0, 0.0) +
-        self.up_down.value as f32 * vec3(0.0, 1.0, 0.0)
+        self.speed * (
+            self.forward_backward.value as f32 * vec3(0.0, 0.0, -1.0) +
+            self.left_right.value as f32 * vec3(-1.0, 0.0, 0.0) +
+            self.up_down.value as f32 * vec3(0.0, 1.0, 0.0)
+        )
     }
 
     pub fn moving(&self) -> bool {
