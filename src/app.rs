@@ -120,22 +120,12 @@ impl App {
             for (_, event) in glfw::flush_messages(&events) {
                 match event {
                     WindowEvent::Close => break 'app,
-                    WindowEvent::Key(key, _, action, _) => self.handle_key_event(key, action),
-                    WindowEvent::MouseButton(button, action, _) => self.handle_mousebutton_event(button, action),
-                    WindowEvent::CursorPos(x, y) => {
-                        let pos = vec2(x, y);
-                        self.movement.mouse_delta = pos - self.movement.mouse_position;
-                        self.movement.mouse_position = pos;
-                    }
-                    WindowEvent::Scroll(_, y_offset) => {
-                        self.movement.speed *= if y_offset > 0.0 { 1.2 } else { 0.8 };
-                    }
                     WindowEvent::Size(width, height) => {
                         self.scene.camera.aspect_ratio = width as f32 / height as f32;
                         projection = self.scene.camera.projection();
                         back_buffer = context.back_buffer().expect("Unable to create new back buffer");
                     }
-                    _ => ()
+                    e => self.handle_event(e),
                 }
             }
 
@@ -172,23 +162,46 @@ impl App {
             let frame_time = (frame_end - frame_start) as f32;
             frame_start = frame_end;
 
-            if self.movement.moving() {
-                let rotation = if self.movement.turning {
-                    Matrix4::from_angle_x(Rad(-self.movement.mouse_delta.y as f32) * frame_time) *
-                    Matrix4::from_angle_y(Rad(-self.movement.mouse_delta.x as f32) * frame_time) *
-                    Matrix4::from_angle_z(Rad(self.movement.roll.value as f32) * frame_time)
-                } else {
-                    Matrix4::from_angle_z(Rad(self.movement.roll.value as f32) * frame_time)
-                };
-
-                let translation = Matrix4::from_translation(frame_time * self.movement.translation());
-                self.scene.camera.model =  self.scene.camera.model * rotation *  translation;
-                self.scene.camera.view = self.scene.camera.model.invert().unwrap();
-            }
-
-            self.movement.mouse_delta =  vec2(0.0, 0.0);
+            self.do_movement(frame_time);
 
             context.window.swap_buffers();
+        }
+    }
+
+    fn do_movement(&mut self, delta_time: f32) -> bool {
+        let moving = self.movement.moving();
+
+        if moving {
+            let rotation = if self.movement.turning {
+                Matrix4::from_angle_x(Rad(-self.movement.mouse_delta.y as f32) * delta_time) *
+                Matrix4::from_angle_y(Rad(-self.movement.mouse_delta.x as f32) * delta_time) *
+                Matrix4::from_angle_z(Rad(self.movement.roll.value as f32) * delta_time)
+            } else {
+                Matrix4::from_angle_z(Rad(self.movement.roll.value as f32) * delta_time)
+            };
+
+            let translation = Matrix4::from_translation(delta_time * self.movement.translation());
+            self.scene.camera.model =  self.scene.camera.model * rotation *  translation;
+            self.scene.camera.view = self.scene.camera.model.invert().unwrap();
+        }
+
+        self.movement.mouse_delta =  vec2(0.0, 0.0);
+        moving
+    }
+
+    fn handle_event(&mut self, event: WindowEvent) {
+        match event {
+            WindowEvent::Key(key, _, action, _) => self.handle_key_event(key, action),
+            WindowEvent::MouseButton(button, action, _) => self.handle_mousebutton_event(button, action),
+            WindowEvent::CursorPos(x, y) => {
+                let pos = vec2(x, y);
+                self.movement.mouse_delta = pos - self.movement.mouse_position;
+                self.movement.mouse_position = pos;
+            }
+            WindowEvent::Scroll(_, y_offset) => {
+                self.movement.speed *= if y_offset > 0.0 { 1.2 } else { 0.8 };
+            }
+            _ => ()
         }
     }
 
