@@ -1,3 +1,4 @@
+use cgmath::{Vector2, vec2};
 use lerp::Lerp;
 use rgb2spec::RGB2Spec;
 
@@ -21,11 +22,11 @@ impl Format {
 
 #[derive(Clone)]
 pub struct Texture {
-    image: Vec<u8>,
+    pub image: Vec<u8>,
     coefficients_image: Option<Vec<u8>>,
     width: u32,
     height: u32,
-    format: Format,
+    pub format: Format,
 }
 
 impl Texture {
@@ -110,5 +111,9 @@ impl Texture {
 
         assert_eq!(result.len(), size);
         self.coefficients_image = Some(result);
+    }
+
+    pub fn size(&self) -> Vector2<u32> {
+        vec2(self.width, self.height)
     }
 }

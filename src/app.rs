@@ -3,10 +3,29 @@ use cgmath::{Vector2, vec2, Vector3, vec3, Matrix4, SquareMatrix, Rad};
 
 use glfw::{Context as _, WindowEvent, Key, Action, WindowMode, SwapInterval, MouseButton};
 
+// use luminance::pipeline::BoundTexture;
 use luminance_glfw::{GlfwSurface, GlfwSurfaceError};
 use luminance_derive::UniformInterface;
 use luminance_front::{
-    pipeline::PipelineState,
+    texture::{
+        Texture,
+        Dim2,
+        TexelUpload,
+        Sampler,
+        Wrap,
+        MinFilter,
+        MagFilter,
+    },
+    pipeline::{
+        PipelineState,
+        TextureBinding,
+        BoundTexture,
+    },
+    pixel::{
+        NormUnsigned,
+        NormRGB8UI,
+        NormRGBA8UI,
+    },
     render_state::RenderState,
     context::GraphicsContext,
     shader::{
@@ -27,12 +46,11 @@ use crate::{
 
 #[derive(Debug, UniformInterface)]
 struct ShaderInterface {
-    #[uniform(unbound)]
     u_projection: Uniform<Mat44<f32>>,
-    #[uniform(unbound)]
     u_view: Uniform<Mat44<f32>>,
-    #[uniform(unbound)]
     u_base_color: Uniform<Vec4<f32>>,
+    u_base_color_texture: Uniform<TextureBinding<Dim2, NormUnsigned>>,
+    u_use_texture: Uniform<bool>,
 }
 
 
@@ -100,9 +118,52 @@ impl App {
         let events = surface.events_rx;
         let mut back_buffer = context.back_buffer().expect("back buffer");
 
-        let tesses = self.scene.meshes.as_slice().iter()
+        let tesses = self.scene.meshes.iter()
             .map(|mesh| (mesh.to_tess(&mut context).unwrap(), mesh.material.clone()))
             .collect::<Vec<(Tess<LuminanceVertex, VertexIndex, (), Interleaved>, Material)>>();
+
+        let sampler = Sampler {
+            wrap_r: Wrap::Repeat,
+            wrap_s: Wrap::Repeat,
+            wrap_t: Wrap::Repeat,
+            min_filter: MinFilter::NearestMipmapLinear,
+            mag_filter: MagFilter::Linear,
+            depth_comparison: None,
+        };
+
+        enum Tex {
+            None,
+            RGB(Texture<Dim2, NormRGB8UI>),
+            RGBA(Texture<Dim2, NormRGBA8UI>),
+        }
+
+        enum BoundTex<'a> {
+            None,
+            RGB(BoundTexture<'a, Dim2, NormRGB8UI>),
+            RGBA(BoundTexture<'a, Dim2, NormRGBA8UI>),
+        }
+
+        let mut textures: Vec<Tex> = self.scene.textures.iter().map(|texture| {
+            let size = texture.size();
+            let upload = TexelUpload::base_level(texture.image.as_slice(), 5);
+
+            match texture.format {
+                crate::texture::Format::RGB => match context.new_texture_raw([size.x, size.y], sampler, upload) {
+                    Ok(texture) => Tex::RGB(texture),
+                    Err(e) => {
+                        println!("An error occured while uploading textures: {e}");
+                        Tex::None
+                    }
+                }
+                crate::texture::Format::RGBA => match context.new_texture_raw([size.x, size.y], sampler, upload) {
+                    Ok(texture) => Tex::RGBA(texture),
+                    Err(e) => {
+                        println!("An error occured while uploading textures: {e}");
+                        Tex::None
+                    }
+                }
+            }
+        }).collect();
 
         let mut projection = self.scene.camera.projection();
 
@@ -136,12 +197,38 @@ impl App {
                 .pipeline(
                     &back_buffer,
                     &PipelineState::default().set_clear_color(background_color),
-                    |_, mut shd_gate| {
+                    |pipeline, mut shd_gate| {
                         for (tess, material) in &tesses {
+                            let mut none = Tex::None;
+                            let tex = if let Some(i) = material.base_color_texture {
+                                &mut textures[i]
+                            } else {
+                                &mut none
+                            };
+                            let bound_tex = match tex {
+                                Tex::None => BoundTex::None,
+                                Tex::RGB(rgb) => BoundTex::RGB(pipeline.bind_texture(rgb)?),
+                                Tex::RGBA(rgba) => BoundTex::RGBA(pipeline.bind_texture(rgba)?),
+                            };
+
                             shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
                                 iface.set(&unif.u_projection, mat_to_shader_type(projection));
                                 iface.set(&unif.u_view, mat_to_shader_type(view));
-                                iface.set(&unif.u_base_color , material.base_color.into());
+                                iface.set(&unif.u_base_color, material.base_color.into());
+
+                                match bound_tex {
+                                    BoundTex::RGB(rgb) => {
+                                        iface.set(&unif.u_base_color_texture, rgb.binding());
+                                        iface.set(&unif.u_use_texture, true);
+                                    }
+                                    BoundTex::RGBA(rgba) => {
+                                        iface.set(&unif.u_base_color_texture, rgba.binding());
+                                        iface.set(&unif.u_use_texture, true);
+                                    }
+                                    BoundTex::None => {
+                                        iface.set(&unif.u_use_texture, true);
+                                    }
+                                }
 
                                 rdr_gate.render(&RenderState::default(), |mut tess_gate| {
                                     tess_gate.render(tess)
