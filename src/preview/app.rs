@@ -30,7 +30,7 @@ use luminance_front::{
     context::GraphicsContext,
     shader::{
         Uniform,
-        types::{Mat44, Vec4}
+        types::{Mat44, Vec3, Vec4}
     },
     tess::{Tess, Interleaved}
 };
@@ -51,11 +51,12 @@ struct ShaderInterface {
     u_base_color: Uniform<Vec4<f32>>,
     u_base_color_texture: Uniform<TextureBinding<Dim2, NormUnsigned>>,
     u_use_texture: Uniform<bool>,
+    u_light_position: Uniform<Vec3<f32>>,
 }
 
 
-const VS_STR: &str = include_str!("passthrough.vs");
-const FS_STR: &str = include_str!("color.fs");
+const VS_STR: &str = include_str!("vertex.vs");
+const FS_STR: &str = include_str!("fragment.fs");
 
 pub struct App {
     raytracer: Raytracer,
@@ -113,6 +114,13 @@ impl App {
             let c = self.scene.environment.color.pow(1.0 / crate::constants::GAMMA);
             [c.r, c.g, c.b, 1.0]
         };
+
+        let light_position = self.scene.lights.first().map_or(
+            Vec3::new(1.0, 1.0, 1.0),
+            |p| {
+                let p = p.pos;
+                Vec3::new(p.x, p.y, p.z)
+            });
 
         let mut context = surface.context;
         let events = surface.events_rx;
@@ -215,6 +223,7 @@ impl App {
                                 iface.set(&unif.u_projection, mat_to_shader_type(projection));
                                 iface.set(&unif.u_view, mat_to_shader_type(view));
                                 iface.set(&unif.u_base_color, material.base_color.into());
+                                iface.set(&unif.u_light_position, light_position);
 
                                 match bound_tex {
                                     BoundTex::RGB(rgb) => {
@@ -226,7 +235,7 @@ impl App {
                                         iface.set(&unif.u_use_texture, true);
                                     }
                                     BoundTex::None => {
-                                        iface.set(&unif.u_use_texture, true);
+                                        iface.set(&unif.u_use_texture, false);
                                     }
                                 }
 
