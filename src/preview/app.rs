@@ -298,7 +298,7 @@ impl App {
                 match key {
                     Key::Enter => {
                         self.raytracer.camera = self.scene.camera;
-                        let (buffer, time_elapsed) = self.raytracer.render(self.image_size, self.samples_per_pixel, super::ACCEL_INDEX);
+                        let (buffer, time_elapsed) = self.raytracer.render(self.image_size, self.samples_per_pixel, crate::ACCEL_INDEX);
                         println!("Finished rendering in {} seconds", time_elapsed);
 
                         save_image(&buffer, self.image_size, &self.output_file);

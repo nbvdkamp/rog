@@ -4,22 +4,22 @@ use std::vec;
 
 use cgmath::{Vector2, vec2};
 
-mod app;
 mod args;
 mod color;
 mod constants;
+mod environment;
 mod mesh;
 mod scene;
 mod camera;
 mod material;
 mod texture;
 mod light;
-mod environment;
+mod preview;
 mod raytracer;
-mod util;
 mod sampling;
+mod util;
 
-use app::App;
+use preview::app::App;
 use args::Args;
 use raytracer::Raytracer;
 use scene::Scene;
