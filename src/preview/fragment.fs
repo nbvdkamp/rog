@@ -13,6 +13,7 @@ void main() {
     float light = ambient + (1.0 - ambient) * max(0.0, dot(normalize(v_normal), normalize(v_light_direction)));
 
     vec4 tex_value = u_use_texture ? texture(u_base_color_texture, v_uv) : vec4(1.0);
+    vec4 color = v_base_color * tex_value;
 
-    frag_color = v_base_color * tex_value * light;
+    frag_color = vec4(color.rgb * light, color.a);
 }

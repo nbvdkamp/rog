@@ -3,7 +3,6 @@ use cgmath::{Vector2, vec2, Vector3, vec3, Matrix4, SquareMatrix, Rad};
 
 use glfw::{Context as _, WindowEvent, Key, Action, WindowMode, SwapInterval, MouseButton};
 
-// use luminance::pipeline::BoundTexture;
 use luminance_glfw::{GlfwSurface, GlfwSurfaceError};
 use luminance_derive::UniformInterface;
 use luminance_front::{
@@ -25,6 +24,11 @@ use luminance_front::{
         NormUnsigned,
         NormRGB8UI,
         NormRGBA8UI,
+    },
+    blending::{
+        Blending,
+        Equation,
+        Factor,
     },
     render_state::RenderState,
     context::GraphicsContext,
@@ -173,6 +177,12 @@ impl App {
             }
         }).collect();
 
+        let blending = Blending {
+            equation: Equation::Additive,
+            src: Factor::SrcAlpha,
+            dst: Factor::SrcAlphaComplement,
+        };
+
         let mut projection = self.scene.camera.projection();
 
         let mut program = context
@@ -208,11 +218,13 @@ impl App {
                     |pipeline, mut shd_gate| {
                         for (tess, material) in &tesses {
                             let mut none = Tex::None;
+
                             let tex = if let Some(i) = material.base_color_texture {
                                 &mut textures[i]
                             } else {
                                 &mut none
                             };
+
                             let bound_tex = match tex {
                                 Tex::None => BoundTex::None,
                                 Tex::RGB(rgb) => BoundTex::RGB(pipeline.bind_texture(rgb)?),
@@ -239,7 +251,10 @@ impl App {
                                     }
                                 }
 
-                                rdr_gate.render(&RenderState::default(), |mut tess_gate| {
+                                let render_state = RenderState::default()
+                                    .set_blending(blending);
+
+                                rdr_gate.render(&render_state, |mut tess_gate| {
                                     tess_gate.render(tess)
                                 })
                             })?;
