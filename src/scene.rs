@@ -243,7 +243,14 @@ impl Scene {
                     panic!("Primitive has no indices (mesh: {}, primitive: {})", mesh.index(), primitive.index())
                 );
             
-            self.meshes.push(Mesh::new(vertices, indices, material));
+            let mesh = Mesh::new(vertices, indices, material);
+
+            // Put meshes with RGBA textures at the end of the list so alpha blending works correctly
+            if mesh.material.base_color_texture.map(|i| self.textures[i].format == Format::RGBA).unwrap_or(false) {
+                self.meshes.push(mesh);
+            } else {
+                self.meshes.insert(0, mesh);
+            }
         }
     }
 }
