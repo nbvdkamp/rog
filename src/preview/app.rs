@@ -138,7 +138,7 @@ impl App {
             wrap_r: Wrap::Repeat,
             wrap_s: Wrap::Repeat,
             wrap_t: Wrap::Repeat,
-            min_filter: MinFilter::NearestMipmapLinear,
+            min_filter: MinFilter::LinearMipmapLinear,
             mag_filter: MagFilter::Linear,
             depth_comparison: None,
         };
@@ -157,7 +157,7 @@ impl App {
 
         let mut textures: Vec<Tex> = self.scene.textures.iter().map(|texture| {
             let size = texture.size();
-            let upload = TexelUpload::base_level(texture.image.as_slice(), 5);
+            let upload = TexelUpload::base_level(texture.image.as_slice(), 2);
 
             match texture.format {
                 crate::texture::Format::RGB => match context.new_texture_raw([size.x, size.y], sampler, upload) {
