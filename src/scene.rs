@@ -63,13 +63,15 @@ impl Scene {
                 let lib_time = start.elapsed().as_secs_f32();
 
                 let textures = images.into_iter().map(|i| {
-                    let format = match i.format {
-                        gltf::image::Format::R8G8B8 => Format::RGB,
-                        gltf::image::Format::R8G8B8A8 => Format::RGBA,
+                    let (format, pixels) = match i.format {
+                        gltf::image::Format::R8G8B8 => (Format::RGB, i.pixels),
+                        gltf::image::Format::R8G8B8A8 => (Format::RGBA, i.pixels),
+                        gltf::image::Format::R16G16B16 => (Format::RGB, drop_every_other_byte(i.pixels)),
+                        gltf::image::Format::R16G16B16A16 => (Format::RGBA, drop_every_other_byte(i.pixels)),
                         other => panic!("Texture format {:?} is not implemented", other)
                     };
 
-                    Texture::new(i.pixels, i.width, i.height, format)
+                    Texture::new(pixels, i.width, i.height, format)
                 }).collect();
 
                 let environment = Environment {
@@ -276,4 +278,8 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>)
         color: light.color().into(),
         kind
     })
+}
+
+pub fn drop_every_other_byte(v: Vec<u8>) -> Vec<u8> {
+    v.chunks_exact(2).map(|s| s[1]).collect()
 }
