@@ -112,13 +112,13 @@ impl BoundingVolumeHierarchy {
 
                     if !left_is_leaf {
                         stack.push((new_left_index as usize, left_indices));
-                    } else {
+                    } else if !left_indices.is_empty()  {
                         left_triangle_index = left_indices[0] as i32;
                     }
 
                     if !right_is_leaf {
                         stack.push((new_right_index as usize, right_indices));
-                    } else {
+                    } else if !right_indices.is_empty() {
                         right_triangle_index = right_indices[0] as i32;
                     }
                 }
@@ -166,7 +166,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                     }
                 }
                 Node::Leaf { triangle_index, bounds } => {
-                    if bounds.intersects_ray(ray,  &inv_dir) {
+                    if *triangle_index > -1 && bounds.intersects_ray(ray,  &inv_dir) {
                         let triangle = &triangles[*triangle_index as usize];
                         let p1 = &verts[triangle.index1 as usize];
                         let p2 = &verts[triangle.index2 as usize];
