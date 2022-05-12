@@ -55,6 +55,12 @@ impl Args {
             }
         };
 
+        let input_file: String = matches.value_of("file").unwrap().into();
+
+        if input_file.contains(" ") {
+            println!("Warning: Spaces in filename might cause issues in opening the file.");
+        }
+
         let output_file = matches.value_of("output").unwrap().into();
 
         match ImageFormat::from_path(&output_file) {
@@ -66,7 +72,7 @@ impl Args {
         }
 
         Args {
-            file: matches.value_of("file").unwrap().into(),
+            file: input_file,
             headless: matches.is_present("headless"),
             samples: read_usize("samples", 1),
             width: read_usize("width", 1920),
