@@ -172,15 +172,6 @@ impl Scene {
                 normal_texture: mat.normal_texture().map(|t| t.texture().source().index()),
             };
 
-            let indices = reader
-                .read_indices()
-                .map(|read_indices| {
-                    read_indices.into_u32().collect::<Vec<_>>()
-                })
-                .unwrap_or_else(||
-                    panic!("Primitive has no indices (mesh: {}, primitive: {})", mesh.index(), primitive.index())
-                );
-
             let positions: Vec<Point3<f32>> = reader
                     .read_positions()
                     .unwrap_or_else(||
@@ -189,6 +180,22 @@ impl Scene {
                     .map(|pos| Point3::from_homogeneous(transform * Vector4::new(pos[0], pos[1], pos[2], 1.0)))
                     .collect();
             
+            let indices = reader
+                .read_indices()
+                .map(|read_indices| {
+                    read_indices.into_u32().collect::<Vec<_>>()
+                })
+                .unwrap_or_else(|| {
+                    let count = positions.len();
+                    let mut v = Vec::with_capacity(count);
+
+                    for i in 0..count {
+                        v.push(i as u32);
+                    }
+
+                    v
+                });
+
             let normals: Vec<Vector3<f32>> = match reader.read_normals() {
                 Some(normals) => {
                     normals.map(|normal| -> Vector3<f32> {
