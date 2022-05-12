@@ -69,6 +69,8 @@ impl Scene {
                         gltf::image::Format::R8G8B8A8 => (Format::RGBA, i.pixels),
                         gltf::image::Format::R16G16B16 => (Format::RGB, drop_every_other_byte(i.pixels)),
                         gltf::image::Format::R16G16B16A16 => (Format::RGBA, drop_every_other_byte(i.pixels)),
+                        gltf::image::Format::R8 => (Format::RGB, repeat_every_byte_thrice(i.pixels)),
+                        gltf::image::Format::R8G8 => (Format::RGB, insert_zero_byte_every_two(i.pixels)),
                         other => panic!("Texture format {:?} is not implemented", other)
                     };
 
@@ -307,4 +309,12 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>)
 
 pub fn drop_every_other_byte(v: Vec<u8>) -> Vec<u8> {
     v.chunks_exact(2).map(|s| s[1]).collect()
+}
+
+pub fn repeat_every_byte_thrice(v: Vec<u8>) -> Vec<u8> {
+    v.into_iter().flat_map(|s| [s, s, s]).collect()
+}
+
+pub fn insert_zero_byte_every_two(v: Vec<u8>) -> Vec<u8> {
+    v.chunks_exact(2).flat_map(|s| [s[0], s[1], 0]).collect()
 }
