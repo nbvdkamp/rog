@@ -10,6 +10,7 @@ use cgmath::{
     InnerSpace,
     Matrix, SquareMatrix,
     Matrix3, Matrix4,
+    Zero,
 };
 use gltf::camera::Projection;
 
@@ -169,20 +170,53 @@ impl Scene {
                 normal_texture: mat.normal_texture().map(|t| t.texture().source().index()),
             };
 
-            let positions = reader
+            let indices = reader
+                .read_indices()
+                .map(|read_indices| {
+                    read_indices.into_u32().collect::<Vec<_>>()
+                })
+                .unwrap_or_else(||
+                    panic!("Primitive has no indices (mesh: {}, primitive: {})", mesh.index(), primitive.index())
+                );
+
+            let positions: Vec<Point3<f32>> = reader
                     .read_positions()
                     .unwrap_or_else(||
                         panic!("Primitive does not have POSITION attribute (mesh: {}, primitive: {})", mesh.index(), primitive.index())
                     )
-                    .map(|pos| Point3::from_homogeneous(transform * Vector4::new(pos[0], pos[1], pos[2], 1.0)));
+                    .map(|pos| Point3::from_homogeneous(transform * Vector4::new(pos[0], pos[1], pos[2], 1.0)))
+                    .collect();
             
-            let normals = reader
-                    .read_normals()
-                    .unwrap_or_else(||
-                        panic!("Primitive does not have NORMAL attribute (mesh: {}, primitive: {})", mesh.index(), primitive.index())
-                    ).map(|normal| {
+            let normals: Vec<Vector3<f32>> = match reader.read_normals() {
+                Some(normals) => {
+                    normals.map(|normal| -> Vector3<f32> {
                         normal_transform * Vector3::from(normal)
+                    }).collect()
+                }
+                None => {
+                    let mut tri_normals = Vec::with_capacity(indices.len() / 3);
+
+                    indices.chunks_exact(3).for_each(|i| {
+                        let p0 = positions[i[0] as usize];
+                        let p1 = positions[i[1] as usize];
+                        let p2 = positions[i[2] as usize];
+
+                        let edge1 = p0 - p1;
+                        let edge2 = p0 - p2;
+                        tri_normals.push(edge1.cross(edge2).normalize());
                     });
+
+                    let mut vert_normals = vec![Vector3::zero(); positions.len()];
+
+                    for i in 0..tri_normals.len() {
+                        vert_normals[indices[3 * i + 0] as usize] += tri_normals[i];
+                        vert_normals[indices[3 * i + 1] as usize] += tri_normals[i];
+                        vert_normals[indices[3 * i + 2] as usize] += tri_normals[i];
+                    }
+
+                    vert_normals.into_iter().map(|v| v.normalize()).collect()
+                }
+            };
 
             let tangents = reader.read_tangents();
 
@@ -204,20 +238,20 @@ impl Scene {
                                 normal_transform * (tangent[3] * vec3(tangent[0], tangent[1], tangent[2]))
                             });
 
-                    positions.zip(normals).zip(tex_coords.zip(tangents))
+                    positions.iter().zip(normals).zip(tex_coords.zip(tangents))
                     .map(|((position, normal), (tex_coord, tangent))| {
                         Vertex {
-                            position,
+                            position: *position,
                             normal,
                             tangent: Some(tangent),
                             tex_coord: Some(tex_coord),
                         }
                     }).collect()
                 } else {
-                    positions.zip(normals).zip(tex_coords)
+                    positions.iter().zip(normals).zip(tex_coords)
                     .map(|((position, normal), tex_coord)| {
                         Vertex {
-                            position,
+                            position: *position,
                             normal,
                             tangent: None,
                             tex_coord: Some(tex_coord),
@@ -225,25 +259,16 @@ impl Scene {
                     }).collect()
                 }
             } else {
-                positions.zip(normals)
+                positions.iter().zip(normals)
                 .map(|(position, normal)| {
                     Vertex {
-                        position,
+                        position: *position,
                         normal,
                         tangent: None,
                         tex_coord: None,
                     }
                 }).collect()
             };
-            
-            let indices = reader
-                .read_indices()
-                .map(|read_indices| {
-                    read_indices.into_u32().collect::<Vec<_>>()
-                })
-                .unwrap_or_else(||
-                    panic!("Primitive has no indices (mesh: {}, primitive: {})", mesh.index(), primitive.index())
-                );
             
             let mesh = Mesh::new(vertices, indices, material);
 
