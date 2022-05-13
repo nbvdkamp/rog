@@ -227,57 +227,55 @@ impl Scene {
                 }
             };
 
-            let tangents = reader.read_tangents();
-
-            if material.normal_texture.is_some() && !tangents.is_some() {
-                println!("Primitive has normal map but no TANGENT attribute! (mesh: {}, primitive: {})",
-                    mesh.name().unwrap_or(&mesh.index().to_string()), primitive.index());
-            }
-
-            let tex_coords = reader.read_tex_coords(0)
-                    .map(|read_tex_coords| 
-                        read_tex_coords.into_f32()
-                    ).map(|iter| iter.map(|uv| Vector2::<f32>::new(uv[0], uv[1])));
-
-            // FIXME: Find a way to remove the duplication
-            let vertices = if let Some(tex_coords) = tex_coords {
-                if let Some(tangents) = tangents {
-                    let tangents = tangents
-                            .map(|tangent| {
-                                normal_transform * (tangent[3] * vec3(tangent[0], tangent[1], tangent[2]))
-                            });
-
-                    positions.iter().zip(normals).zip(tex_coords.zip(tangents))
-                    .map(|((position, normal), (tex_coord, tangent))| {
-                        Vertex {
-                            position: *position,
-                            normal,
-                            tangent: Some(tangent),
-                            tex_coord: Some(tex_coord),
-                        }
-                    }).collect()
-                } else {
-                    positions.iter().zip(normals).zip(tex_coords)
-                    .map(|((position, normal), tex_coord)| {
-                        Vertex {
-                            position: *position,
-                            normal,
-                            tangent: None,
-                            tex_coord: Some(tex_coord),
-                        }
-                    }).collect()
+            let tangents: Vec<Vector3<f32>> = match reader.read_tangents() {
+                Some(reader) => {
+                    reader
+                        .map(|tangent| {
+                            normal_transform * (tangent[3] * vec3(tangent[0], tangent[1], tangent[2]))
+                        })
+                        .collect()
                 }
-            } else {
-                positions.iter().zip(normals)
-                .map(|(position, normal)| {
-                    Vertex {
-                        position: *position,
-                        normal,
-                        tangent: None,
-                        tex_coord: None,
+                None => {
+                    let mut tri_tangents = Vec::with_capacity(indices.len() / 3);
+
+                    indices.chunks_exact(3).for_each(|i| {
+                        let p0 = positions[i[0] as usize];
+                        let p1 = positions[i[1] as usize];
+
+                        tri_tangents.push(p0 - p1);
+                    });
+
+                    let mut vert_tangents = vec![Vector3::zero(); positions.len()];
+
+                    for i in 0..tri_tangents.len() {
+                        vert_tangents[indices[3 * i + 0] as usize] += tri_tangents[i];
+                        vert_tangents[indices[3 * i + 1] as usize] += tri_tangents[i];
+                        vert_tangents[indices[3 * i + 2] as usize] += tri_tangents[i];
                     }
-                }).collect()
+
+                    vert_tangents.into_iter().map(|v| v.normalize()).collect()
+                }
             };
+
+            let tex_coords = match reader.read_tex_coords(0) {
+                Some(reader) => {
+                    reader
+                        .into_f32()
+                        .map(|uv| Some(Vector2::<f32>::new(uv[0], uv[1])))
+                        .collect()
+                }
+                None => vec![None; positions.len()]
+            };
+
+            let vertices = positions.into_iter().zip(normals).zip(tex_coords.into_iter().zip(tangents.into_iter()))
+                .map(|((position, normal), (tex_coord, tangent))| {
+                    Vertex {
+                        position,
+                        normal,
+                        tangent,
+                        tex_coord,
+                    }
+                }).collect();
             
             let mesh = Mesh::new(vertices, indices, material);
 

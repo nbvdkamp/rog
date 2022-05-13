@@ -279,21 +279,16 @@ impl Raytracer {
                     vec2(0.0, 0.0)
                 };
 
-                let has_tangents = verts[0].tangent.is_some();
-
-                let tangent = if has_tangents {
-                    Some((1. - u - v) * verts[0].tangent.unwrap() +
-                        u * verts[1].tangent.unwrap() +
-                        v * verts[2].tangent.unwrap()
-                    )
-                } else {
-                    None
-                };
+                let tangent = (
+                        (1. - u - v) * verts[0].tangent +
+                        u * verts[1].tangent +
+                        v * verts[2].tangent
+                    ).normalize();
 
                 let offset_hit_pos = hit_pos + 0.0002 * normal;
                 let mat_sample = material.sample(texture_coords, &self.textures);
 
-                let frame = if let Some(tangent) = tangent {
+                let frame = {
                     let f = ShadingFrame::new_with_tangent(normal, tangent);
 
                     if let Some(shading_normal) = mat_sample.shading_normal {
@@ -303,8 +298,6 @@ impl Raytracer {
                     } else {
                         f
                     }
-                } else {
-                    ShadingFrame::new(normal)
                 };
 
                 let local_incident = frame.to_local(-ray.direction);

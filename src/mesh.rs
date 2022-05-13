@@ -32,7 +32,7 @@ pub struct LuminanceVertex {
 pub struct Vertex {
     pub position: Point3<f32>,
     pub normal: Vector3<f32>,
-    pub tangent: Option<Vector3<f32>>,
+    pub tangent: Vector3<f32>,
     pub tex_coord: Option<Vector2<f32>>,
 }
 
