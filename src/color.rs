@@ -16,18 +16,19 @@ pub struct RGBu8 {
     pub b: u8,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct XYZf32 {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
 macro_rules! impl_f32_color_tuple {
-    ($name:ident { $($field:ident),+ }, $normalized_type:ident) => {
+    ($name:ident { $($field:ident),+ }) => {
         impl $name {
             #[inline]
             pub fn new($($field: f32),+) -> Self {
                 Self { $($field),+ }
-            }
-            
-            pub fn normalized(&self) -> $normalized_type {
-                $normalized_type {
-                    $($field: (self.$field * 255.0) as u8),+
-                }
             }
 
             pub fn from_hex(hex: &str) -> Self {
@@ -95,6 +96,18 @@ macro_rules! impl_f32_color_tuple {
     };
 }
 
+macro_rules! impl_f32_color_tuple_normalized {
+    ($name:ident { $($field:ident),+ }, $normalized_type:ident) => {
+        impl $name {
+            pub fn normalized(&self) -> $normalized_type {
+                $normalized_type {
+                    $($field: (self.$field * 255.0) as u8),+
+                }
+            }
+        }
+    };
+}
+
 macro_rules! impl_u8_color_tuple {
     ($name:ident { $($field:ident),+ }) => {
         impl $name {
@@ -119,9 +132,11 @@ macro_rules! impl_u8_color_tuple {
     };
 }
 
-impl_f32_color_tuple!(RGBf32 { r, g, b }, RGBu8);
+impl_f32_color_tuple!(RGBf32 { r, g, b });
+impl_f32_color_tuple_normalized!(RGBf32 { r, g, b }, RGBu8);
 impl_u8_color_tuple!(RGBu8 { r, g, b });
 
+impl_f32_color_tuple!(XYZf32 { x, y, z });
 
 impl From<RGBf32> for Vec4<f32> {
     #[inline]
