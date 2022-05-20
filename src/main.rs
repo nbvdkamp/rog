@@ -1,3 +1,5 @@
+#![feature(test)]
+#![feature(const_fn_floating_point_arithmetic)]
 #[macro_use] extern crate impl_ops;
 
 use std::vec;
@@ -17,6 +19,8 @@ mod light;
 mod preview;
 mod raytracer;
 mod sampling;
+mod spectrum;
+mod cie_data;
 mod util;
 
 use preview::app::App;
