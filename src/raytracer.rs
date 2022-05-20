@@ -121,9 +121,7 @@ impl Raytracer {
         let cam_model = self.camera.model;
         let cam_pos4 =  cam_model * Vector4::new(0., 0., 0., 1.);
         let camera_pos = Point3::from_homogeneous(cam_pos4);
-        let mut buffer = Vec::<RGBf32>::new();
-        buffer.resize(image_size.x * image_size.y, RGBf32::from_grayscale(0.0));
-
+        let buffer = vec!(RGBf32::from_grayscale(0.0); image_size.x * image_size.y);
         let buffer= Arc::new(Mutex::new(buffer));
 
         let thread_count = usize::max(num_cpus::get() - 2, 1);

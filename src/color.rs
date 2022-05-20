@@ -152,6 +152,17 @@ impl From<[f32; 3]> for RGBf32 {
     }
 }
 
+impl XYZf32 {
+    pub fn to_srgb(&self) -> RGBf32 {
+        let XYZf32 { x, y, z } = self;
+        let r =  3.240479 * x - 1.537150 * y - 0.498535 * z;
+        let g = -0.969256 * x + 1.875991 * y + 0.041556 * z;
+        let b =  0.055648 * x - 0.204043 * y + 1.057311 * z;
+
+        RGBf32::new(r, g, b)
+    }
+}
+
 pub fn _debug_color(x: f32) -> RGBf32 {
     if (0.0..=1.0).contains(&x) { // green
         RGBf32::new(0.0, x, 0.0)

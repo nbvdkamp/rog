@@ -10,7 +10,8 @@ type Spectrumf32 = ArrSpectrumf32;
 const SPECTRUM_RES: usize = 100;
 
 impl Spectrumf32 {
-    pub fn to_rgb(&self) -> RGBf32 {
+    /// Converts to CIE 1931 XYZ color space
+    pub fn to_xyz(&self) -> XYZf32 {
         let mut xyz = XYZf32::from_grayscale(0.0);
 
         let step_size = CIE::LAMBDA_RANGE / (SPECTRUM_RES - 1) as f32;
@@ -22,9 +23,14 @@ impl Spectrumf32 {
             xyz += self.data[i] * CIE::observer_1931_interp(wavelength) * whitepoint_sample * step_size ;
         }
 
-        xyz_to_rgb(xyz)
+        xyz
     }
 
+    pub fn to_srgb(&self) -> RGBf32 {
+        self.to_xyz().to_srgb()
+    }
+
+    /// Constructs discretized spectrum from rgb2spec coefficients
     pub fn from_coefficients(coeffs: [f32; 3]) -> Self {
         let mut spectrum = Self::zero();
         let step_size = CIE::LAMBDA_RANGE / (SPECTRUM_RES - 1) as f32;
@@ -36,14 +42,6 @@ impl Spectrumf32 {
 
         spectrum
     }
-}
-
-pub fn xyz_to_rgb(XYZf32 { x, y, z }: XYZf32) -> RGBf32 {
-    let r =  3.240479 * x - 1.537150 * y - 0.498535 * z;
-    let g = -0.969256 * x + 1.875991 * y + 0.041556 * z;
-    let b =  0.055648 * x - 0.204043 * y + 1.057311 * z;
-
-    RGBf32::new(r, g, b)
 }
 
 struct VecSpectrumf32 {
@@ -287,7 +285,7 @@ mod tests {
 
                     let coeffs = rgb2spec.fetch([r, g, b]);
                     let spectrum = Spectrumf32::from_coefficients(coeffs);
-                    let error = RGBf32::new(r, g, b) - spectrum.to_rgb();
+                    let error = RGBf32::new(r, g, b) - spectrum.to_srgb();
 
                     max_error.r = max_error.r.max(error.r.abs());
                     max_error.g = max_error.g.max(error.g.abs());
@@ -297,15 +295,6 @@ mod tests {
         }
 
         assert!(max_error.max_component() < 0.01);
-    }
-
-    #[test]
-    fn asdf() {
-        let mut spectrum = Spectrumf32::zero();
-        spectrum.data[40] = 1.0;
-
-        let new_rgb = spectrum.to_rgb();
-        println!("{new_rgb:?}");
     }
 }
 
