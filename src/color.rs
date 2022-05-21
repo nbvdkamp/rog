@@ -23,6 +23,11 @@ pub struct XYZf32 {
     pub z: f32,
 }
 
+macro_rules! count {
+    () => (0usize);
+    ( $x:tt $($xs:tt)* ) => (1usize + count!($($xs)*));
+}
+
 macro_rules! impl_f32_color_tuple {
     ($name:ident { $($field:ident),+ }) => {
         impl $name {
@@ -93,6 +98,22 @@ macro_rules! impl_f32_color_tuple {
                 $(self.$field *= other.$field);+
             }
         }
+
+        impl From<[f32; count!($($field)*)]> for $name {
+            #[inline]
+            fn from(v: [f32; count!($($field)*)]) -> Self {
+                let mut _i = 0;
+                $(let $field = v[_i]; _i += 1;)+
+                Self { $($field),+ }
+            }
+        }
+
+        impl From<$name> for [f32; count!($($field)*)] {
+            #[inline]
+            fn from(v: $name) -> Self {
+                [$(v.$field),+]
+            }
+        }
     };
 }
 
@@ -142,13 +163,6 @@ impl From<RGBf32> for Vec4<f32> {
     #[inline]
     fn from(v: RGBf32) -> Self {
         Vec4::new(v.r, v.g, v.b, 1.0)
-    }
-}
-
-impl From<[f32; 3]> for RGBf32 {
-    #[inline]
-    fn from(v: [f32; 3]) -> Self {
-        RGBf32::new(v[0], v[1], v[2])
     }
 }
 
