@@ -1,5 +1,5 @@
-use rand::Rng;
 use cgmath::Vector3;
+use rand::Rng;
 
 fn _cos_weighted_sample_hemisphere_z_up() -> Vector3<f32> {
     let mut rng = rand::thread_rng();

@@ -216,7 +216,7 @@ pub static ILLUMINANT_D65: [f32; SAMPLES] = [
     n(54.6998),
     n(57.4406),
     n(58.8765),
-    n(60.3125)
+    n(60.3125),
 ];
 
 pub fn illuminant_d65_interp(wavelength: f32) -> f32 {

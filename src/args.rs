@@ -22,8 +22,7 @@ impl Args {
                     .default_value("res/simple_raytracer_test.glb")
                     .required(false)
                     .display_order(1),
-                arg!(-h --headless "Run without a window")
-                    .display_order(2),
+                arg!(-h --headless "Run without a window").display_order(2),
                 arg!(--samples --spp <NUM> "Number of samples per pixel")
                     .default_value("1")
                     .required(false)
@@ -41,7 +40,8 @@ impl Args {
                     .required(false)
                     .display_order(6),
                 arg!(-b --benchmark "Benchmark acceleration structures"),
-            ]).get_matches();
+            ])
+            .get_matches();
 
         let read_usize = |name, default| {
             let opt = matches.value_of(name).unwrap().parse::<usize>();
@@ -49,7 +49,10 @@ impl Args {
             match opt {
                 Ok(v) => v,
                 Err(_) => {
-                    println!("Unable to parse argument {} as an integer, using value {} instead", name, default);
+                    println!(
+                        "Unable to parse argument {} as an integer, using value {} instead",
+                        name, default
+                    );
                     default
                 }
             }

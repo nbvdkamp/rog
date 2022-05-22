@@ -1,43 +1,22 @@
+use cgmath::{vec2, vec3, Matrix4, Rad, SquareMatrix, Vector2, Vector3};
 
-use cgmath::{Vector2, vec2, Vector3, vec3, Matrix4, SquareMatrix, Rad};
+use glfw::{Action, Context as _, Key, MouseButton, SwapInterval, WindowEvent, WindowMode};
 
-use glfw::{Context as _, WindowEvent, Key, Action, WindowMode, SwapInterval, MouseButton};
-
-use luminance_glfw::{GlfwSurface, GlfwSurfaceError};
 use luminance_derive::UniformInterface;
 use luminance_front::{
-    texture::{
-        Texture,
-        Dim2,
-        TexelUpload,
-        Sampler,
-        Wrap,
-        MinFilter,
-        MagFilter,
-    },
-    pipeline::{
-        PipelineState,
-        TextureBinding,
-        BoundTexture,
-    },
-    pixel::{
-        NormUnsigned,
-        NormRGB8UI,
-        NormRGBA8UI,
-    },
-    blending::{
-        Blending,
-        Equation,
-        Factor,
-    },
-    render_state::RenderState,
+    blending::{Blending, Equation, Factor},
     context::GraphicsContext,
+    pipeline::{BoundTexture, PipelineState, TextureBinding},
+    pixel::{NormRGB8UI, NormRGBA8UI, NormUnsigned},
+    render_state::RenderState,
     shader::{
+        types::{Mat44, Vec3, Vec4},
         Uniform,
-        types::{Mat44, Vec3, Vec4}
     },
-    tess::{Tess, Interleaved}
+    tess::{Interleaved, Tess},
+    texture::{Dim2, MagFilter, MinFilter, Sampler, TexelUpload, Texture, Wrap},
 };
+use luminance_glfw::{GlfwSurface, GlfwSurfaceError};
 
 use crate::{
     args::Args,
@@ -45,7 +24,7 @@ use crate::{
     mesh::{LuminanceVertex, VertexIndex, VertexSemantics},
     raytracer::Raytracer,
     scene::Scene,
-    util::{mat_to_shader_type, save_image, convert_spectrum_buffer_to_rgb},
+    util::{convert_spectrum_buffer_to_rgb, mat_to_shader_type, save_image},
 };
 
 #[derive(Debug, UniformInterface)]
@@ -57,7 +36,6 @@ struct ShaderInterface {
     u_use_texture: Uniform<bool>,
     u_light_position: Uniform<Vec3<f32>>,
 }
-
 
 const VS_STR: &str = include_str!("vertex.vs");
 const FS_STR: &str = include_str!("fragment.fs");
@@ -73,12 +51,11 @@ pub struct App {
 
 #[derive(Debug)]
 pub enum PlatformError {
-  CannotCreateWindow,
+    CannotCreateWindow,
 }
 
 impl App {
-    pub fn new(args: Args) -> Self
-    {
+    pub fn new(args: Args) -> Self {
         let scene = match Scene::load(args.file) {
             Ok(scene) => scene,
             Err(message) => {
@@ -119,18 +96,19 @@ impl App {
             [c.r, c.g, c.b, 1.0]
         };
 
-        let light_position = self.scene.lights.first().map_or(
-            Vec3::new(1.0, 1.0, 1.0),
-            |p| {
-                let p = p.pos;
-                Vec3::new(p.x, p.y, p.z)
-            });
+        let light_position = self.scene.lights.first().map_or(Vec3::new(1.0, 1.0, 1.0), |p| {
+            let p = p.pos;
+            Vec3::new(p.x, p.y, p.z)
+        });
 
         let mut context = surface.context;
         let events = surface.events_rx;
         let mut back_buffer = context.back_buffer().expect("back buffer");
 
-        let tesses = self.scene.meshes.iter()
+        let tesses = self
+            .scene
+            .meshes
+            .iter()
             .map(|mesh| (mesh.to_tess(&mut context).unwrap(), mesh.material.clone()))
             .collect::<Vec<(Tess<LuminanceVertex, VertexIndex, (), Interleaved>, Material)>>();
 
@@ -155,27 +133,32 @@ impl App {
             Rgba(BoundTexture<'a, Dim2, NormRGBA8UI>),
         }
 
-        let mut textures: Vec<Tex> = self.scene.textures.iter().map(|texture| {
-            let size = texture.size();
-            let upload = TexelUpload::base_level(texture.image.as_slice(), 2);
+        let mut textures: Vec<Tex> = self
+            .scene
+            .textures
+            .iter()
+            .map(|texture| {
+                let size = texture.size();
+                let upload = TexelUpload::base_level(texture.image.as_slice(), 2);
 
-            match texture.format {
-                crate::texture::Format::Rgb => match context.new_texture_raw([size.x, size.y], sampler, upload) {
-                    Ok(texture) => Tex::Rgb(texture),
-                    Err(e) => {
-                        println!("An error occured while uploading textures: {e}");
-                        Tex::None
-                    }
+                match texture.format {
+                    crate::texture::Format::Rgb => match context.new_texture_raw([size.x, size.y], sampler, upload) {
+                        Ok(texture) => Tex::Rgb(texture),
+                        Err(e) => {
+                            println!("An error occured while uploading textures: {e}");
+                            Tex::None
+                        }
+                    },
+                    crate::texture::Format::Rgba => match context.new_texture_raw([size.x, size.y], sampler, upload) {
+                        Ok(texture) => Tex::Rgba(texture),
+                        Err(e) => {
+                            println!("An error occured while uploading textures: {e}");
+                            Tex::None
+                        }
+                    },
                 }
-                crate::texture::Format::Rgba => match context.new_texture_raw([size.x, size.y], sampler, upload) {
-                    Ok(texture) => Tex::Rgba(texture),
-                    Err(e) => {
-                        println!("An error occured while uploading textures: {e}");
-                        Tex::None
-                    }
-                }
-            }
-        }).collect();
+            })
+            .collect();
 
         let blending = Blending {
             equation: Equation::Additive,
@@ -251,12 +234,9 @@ impl App {
                                     }
                                 }
 
-                                let render_state = RenderState::default()
-                                    .set_blending(blending);
+                                let render_state = RenderState::default().set_blending(blending);
 
-                                rdr_gate.render(&render_state, |mut tess_gate| {
-                                    tess_gate.render(tess)
-                                })
+                                rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(tess))
                             })?;
                         }
 
@@ -269,7 +249,7 @@ impl App {
                 break 'app;
             }
 
-            let frame_end= context.window.glfw.get_time();
+            let frame_end = context.window.glfw.get_time();
             let frame_time = (frame_end - frame_start) as f32;
             frame_start = frame_end;
 
@@ -284,19 +264,19 @@ impl App {
 
         if moving {
             let rotation = if self.movement.turning {
-                Matrix4::from_angle_x(Rad(-self.movement.mouse_delta.y as f32) * delta_time) *
-                Matrix4::from_angle_y(Rad(-self.movement.mouse_delta.x as f32) * delta_time) *
-                Matrix4::from_angle_z(Rad(self.movement.roll.value as f32) * delta_time)
+                Matrix4::from_angle_x(Rad(-self.movement.mouse_delta.y as f32) * delta_time)
+                    * Matrix4::from_angle_y(Rad(-self.movement.mouse_delta.x as f32) * delta_time)
+                    * Matrix4::from_angle_z(Rad(self.movement.roll.value as f32) * delta_time)
             } else {
                 Matrix4::from_angle_z(Rad(self.movement.roll.value as f32) * delta_time)
             };
 
             let translation = Matrix4::from_translation(delta_time * self.movement.translation());
-            self.scene.camera.model =  self.scene.camera.model * rotation *  translation;
+            self.scene.camera.model = self.scene.camera.model * rotation * translation;
             self.scene.camera.view = self.scene.camera.model.invert().unwrap();
         }
 
-        self.movement.mouse_delta =  vec2(0.0, 0.0);
+        self.movement.mouse_delta = vec2(0.0, 0.0);
         moving
     }
 
@@ -312,45 +292,43 @@ impl App {
             WindowEvent::Scroll(_, y_offset) => {
                 self.movement.speed *= if y_offset > 0.0 { 1.2 } else { 0.8 };
             }
-            _ => ()
+            _ => (),
         }
     }
 
     fn handle_key_event(&mut self, key: Key, action: Action) {
         match action {
-            Action::Press => {
-                match key {
-                    Key::Enter => {
-                        self.raytracer.camera = self.scene.camera;
-                        let (buffer, time_elapsed) = self.raytracer.render(self.image_size, self.samples_per_pixel, crate::ACCEL_INDEX);
-                        println!("Finished rendering in {} seconds", time_elapsed);
+            Action::Press => match key {
+                Key::Enter => {
+                    self.raytracer.camera = self.scene.camera;
+                    let (buffer, time_elapsed) =
+                        self.raytracer
+                            .render(self.image_size, self.samples_per_pixel, crate::ACCEL_INDEX);
+                    println!("Finished rendering in {} seconds", time_elapsed);
 
-                        let buffer = convert_spectrum_buffer_to_rgb(buffer);
-                        save_image(&buffer, self.image_size, &self.output_file);
-                    }
-                    Key::W => self.movement.forward_backward.set(1),
-                    Key::S => self.movement.forward_backward.set(-1),
-                    Key::A => self.movement.left_right.set(1),
-                    Key::D => self.movement.left_right.set(-1),
-                    Key::Space => self.movement.up_down.set(1),
-                    Key::LeftShift => self.movement.up_down.set(-1),
-                    Key::Q => self.movement.roll.set(1),
-                    Key::E => self.movement.roll.set(-1),
-                    _ => (),
+                    let buffer = convert_spectrum_buffer_to_rgb(buffer);
+                    save_image(&buffer, self.image_size, &self.output_file);
                 }
+                Key::W => self.movement.forward_backward.set(1),
+                Key::S => self.movement.forward_backward.set(-1),
+                Key::A => self.movement.left_right.set(1),
+                Key::D => self.movement.left_right.set(-1),
+                Key::Space => self.movement.up_down.set(1),
+                Key::LeftShift => self.movement.up_down.set(-1),
+                Key::Q => self.movement.roll.set(1),
+                Key::E => self.movement.roll.set(-1),
+                _ => (),
             },
-            Action::Release => {
-                match key {
-                    Key::W => self.movement.forward_backward.reset(1),
-                    Key::S => self.movement.forward_backward.reset(-1),
-                    Key::A => self.movement.left_right.reset(1),
-                    Key::D => self.movement.left_right.reset(-1),
-                    Key::Space => self.movement.up_down.reset(1),
-                    Key::LeftShift => self.movement.up_down.reset(-1),
-                    Key::Q => self.movement.roll.reset(1),
-                    Key::E => self.movement.roll.reset(-1),
-                    _ => (),
-                }
+            Action::Release => match key {
+                Key::W => self.movement.forward_backward.reset(1),
+                Key::S => self.movement.forward_backward.reset(-1),
+                Key::A => self.movement.left_right.reset(1),
+                Key::D => self.movement.left_right.reset(-1),
+                Key::Space => self.movement.up_down.reset(1),
+                Key::LeftShift => self.movement.up_down.reset(-1),
+                Key::Q => self.movement.roll.reset(1),
+                Key::E => self.movement.roll.reset(-1),
+                _ => (),
             },
             Action::Repeat => (),
         }
@@ -358,13 +336,11 @@ impl App {
 
     fn handle_mousebutton_event(&mut self, button: MouseButton, action: Action) {
         match button {
-            MouseButton::Button1 => {
-                match action {
-                    Action::Press => self.movement.turning = true,
-                    Action::Release => self.movement.turning = false,
-                    Action::Repeat => (),
-                }
-            }
+            MouseButton::Button1 => match action {
+                Action::Press => self.movement.turning = true,
+                Action::Release => self.movement.turning = false,
+                Action::Repeat => (),
+            },
             _ => (),
         }
     }
@@ -412,18 +388,17 @@ impl Movement {
     }
 
     pub fn translation(&self) -> Vector3<f32> {
-        self.speed * (
-            self.forward_backward.value as f32 * vec3(0.0, 0.0, -1.0) +
-            self.left_right.value as f32 * vec3(-1.0, 0.0, 0.0) +
-            self.up_down.value as f32 * vec3(0.0, 1.0, 0.0)
-        )
+        self.speed
+            * (self.forward_backward.value as f32 * vec3(0.0, 0.0, -1.0)
+                + self.left_right.value as f32 * vec3(-1.0, 0.0, 0.0)
+                + self.up_down.value as f32 * vec3(0.0, 1.0, 0.0))
     }
 
     pub fn moving(&self) -> bool {
-        self.turning && self.mouse_delta != vec2(0.0, 0.0) ||
-        self.forward_backward.value != 0 ||
-        self.left_right.value != 0 ||
-        self.up_down.value != 0 ||
-        self.roll.value != 0
+        self.turning && self.mouse_delta != vec2(0.0, 0.0)
+            || self.forward_backward.value != 0
+            || self.left_right.value != 0
+            || self.up_down.value != 0
+            || self.roll.value != 0
     }
 }

@@ -1,6 +1,8 @@
 #[derive(Clone, Copy)]
 pub enum Axis {
-    X, Y, Z
+    X,
+    Y,
+    Z,
 }
 
 impl Axis {

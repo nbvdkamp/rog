@@ -1,52 +1,46 @@
-use std::time::Instant;
-use std::sync::{Arc, Mutex};
 use rand::Rng;
-
-use crossbeam::{
-    scope,
-    deque::{Injector, Steal},
+use std::{
+    sync::{Arc, Mutex},
+    time::Instant,
 };
-use cgmath::{InnerSpace, Point3, Vector2, vec2, Vector4};
 
-mod ray;
-mod triangle;
-mod acceleration;
+use cgmath::{vec2, InnerSpace, Point3, Vector2, Vector4};
+use crossbeam::{
+    deque::{Injector, Steal},
+    scope,
+};
+
 mod aabb;
+mod acceleration;
 mod axis;
 mod bsdf;
 mod geometry;
+mod ray;
 mod shadingframe;
+mod triangle;
 
-use triangle::Triangle;
-use ray::{Ray, IntersectionResult};
 use crate::{
     camera::PerspectiveCamera,
-    material::Material,
-    light::Light,
-    texture::Texture,
     environment::Environment,
+    light::Light,
+    material::Material,
     mesh::Vertex,
     scene::Scene,
     spectrum::Spectrumf32,
+    texture::Texture,
 };
+use ray::{IntersectionResult, Ray};
+use triangle::Triangle;
 
 use aabb::BoundingBox;
-use shadingframe::ShadingFrame;
 use acceleration::{
-    // bih::BoundingIntervalHierarchy,
     bvh::BoundingVolumeHierarchy,
     bvh_rec::BoundingVolumeHierarchyRec,
-    kdtree::KdTree, 
-    structure::AccelerationStructure,
-    structure::TraceResult,
+    kdtree::KdTree,
+    structure::{AccelerationStructure, TraceResult},
 };
-use bsdf::{
-    brdf_sample,
-    Sample,
-    brdf_eval,
-    Evaluation,
-    mis2,
-};
+use bsdf::{brdf_eval, brdf_sample, mis2, Evaluation, Sample};
+use shadingframe::ShadingFrame;
 
 use geometry::ensure_valid_reflection;
 
@@ -83,13 +77,19 @@ impl Raytracer {
                 let index1 = mesh.indices[i] + start_index;
                 let index2 = mesh.indices[i + 1] + start_index;
                 let index3 = mesh.indices[i + 2] + start_index;
-                
+
                 let mut bounds = BoundingBox::new();
                 bounds.add(&verts[index1 as usize].position);
                 bounds.add(&verts[index2 as usize].position);
                 bounds.add(&verts[index3 as usize].position);
 
-                triangles.push(Triangle { index1, index2, index3, material_index, bounds });
+                triangles.push(Triangle {
+                    index1,
+                    index2,
+                    index3,
+                    material_index,
+                    bounds,
+                });
             }
         }
 
@@ -106,24 +106,31 @@ impl Raytracer {
         };
 
         // result.accel_structures.push(Box::new(BoundingIntervalHierarchy::new(&result.verts, &result.triangles)));
-        result.accel_structures.push(Box::new(BoundingVolumeHierarchy::new(&result.verts, &result.triangles)));
-        result.accel_structures.push(Box::new(BoundingVolumeHierarchyRec::new(&result.verts, &result.triangles)));
-        result.accel_structures.push(Box::new(KdTree::new(&result.verts, &result.triangles)));
+        result
+            .accel_structures
+            .push(Box::new(BoundingVolumeHierarchy::new(&result.verts, &result.triangles)));
+        result.accel_structures.push(Box::new(BoundingVolumeHierarchyRec::new(
+            &result.verts,
+            &result.triangles,
+        )));
+        result
+            .accel_structures
+            .push(Box::new(KdTree::new(&result.verts, &result.triangles)));
 
         result
     }
 
-    pub fn render(&self, image_size: Vector2<usize>, samples: usize, accel_index: usize) -> (Vec::<Spectrumf32>, f32) {
+    pub fn render(&self, image_size: Vector2<usize>, samples: usize, accel_index: usize) -> (Vec<Spectrumf32>, f32) {
         let aspect_ratio = image_size.x as f32 / image_size.y as f32;
         let fov_factor = (self.camera.y_fov / 2.).tan();
 
         let start = Instant::now();
 
         let cam_model = self.camera.model;
-        let cam_pos4 =  cam_model * Vector4::new(0., 0., 0., 1.);
+        let cam_pos4 = cam_model * Vector4::new(0., 0., 0., 1.);
         let camera_pos = Point3::from_homogeneous(cam_pos4);
-        let buffer = vec!(Spectrumf32::constant(0.0); image_size.x * image_size.y);
-        let buffer= Arc::new(Mutex::new(buffer));
+        let buffer = vec![Spectrumf32::constant(0.0); image_size.x * image_size.y];
+        let buffer = Arc::new(Mutex::new(buffer));
 
         let thread_count = usize::max(num_cpus::get() - 2, 1);
         let tile_size = 100;
@@ -189,11 +196,20 @@ impl Raytracer {
                                         offset += vec2(tent_sample(), tent_sample());
                                     }
 
-                                    let screen = self.pixel_to_screen(Vector2::new(x, y), offset, image_size, aspect_ratio, fov_factor);
+                                    let screen = self.pixel_to_screen(
+                                        Vector2::new(x, y),
+                                        offset,
+                                        image_size,
+                                        aspect_ratio,
+                                        fov_factor,
+                                    );
 
                                     // Using w = 0 because this is a direction vector
                                     let dir4 = cam_model * Vector4::new(screen.x, screen.y, -1., 0.).normalize();
-                                    let ray = Ray { origin: camera_pos, direction: dir4.truncate().normalize() };
+                                    let ray = Ray {
+                                        origin: camera_pos,
+                                        direction: dir4.truncate().normalize(),
+                                    };
 
                                     color += self.radiance(ray, accel_index);
                                 }
@@ -207,7 +223,8 @@ impl Raytracer {
                     }
                 });
             }
-        }).unwrap();
+        })
+        .unwrap();
 
         // Errors when the lock has multiple owners but the scope should guarantee that never happens
         let lock = Arc::try_unwrap(buffer).ok().unwrap();
@@ -216,7 +233,14 @@ impl Raytracer {
         (buffer, start.elapsed().as_secs_f32())
     }
 
-    fn pixel_to_screen(&self, pixel: Vector2<usize>, offset: Vector2<f32>, image_size: Vector2<usize>, aspect_ratio: f32, fov_factor: f32) -> Vector2<f32> {
+    fn pixel_to_screen(
+        &self,
+        pixel: Vector2<usize>,
+        offset: Vector2<f32>,
+        image_size: Vector2<usize>,
+        aspect_ratio: f32,
+        fov_factor: f32,
+    ) -> Vector2<f32> {
         let normalized_x = (pixel.x as f32 + offset.x) / image_size.x as f32;
         let normalized_y = (pixel.y as f32 + offset.y) / image_size.y as f32;
         let x = (2. * normalized_x - 1.) * fov_factor * aspect_ratio;
@@ -236,7 +260,13 @@ impl Raytracer {
         let num_lights = self.lights.len();
 
         for _ in 0..self.max_depth {
-            if let TraceResult::Hit{ triangle_index, t, u, v } = self.trace(&ray, accel_index) {
+            if let TraceResult::Hit {
+                triangle_index,
+                t,
+                u,
+                v,
+            } = self.trace(&ray, accel_index)
+            {
                 let hit_pos = ray.traverse(t);
                 let triangle = &self.triangles[triangle_index as usize];
                 let material = &self.materials[triangle.material_index as usize];
@@ -252,11 +282,8 @@ impl Raytracer {
                 let mut geom_normal = edge1.cross(edge2).normalize();
 
                 // Interpolate the vertex normals
-                let mut normal = (
-                    (1. - u - v) * verts[0].normal +
-                    u * verts[1].normal +
-                    v * verts[2].normal
-                ).normalize();
+                let mut normal =
+                    ((1. - u - v) * verts[0].normal + u * verts[1].normal + v * verts[2].normal).normalize();
 
                 // Flip the computed geometric normal to the same side as the interpolated vertex normal.
                 if geom_normal.dot(normal) < 0.0 {
@@ -272,18 +299,15 @@ impl Raytracer {
                 let has_texture_coords = verts[0].tex_coord.is_some();
 
                 let texture_coords = if has_texture_coords {
-                    (1. - u - v) * verts[0].tex_coord.unwrap() +
-                    u * verts[1].tex_coord.unwrap() +
-                    v * verts[2].tex_coord.unwrap()
+                    (1. - u - v) * verts[0].tex_coord.unwrap()
+                        + u * verts[1].tex_coord.unwrap()
+                        + v * verts[2].tex_coord.unwrap()
                 } else {
                     vec2(0.0, 0.0)
                 };
 
-                let tangent = (
-                        (1. - u - v) * verts[0].tangent +
-                        u * verts[1].tangent +
-                        v * verts[2].tangent
-                    ).normalize();
+                let tangent =
+                    ((1. - u - v) * verts[0].tangent + u * verts[1].tangent + v * verts[2].tangent).normalize();
 
                 let offset_hit_pos = hit_pos + 0.0002 * normal;
                 let mat_sample = material.sample(texture_coords, &self.textures);
@@ -308,10 +332,13 @@ impl Raytracer {
                     let light_sample = light.sample(offset_hit_pos);
 
                     if light_sample.distance <= light.range {
-                        let shadow_ray = Ray { origin: offset_hit_pos, direction: light_sample.direction };
+                        let shadow_ray = Ray {
+                            origin: offset_hit_pos,
+                            direction: light_sample.direction,
+                        };
                         let mut shadowed = false;
 
-                        if let TraceResult::Hit{ t, .. } = self.trace(&shadow_ray, accel_index) {
+                        if let TraceResult::Hit { t, .. } = self.trace(&shadow_ray, accel_index) {
                             if t < light_sample.distance {
                                 shadowed = true;
                             }
@@ -322,11 +349,12 @@ impl Raytracer {
                             let eval = brdf_eval(&mat_sample, local_incident, local_outgoing);
 
                             if let Evaluation::Evaluation { brdf, pdf } = eval {
-                                let light_pick_prob= 1.0 / num_lights as f32;
+                                let light_pick_prob = 1.0 / num_lights as f32;
                                 let light_pdf = light_pick_prob * light_sample.pdf;
                                 let mis_weight = mis2(light_pdf, pdf);
 
-                                result += path_weight * mat_sample.base_color_spectrum * light_sample.intensity * brdf / light_pdf;//TODO: * light.color;
+                                result += path_weight * mat_sample.base_color_spectrum * light_sample.intensity * brdf
+                                    / light_pdf; //TODO: * light.color;
                             }
                         }
                     }
@@ -349,7 +377,10 @@ impl Raytracer {
                     break;
                 }
 
-                ray = Ray { origin: offset_hit_pos, direction: frame.to_global(local_bounce_dir) };
+                ray = Ray {
+                    origin: offset_hit_pos,
+                    direction: frame.to_global(local_bounce_dir),
+                };
             } else {
                 result += path_weight * self.environment.sample(ray.direction);
                 break;

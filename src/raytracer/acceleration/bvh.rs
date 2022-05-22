@@ -1,10 +1,13 @@
-use crate::mesh::Vertex;
-use crate::raytracer::triangle::Triangle;
-use crate::raytracer::{Ray, IntersectionResult};
+use crate::{
+    mesh::Vertex,
+    raytracer::{triangle::Triangle, IntersectionResult, Ray},
+};
 
-use super::super::aabb::BoundingBox;
-use super::statistics::{Statistics, StatisticsStore};
-use super::structure::{AccelerationStructure, TraceResult};
+use super::{
+    super::aabb::BoundingBox,
+    statistics::{Statistics, StatisticsStore},
+    structure::{AccelerationStructure, TraceResult},
+};
 
 pub struct BoundingVolumeHierarchy {
     nodes: Vec<Node>,
@@ -25,14 +28,11 @@ enum Node {
 
 impl Node {
     fn new_leaf(triangle_index: i32, bounds: BoundingBox) -> Node {
-        Node::Leaf { 
-            triangle_index,
-            bounds,
-        }
+        Node::Leaf { triangle_index, bounds }
     }
 
     fn new_inner(bounds: BoundingBox) -> Node {
-        Node::Inner { 
+        Node::Inner {
             left_child: -1,
             right_child: -1,
             bounds,
@@ -73,20 +73,25 @@ impl BoundingVolumeHierarchy {
             let mut right_triangle_index = -1;
 
             match node {
-                Node::Inner { left_child, right_child, bounds } => {
+                Node::Inner {
+                    left_child,
+                    right_child,
+                    bounds,
+                } => {
                     let (split_axis, _) = bounds.find_split_plane();
                     let axis_index = split_axis.index();
-
 
                     item_indices.sort_by(|index_a, index_b| {
                         let triangle_a = &triangles[*index_a];
                         let triangle_b = &triangles[*index_b];
-                        let mid_a = (verts[triangle_a.index1 as usize].position[axis_index] +
-                                        verts[triangle_a.index2 as usize].position[axis_index] + 
-                                        verts[triangle_a.index3 as usize].position[axis_index]) / 3.0;
-                        let mid_b = (verts[triangle_b.index1 as usize].position[axis_index] +
-                                        verts[triangle_b.index2 as usize].position[axis_index] + 
-                                        verts[triangle_b.index3 as usize].position[axis_index]) / 3.0;
+                        let mid_a = (verts[triangle_a.index1 as usize].position[axis_index]
+                            + verts[triangle_a.index2 as usize].position[axis_index]
+                            + verts[triangle_a.index3 as usize].position[axis_index])
+                            / 3.0;
+                        let mid_b = (verts[triangle_b.index1 as usize].position[axis_index]
+                            + verts[triangle_b.index2 as usize].position[axis_index]
+                            + verts[triangle_b.index3 as usize].position[axis_index])
+                            / 3.0;
 
                         mid_a.partial_cmp(&mid_b).unwrap()
                     });
@@ -102,7 +107,7 @@ impl BoundingVolumeHierarchy {
                     }
 
                     left_bounds = compute_bounding_box_triangle_indexed(verts, triangles, &left_indices);
-                    right_bounds = compute_bounding_box_triangle_indexed(verts,  triangles,&right_indices);
+                    right_bounds = compute_bounding_box_triangle_indexed(verts, triangles, &right_indices);
 
                     left_is_leaf = left_indices.len() < 2;
                     right_is_leaf = right_indices.len() < 2;
@@ -112,7 +117,7 @@ impl BoundingVolumeHierarchy {
 
                     if !left_is_leaf {
                         stack.push((new_left_index as usize, left_indices));
-                    } else if !left_indices.is_empty()  {
+                    } else if !left_indices.is_empty() {
                         left_triangle_index = left_indices[0] as i32;
                     }
 
@@ -122,9 +127,8 @@ impl BoundingVolumeHierarchy {
                         right_triangle_index = right_indices[0] as i32;
                     }
                 }
-                _ => unreachable!()
+                _ => unreachable!(),
             }
-
 
             if left_is_leaf {
                 nodes.push(Node::new_leaf(left_triangle_index, left_bounds));
@@ -139,7 +143,10 @@ impl BoundingVolumeHierarchy {
             }
         }
 
-        BoundingVolumeHierarchy { nodes, stats: Statistics::new() }
+        BoundingVolumeHierarchy {
+            nodes,
+            stats: Statistics::new(),
+        }
     }
 }
 
@@ -158,7 +165,11 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
 
         while let Some(i) = stack.pop() {
             match &self.nodes[i] {
-                Node::Inner { left_child, right_child, bounds } => {
+                Node::Inner {
+                    left_child,
+                    right_child,
+                    bounds,
+                } => {
                     if bounds.intersects_ray(ray, &inv_dir) {
                         self.stats.count_inner_node_traversal();
                         stack.push(*left_child as usize);
@@ -166,7 +177,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                     }
                 }
                 Node::Leaf { triangle_index, bounds } => {
-                    if *triangle_index > -1 && bounds.intersects_ray(ray,  &inv_dir) {
+                    if *triangle_index > -1 && bounds.intersects_ray(ray, &inv_dir) {
                         let triangle = &triangles[*triangle_index as usize];
                         let p1 = &verts[triangle.index1 as usize];
                         let p2 = &verts[triangle.index2 as usize];
@@ -174,12 +185,19 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
 
                         self.stats.count_intersection_test();
 
-                        if let IntersectionResult::Hit{ t, u, v } = ray.intersect_triangle(p1.position, p2.position, p3.position) {
+                        if let IntersectionResult::Hit { t, u, v } =
+                            ray.intersect_triangle(p1.position, p2.position, p3.position)
+                        {
                             self.stats.count_intersection_hit();
 
                             if t < min_distance {
                                 min_distance = t;
-                                result = TraceResult::Hit{ triangle_index: *triangle_index, t, u, v };
+                                result = TraceResult::Hit {
+                                    triangle_index: *triangle_index,
+                                    t,
+                                    u,
+                                    v,
+                                };
                             }
                         }
                     }
@@ -209,7 +227,11 @@ fn compute_bounding_box(vertices: &[Vertex]) -> BoundingBox {
     bounds
 }
 
-fn compute_bounding_box_triangle_indexed(vertices: &[Vertex], triangles: &[Triangle], triangle_indices: &[usize]) -> BoundingBox {
+fn compute_bounding_box_triangle_indexed(
+    vertices: &[Vertex],
+    triangles: &[Triangle],
+    triangle_indices: &[usize],
+) -> BoundingBox {
     let mut bounds = BoundingBox::new();
 
     for i in triangle_indices {

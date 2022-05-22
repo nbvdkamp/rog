@@ -1,7 +1,6 @@
-use cgmath::{ElementWise, Point3, Vector3};
-use super::axis::Axis;
-use super::Ray;
+use super::{axis::Axis, Ray};
 use crate::util::*;
+use cgmath::{ElementWise, Point3, Vector3};
 
 #[derive(Debug, Copy, Clone)]
 pub struct BoundingBox {
@@ -86,7 +85,10 @@ mod tests {
         bb.add(&Point3::new(-1.0, -1.0, -1.0));
         bb.add(&Point3::new(1.0, 1.0, 1.0));
 
-        let ray = Ray { origin: Point3::new(-2.0, 0.0, 0.0), direction: Vector3::new(1.0, 0.0, 0.0) };
+        let ray = Ray {
+            origin: Point3::new(-2.0, 0.0, 0.0),
+            direction: Vector3::new(1.0, 0.0, 0.0),
+        };
         let inv_dir = 1.0 / ray.direction;
 
         assert_eq!(bb.intersects_ray(&ray, &inv_dir), true);
@@ -98,19 +100,25 @@ mod tests {
         bb.add(&Point3::new(-1.0, -1.0, -1.0));
         bb.add(&Point3::new(1.0, 1.0, 1.0));
 
-        let ray = Ray { origin: Point3::new(-2.0, 2.0, 0.0), direction: Vector3::new(1.0, 0.0, 0.0) };
+        let ray = Ray {
+            origin: Point3::new(-2.0, 2.0, 0.0),
+            direction: Vector3::new(1.0, 0.0, 0.0),
+        };
         let inv_dir = 1.0 / ray.direction;
 
         assert_eq!(bb.intersects_ray(&ray, &inv_dir), false);
     }
-    
+
     #[test]
     fn intersect_ray_miss_behind_ray() {
         let mut bb = BoundingBox::new();
         bb.add(&Point3::new(-1.0, -1.0, -1.0));
         bb.add(&Point3::new(1.0, 1.0, 1.0));
 
-        let ray = Ray { origin: Point3::new(2.0, 0.0, 0.0), direction: Vector3::new(1.0, 0.0, 0.0) };
+        let ray = Ray {
+            origin: Point3::new(2.0, 0.0, 0.0),
+            direction: Vector3::new(1.0, 0.0, 0.0),
+        };
         let inv_dir = 1.0 / ray.direction;
 
         assert_eq!(bb.intersects_ray(&ray, &inv_dir), false);
@@ -124,7 +132,10 @@ mod tests {
 
         let direction = Vector3::new(1., 0., 0.);
         let inv_dir = 1. / direction;
-        let ray = Ray { origin: Point3::new(-2., 0., 0.), direction };
+        let ray = Ray {
+            origin: Point3::new(-2., 0., 0.),
+            direction,
+        };
 
         assert_eq!(bb.t_distance_from_ray(&ray, &inv_dir), 1.0);
     }
@@ -137,7 +148,10 @@ mod tests {
 
         let direction = Vector3::new(-1., 0., 0.);
         let inv_dir = 1. / direction;
-        let ray = Ray { origin: Point3::new(2., 0., 0.), direction };
+        let ray = Ray {
+            origin: Point3::new(2., 0., 0.),
+            direction,
+        };
 
         assert_eq!(bb.t_distance_from_ray(&ray, &inv_dir), 1.0);
     }

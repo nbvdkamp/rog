@@ -1,5 +1,5 @@
-use cgmath::{Point3, Vector3, InnerSpace};
 use crate::color::RGBf32;
+use cgmath::{InnerSpace, Point3, Vector3};
 
 #[derive(Clone)]
 pub struct Light {
@@ -7,14 +7,19 @@ pub struct Light {
     pub color: RGBf32,
     pub intensity: f32,
     pub range: f32,
-    pub kind: Kind
+    pub kind: Kind,
 }
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Kind {
     Point,
-    Directional { direction: Vector3<f32> },
-    Spot { inner_cone_angle: f32, outer_cone_angle: f32 },
+    Directional {
+        direction: Vector3<f32>,
+    },
+    Spot {
+        inner_cone_angle: f32,
+        outer_cone_angle: f32,
+    },
 }
 
 pub struct LightSample {
@@ -41,14 +46,12 @@ impl Light {
                     pdf: 1.0,
                 }
             }
-            Kind::Directional { direction } => {
-                LightSample {
-                    direction: *direction,
-                    distance: f32::INFINITY,
-                    intensity: self.intensity * std::f32::consts::PI,
-                    pdf: 1.0,
-                }
-            }
+            Kind::Directional { direction } => LightSample {
+                direction: *direction,
+                distance: f32::INFINITY,
+                intensity: self.intensity * std::f32::consts::PI,
+                pdf: 1.0,
+            },
             Kind::Spot { .. } => {
                 // TODO: Implement spot lights instead of just another point light
                 let v = self.pos - p;

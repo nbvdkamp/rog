@@ -1,7 +1,8 @@
-use crate::mesh::Vertex;
-use crate::raytracer::triangle::Triangle;
-use crate::raytracer::Ray;
 use super::statistics::StatisticsStore;
+use crate::{
+    mesh::Vertex,
+    raytracer::{triangle::Triangle, Ray},
+};
 
 pub enum TraceResult {
     Miss,

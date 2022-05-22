@@ -1,14 +1,11 @@
 use std::path::Path;
 
-use cgmath::{Vector2, Vector3, Matrix4};
+use cgmath::{Matrix4, Vector2, Vector3};
 use luminance_front::shader::types::Mat44;
 
 use rayon::prelude::*;
 
-use crate::{
-    spectrum::Spectrumf32,
-    constants::GAMMA
-};
+use crate::{constants::GAMMA, spectrum::Spectrumf32};
 
 use super::color::{RGBf32, RGBu8};
 
@@ -43,16 +40,24 @@ pub fn mat_to_shader_type<T>(m: Matrix4<T>) -> Mat44<T> {
 
 pub fn save_image<P>(buffer: &[RGBf32], image_size: Vector2<usize>, path: P)
 where
-    P: AsRef<Path>
+    P: AsRef<Path>,
 {
     let pixels: Vec<RGBu8> = buffer.iter().map(|c| c.normalized()).collect();
 
     let byte_buffer: &[u8] = unsafe {
-        std::slice::from_raw_parts(pixels.as_ptr() as *const u8, pixels.len() * std::mem::size_of::<RGBu8>())
+        std::slice::from_raw_parts(
+            pixels.as_ptr() as *const u8,
+            pixels.len() * std::mem::size_of::<RGBu8>(),
+        )
     };
 
-    let save_result = image::save_buffer(path, byte_buffer,
-        image_size.x as u32, image_size.y as u32, image::ColorType::Rgb8);
+    let save_result = image::save_buffer(
+        path,
+        byte_buffer,
+        image_size.x as u32,
+        image_size.y as u32,
+        image::ColorType::Rgb8,
+    );
 
     match save_result {
         Ok(_) => println!("File was saved succesfully"),
@@ -61,5 +66,8 @@ where
 }
 
 pub fn convert_spectrum_buffer_to_rgb(buffer: Vec<Spectrumf32>) -> Vec<RGBf32> {
-    buffer.into_par_iter().map(|spectrum| spectrum.to_srgb().pow(1.0 / GAMMA)).collect()
+    buffer
+        .into_par_iter()
+        .map(|spectrum| spectrum.to_srgb().pow(1.0 / GAMMA))
+        .collect()
 }

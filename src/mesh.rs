@@ -1,7 +1,7 @@
 use luminance_derive::{Semantics, Vertex};
 use luminance_front::{
     context::GraphicsContext,
-    tess::{Mode, Tess, TessError, Interleaved},
+    tess::{Interleaved, Mode, Tess, TessError},
     Backend,
 };
 
@@ -12,9 +12,9 @@ use crate::material::Material;
 #[derive(Copy, Clone, Debug, Semantics)]
 pub enum VertexSemantics {
     #[sem(name = "position", repr = "[f32; 3]", wrapper = "VertexPosition")]
-    Position,   
+    Position,
     #[sem(name = "normal", repr = "[f32; 3]", wrapper = "VertexNormal")]
-    Normal,   
+    Normal,
     // Not all vertices actually have UVs but for simplicity just default to 0,0
     #[sem(name = "uv", repr = "[f32; 2]", wrapper = "VertexUV")]
     TextureCoords,
@@ -47,7 +47,9 @@ pub struct Mesh {
 
 impl Mesh {
     pub fn new(vertices: Vec<Vertex>, indices: Vec<VertexIndex>, material: Material) -> Self {
-        let luminance_vertices = vertices.iter().map(|v| {
+        let luminance_vertices = vertices
+            .iter()
+            .map(|v| {
                 let pos: [f32; 3] = v.position.into();
                 let norm: [f32; 3] = v.normal.into();
                 LuminanceVertex {
@@ -58,7 +60,12 @@ impl Mesh {
             })
             .collect();
 
-        Mesh { vertices, luminance_vertices, indices, material }
+        Mesh {
+            vertices,
+            luminance_vertices,
+            indices,
+            material,
+        }
     }
 
     pub fn to_tess<C>(&self, context: &mut C) -> Result<Tess<LuminanceVertex, VertexIndex, (), Interleaved>, TessError>

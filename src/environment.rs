@@ -1,8 +1,5 @@
+use crate::{color::RGBf32, spectrum::Spectrumf32};
 use cgmath::Vector3;
-use crate::{
-    color::RGBf32,
-    spectrum::Spectrumf32,
-};
 
 #[derive(Clone)]
 pub struct Environment {

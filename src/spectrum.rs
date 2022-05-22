@@ -1,9 +1,9 @@
 #![allow(clippy::needless_range_loop)]
-use std::ops::{self, AddAssign, MulAssign, DivAssign};
+use std::ops::{self, AddAssign, DivAssign, MulAssign};
 
 use crate::{
-    color::{RGBf32, XYZf32},
     cie_data as CIE,
+    color::{RGBf32, XYZf32},
 };
 
 pub type Spectrumf32 = ArrSpectrumf32;
@@ -57,7 +57,7 @@ impl Spectrumf32 {
 
 #[derive(Clone)]
 pub struct VecSpectrumf32 {
-    data: Vec<f32>
+    data: Vec<f32>,
 }
 
 impl VecSpectrumf32 {
@@ -67,7 +67,9 @@ impl VecSpectrumf32 {
 
     pub fn constant(v: f32) -> Self {
         //TODO: const size for now
-        VecSpectrumf32 { data: vec![v; SPECTRUM_RES] }
+        VecSpectrumf32 {
+            data: vec![v; SPECTRUM_RES],
+        }
     }
 
     pub fn zero() -> Self {
@@ -81,13 +83,13 @@ impl_op_ex!(+ |a: &VecSpectrumf32, b: &VecSpectrumf32| -> VecSpectrumf32 {
     VecSpectrumf32 { data: data.collect() }
 });
 
-impl_op_ex!(- |a: &VecSpectrumf32, b: &VecSpectrumf32| -> VecSpectrumf32 {
+impl_op_ex!(-|a: &VecSpectrumf32, b: &VecSpectrumf32| -> VecSpectrumf32 {
     let data = a.data.iter().zip(b.data.iter()).map(|(a, b)| a - b);
 
     VecSpectrumf32 { data: data.collect() }
 });
 
-impl_op_ex!(* |a: &VecSpectrumf32, b: &VecSpectrumf32| -> VecSpectrumf32 {
+impl_op_ex!(*|a: &VecSpectrumf32, b: &VecSpectrumf32| -> VecSpectrumf32 {
     let data = a.data.iter().zip(b.data.iter()).map(|(a, b)| a * b);
 
     VecSpectrumf32 { data: data.collect() }
@@ -99,7 +101,7 @@ impl_op_ex!(/ |a: &VecSpectrumf32, b: &VecSpectrumf32| -> VecSpectrumf32 {
     VecSpectrumf32 { data: data.collect() }
 });
 
-impl_op_ex_commutative!(* |a: &VecSpectrumf32, b: f32| -> VecSpectrumf32 {
+impl_op_ex_commutative!(*|a: &VecSpectrumf32, b: f32| -> VecSpectrumf32 {
     let data = a.data.iter().map(|a| a * b);
 
     VecSpectrumf32 { data: data.collect() }
@@ -135,7 +137,6 @@ impl DivAssign<f32> for VecSpectrumf32 {
     }
 }
 
-
 #[derive(Clone, Copy)]
 pub struct ArrSpectrumf32 {
     pub data: [f32; SPECTRUM_RES],
@@ -147,7 +148,9 @@ impl ArrSpectrumf32 {
     }
 
     pub fn constant(v: f32) -> Self {
-        ArrSpectrumf32 { data: [v; SPECTRUM_RES] }
+        ArrSpectrumf32 {
+            data: [v; SPECTRUM_RES],
+        }
     }
 
     pub fn zero() -> Self {
@@ -165,7 +168,7 @@ impl_op_ex!(+ |a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {
     ArrSpectrumf32 { data }
 });
 
-impl_op_ex!(- |a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {
+impl_op_ex!(-|a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {
     let mut data = [0.0; SPECTRUM_RES];
 
     for i in 0..SPECTRUM_RES {
@@ -175,7 +178,7 @@ impl_op_ex!(- |a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {
     ArrSpectrumf32 { data }
 });
 
-impl_op_ex!(* |a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {
+impl_op_ex!(*|a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {
     let mut data = [0.0; SPECTRUM_RES];
 
     for i in 0..SPECTRUM_RES {
@@ -195,7 +198,7 @@ impl_op_ex!(/ |a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {
     ArrSpectrumf32 { data }
 });
 
-impl_op_ex_commutative!(* |a: &ArrSpectrumf32, b: f32| -> ArrSpectrumf32 {
+impl_op_ex_commutative!(*|a: &ArrSpectrumf32, b: f32| -> ArrSpectrumf32 {
     let mut data = [0.0; SPECTRUM_RES];
 
     for i in 0..SPECTRUM_RES {
@@ -323,9 +326,7 @@ mod bench {
         let p = VecSpectrumf32::new(vec![1.0; SPECTRUM_RES]);
         let q = VecSpectrumf32::new(vec![10.0; SPECTRUM_RES]);
 
-        b.iter(|| {
-            &p + &q
-        });
+        b.iter(|| &p + &q);
     }
 
     #[bench]
@@ -333,8 +334,6 @@ mod bench {
         let p = ArrSpectrumf32::new([1.0; SPECTRUM_RES]);
         let q = ArrSpectrumf32::new([10.0; SPECTRUM_RES]);
 
-        b.iter(|| {
-            &p + &q
-        });
+        b.iter(|| &p + &q);
     }
 }

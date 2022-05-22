@@ -1,13 +1,15 @@
 use cgmath::Vector3;
 
-use crate::mesh::Vertex;
-use crate::raytracer::triangle::Triangle;
-use crate::raytracer::{Ray, IntersectionResult};
+use crate::{
+    mesh::Vertex,
+    raytracer::{triangle::Triangle, IntersectionResult, Ray},
+};
 
-use super::super::axis::Axis;
-use super::super::aabb::BoundingBox;
-use super::structure::{AccelerationStructure, TraceResult};
-use super::statistics::{Statistics, StatisticsStore};
+use super::{
+    super::{aabb::BoundingBox, axis::Axis},
+    statistics::{Statistics, StatisticsStore},
+    structure::{AccelerationStructure, TraceResult},
+};
 
 pub struct KdTree {
     root: Option<Box<Node>>,
@@ -17,7 +19,7 @@ pub struct KdTree {
 
 enum Node {
     Leaf {
-        items: Vec<usize>
+        items: Vec<usize>,
     },
     Inner {
         left_child: Option<Box<Node>>,
@@ -60,37 +62,68 @@ impl KdTree {
 
         let scene_bounds = compute_bounding_box(verts);
 
-        KdTree { 
+        KdTree {
             root: create_node(verts, triangles, item_indices, 0, &scene_bounds),
             scene_bounds,
             stats: Statistics::new(),
         }
     }
 
-    fn intersect(&self, node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle], bounds: BoundingBox) -> TraceResult {
+    fn intersect(
+        &self,
+        node_opt: &Option<Box<Node>>,
+        ray: &Ray,
+        inv_dir: Vector3<f32>,
+        verts: &[Vertex],
+        triangles: &[Triangle],
+        bounds: BoundingBox,
+    ) -> TraceResult {
         match node_opt {
             Some(node) => {
                 let node = node.as_ref();
                 match node {
-                    Node::Inner { left_child, right_child, plane, axis } => 
-                        self.inner_intersect(left_child, right_child, bounds, *plane, *axis, ray, inv_dir, verts, triangles),
-                    Node::Leaf { items } => 
-                        self.leaf_intersect(items, ray, verts, triangles)
+                    Node::Inner {
+                        left_child,
+                        right_child,
+                        plane,
+                        axis,
+                    } => self.inner_intersect(
+                        left_child,
+                        right_child,
+                        bounds,
+                        *plane,
+                        *axis,
+                        ray,
+                        inv_dir,
+                        verts,
+                        triangles,
+                    ),
+                    Node::Leaf { items } => self.leaf_intersect(items, ray, verts, triangles),
                 }
             }
-            None => TraceResult::Miss
+            None => TraceResult::Miss,
         }
     }
 
-    fn inner_intersect(&self, left: &Option<Box<Node>>, right: &Option<Box<Node>>, bounds: BoundingBox, plane: f32, axis: Axis,
-                    ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+    fn inner_intersect(
+        &self,
+        left: &Option<Box<Node>>,
+        right: &Option<Box<Node>>,
+        bounds: BoundingBox,
+        plane: f32,
+        axis: Axis,
+        ray: &Ray,
+        inv_dir: Vector3<f32>,
+        verts: &[Vertex],
+        triangles: &[Triangle],
+    ) -> TraceResult {
         self.stats.count_inner_node_traversal();
 
         let mut left_bounds = bounds;
         left_bounds.set_max(&axis, plane);
         let mut right_bounds = bounds;
         right_bounds.set_min(&axis, plane);
-        
+
         let hit_l_box = left_bounds.intersects_ray(ray, &inv_dir);
         let hit_r_box = right_bounds.intersects_ray(ray, &inv_dir);
 
@@ -100,7 +133,7 @@ impl KdTree {
             return self.intersect(left, ray, inv_dir, verts, triangles, left_bounds);
         } else if !hit_l_box && hit_r_box {
             return self.intersect(right, ray, inv_dir, verts, triangles, right_bounds);
-        } 
+        }
 
         // We hit both children's bounds, so check which is hit first
         // If there is an intersection in that one that is closer than the other child's bounds we can stop
@@ -109,27 +142,53 @@ impl KdTree {
         let dist_to_right_box = right_bounds.t_distance_from_ray(ray, &inv_dir);
 
         if dist_to_left_box < dist_to_right_box {
-            self.intersect_both_children_hit(left, left_bounds, 
-                right, right_bounds, dist_to_right_box, ray, inv_dir, verts, triangles)
+            self.intersect_both_children_hit(
+                left,
+                left_bounds,
+                right,
+                right_bounds,
+                dist_to_right_box,
+                ray,
+                inv_dir,
+                verts,
+                triangles,
+            )
         } else {
-            self.intersect_both_children_hit(right, right_bounds, 
-                left, left_bounds, dist_to_left_box, ray, inv_dir, verts, triangles)
+            self.intersect_both_children_hit(
+                right,
+                right_bounds,
+                left,
+                left_bounds,
+                dist_to_left_box,
+                ray,
+                inv_dir,
+                verts,
+                triangles,
+            )
         }
     }
 
-    fn intersect_both_children_hit(&self, first_hit_child: &Option<Box<Node>>, first_bounds: BoundingBox,
-                        second_hit_child: &Option<Box<Node>>, second_bounds: BoundingBox, dist_to_second_box: f32,
-                        ray: &Ray, inv_dir: Vector3<f32>, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
-
+    fn intersect_both_children_hit(
+        &self,
+        first_hit_child: &Option<Box<Node>>,
+        first_bounds: BoundingBox,
+        second_hit_child: &Option<Box<Node>>,
+        second_bounds: BoundingBox,
+        dist_to_second_box: f32,
+        ray: &Ray,
+        inv_dir: Vector3<f32>,
+        verts: &[Vertex],
+        triangles: &[Triangle],
+    ) -> TraceResult {
         let first_result = self.intersect(first_hit_child, ray, inv_dir, verts, triangles, first_bounds);
 
-        if let TraceResult::Hit{ t: t_first, .. } = first_result {
+        if let TraceResult::Hit { t: t_first, .. } = first_result {
             if t_first < dist_to_second_box {
                 first_result
             } else {
                 let second_result = self.intersect(second_hit_child, ray, inv_dir, verts, triangles, second_bounds);
 
-                if let TraceResult::Hit{ t: t_second, .. } = second_result {
+                if let TraceResult::Hit { t: t_second, .. } = second_result {
                     if t_second < t_first {
                         second_result
                     } else {
@@ -144,7 +203,13 @@ impl KdTree {
         }
     }
 
-    fn leaf_intersect(&self, triangle_indices: &[usize], ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+    fn leaf_intersect(
+        &self,
+        triangle_indices: &[usize],
+        ray: &Ray,
+        verts: &[Vertex],
+        triangles: &[Triangle],
+    ) -> TraceResult {
         let mut result = TraceResult::Miss;
         let mut min_dist = f32::MAX;
 
@@ -156,11 +221,16 @@ impl KdTree {
 
             self.stats.count_intersection_test();
 
-            if let IntersectionResult::Hit{ t, u, v } = ray.intersect_triangle(p1.position, p2.position, p3.position) {
+            if let IntersectionResult::Hit { t, u, v } = ray.intersect_triangle(p1.position, p2.position, p3.position) {
                 self.stats.count_intersection_hit();
 
                 if t < min_dist {
-                    result = TraceResult::Hit{ triangle_index: *triangle_index as i32, t, u, v };
+                    result = TraceResult::Hit {
+                        triangle_index: *triangle_index as i32,
+                        t,
+                        u,
+                        v,
+                    };
                     min_dist = t;
                 }
             }
@@ -170,9 +240,15 @@ impl KdTree {
     }
 }
 
-fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<usize>, depth: i32, bounds: &BoundingBox) -> Option<Box<Node>> {
+fn create_node(
+    verts: &[Vertex],
+    triangles: &[Triangle],
+    triangle_indices: Vec<usize>,
+    depth: i32,
+    bounds: &BoundingBox,
+) -> Option<Box<Node>> {
     if triangle_indices.is_empty() {
-        return None
+        return None;
     }
 
     let early_term_leaf_size = 10;
@@ -183,7 +259,7 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<u
             items: triangle_indices,
         }));
     }
-    
+
     let mut left_indices = Vec::new();
     let mut right_indices = Vec::new();
 
@@ -196,11 +272,11 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<u
     // Perfect vertex split
     for index in &triangle_indices {
         let bounds = &triangles[*index].bounds;
-        
+
         let p = bounds.max[axis_index];
         let dist = f32::abs(p - mid_plane);
 
-        if  dist < least_dist {
+        if dist < least_dist {
             split_plane = p;
             least_dist = dist;
         }
@@ -208,7 +284,7 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<u
         let p = bounds.min[axis_index];
         let dist = f32::abs(p - mid_plane);
 
-        if  dist < least_dist {
+        if dist < least_dist {
             split_plane = p;
             least_dist = dist;
         }
@@ -218,7 +294,6 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<u
     left_bounds.set_max(&axis, split_plane);
     let mut right_bounds = *bounds;
     right_bounds.set_min(&axis, split_plane);
-
 
     for index in triangle_indices {
         let triangle = &triangles[index];
@@ -241,7 +316,7 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: Vec<u
         left_child: left,
         right_child: right,
         plane: split_plane,
-        axis
+        axis,
     }))
 }
 

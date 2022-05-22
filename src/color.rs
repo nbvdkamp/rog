@@ -1,4 +1,4 @@
-use std::ops::{self, AddAssign, MulAssign, DivAssign};
+use std::ops::{self, AddAssign, DivAssign, MulAssign};
 
 use luminance::shader::types::Vec4;
 
@@ -80,7 +80,7 @@ macro_rules! impl_f32_color_tuple {
                 $(self.$field += other.$field);+
             }
         }
-        
+
         impl MulAssign<f32> for $name {
             fn mul_assign(&mut self, s: f32) {
                 $(self.$field *= s);+
@@ -136,7 +136,7 @@ macro_rules! impl_u8_color_tuple {
             pub fn new($($field: u8),+) -> Self {
                 Self { $($field),+ }
             }
-            
+
             pub fn from_grayscale(value: u8) -> Self {
                 Self { $($field: value),+ }
             }
@@ -169,24 +169,29 @@ impl From<RGBf32> for Vec4<f32> {
 impl XYZf32 {
     pub fn to_srgb(self) -> RGBf32 {
         let XYZf32 { x, y, z } = self;
-        let r =  3.240479 * x - 1.53715  * y - 0.498535 * z;
+        let r = 3.240479 * x - 1.53715 * y - 0.498535 * z;
         let g = -0.969256 * x + 1.875991 * y + 0.041556 * z;
-        let b =  0.055648 * x - 0.204043 * y + 1.057311 * z;
+        let b = 0.055648 * x - 0.204043 * y + 1.057311 * z;
 
         RGBf32::new(r.max(0.0), g.max(0.0), b.max(0.0))
     }
 }
 
 pub fn _debug_color(x: f32) -> RGBf32 {
-    if (0.0..=1.0).contains(&x) { // green
+    if (0.0..=1.0).contains(&x) {
+        // green
         RGBf32::new(0.0, x, 0.0)
-    } else if x > 1.0 &&  x <= 10.0 { // blue
+    } else if x > 1.0 && x <= 10.0 {
+        // blue
         RGBf32::new(0.0, 0.0, x / 10.0)
-    } else if x > 10.0 &&  x <= 100.0 { // red
+    } else if x > 10.0 && x <= 100.0 {
+        // red
         RGBf32::new(x / 100.0, 0.0, 0.0)
-    } else if x > 100.0 { // white
+    } else if x > 100.0 {
+        // white
         RGBf32::new(1.0, 1.0, 1.0)
-    } else if x < 0.0 { // magenta to yellow
+    } else if x < 0.0 {
+        // magenta to yellow
         RGBf32::new(1.0, -x, 1.0 + x)
     } else {
         RGBf32::new(0.0, 0.0, 0.0)

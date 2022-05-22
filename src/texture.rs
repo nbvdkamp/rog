@@ -1,4 +1,4 @@
-use cgmath::{Vector2, vec2};
+use cgmath::{vec2, Vector2};
 use lerp::Lerp;
 use rgb2spec::RGB2Spec;
 
@@ -56,11 +56,7 @@ impl Texture {
             let to_rgbf32 = |x: u32, y: u32| {
                 let pixel_index = y * self.width + x;
                 let i = (pixel_index * self.format.bytes()) as usize;
-                RGBf32::new(
-                    image[i],
-                    image[i + 1],
-                    image[i + 2]
-                )
+                RGBf32::new(image[i], image[i + 1], image[i + 2])
             };
 
             // Bilinear interpolation
@@ -88,9 +84,9 @@ impl Texture {
             let pixel_index = y * self.width + x;
             let i = (pixel_index * self.format.bytes()) as usize;
             RGBf32::new(
-                self.image[i]     as f32 / 255.0,
+                self.image[i] as f32 / 255.0,
                 self.image[i + 1] as f32 / 255.0,
-                self.image[i + 2] as f32 / 255.0
+                self.image[i + 2] as f32 / 255.0,
             )
         };
 
@@ -114,9 +110,9 @@ impl Texture {
                 let i = (pixel_index * self.format.bytes()) as usize;
 
                 let coeffs = rgb2spec.fetch([
-                    (self.image[i]     as f32 / 255.0).powf(GAMMA),
+                    (self.image[i] as f32 / 255.0).powf(GAMMA),
                     (self.image[i + 1] as f32 / 255.0).powf(GAMMA),
-                    (self.image[i + 2] as f32 / 255.0).powf(GAMMA)
+                    (self.image[i + 2] as f32 / 255.0).powf(GAMMA),
                 ]);
 
                 result.extend(coeffs);

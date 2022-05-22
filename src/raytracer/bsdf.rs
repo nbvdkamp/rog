@@ -1,14 +1,9 @@
-use cgmath::{vec2, Vector3, InnerSpace};
+use cgmath::{vec2, InnerSpace, Vector3};
 use lerp::Lerp;
 
-use crate::{
-    material::MaterialSample,
-    spectrum::Spectrumf32,
-};
+use crate::{material::MaterialSample, spectrum::Spectrumf32};
 
-use super::{
-    geometry::reflect,
-};
+use super::geometry::reflect;
 
 pub fn mis2(pdf1: f32, pdf2: f32) -> f32 {
     // Power heuristic (Veach 95)
@@ -18,7 +13,7 @@ pub fn mis2(pdf1: f32, pdf2: f32) -> f32 {
 }
 
 fn schlick_fresnel_approximation(cos_theta: f32, zero_angle_reflection: f32) -> f32 {
-    let one_min_cos_theta =  (1.0 - cos_theta).clamp(0.0, 1.0);
+    let one_min_cos_theta = (1.0 - cos_theta).clamp(0.0, 1.0);
     let one_min_cos_squared = one_min_cos_theta * one_min_cos_theta;
     let one_min_cos_pow_5 = one_min_cos_squared * one_min_cos_squared * one_min_cos_theta;
     zero_angle_reflection + (1.0 - zero_angle_reflection) * one_min_cos_pow_5
@@ -29,8 +24,8 @@ fn fresnel_f_zero(ior: f32) -> f32 {
 }
 
 mod ggx {
+    use cgmath::{vec3, InnerSpace, Vector2, Vector3};
     use rand::Rng;
-    use cgmath::{Vector2,Vector3, vec3, InnerSpace};
 
     pub fn smith_shadow_term(v_dot_n: f32, alpha_squared: f32) -> f32 {
         let cos2 = v_dot_n * v_dot_n;
@@ -73,7 +68,8 @@ mod ggx {
 
         let t2prime = (1.0 - s) * (1.0 - t1 * t1).sqrt() + s * t2;
 
-        let normal_h = t1 * tangent + t2prime * bitangent + (1.0 - t1 * t1 - t2prime * t2prime).max(0.0).sqrt() * incident_h;
+        let normal_h =
+            t1 * tangent + t2prime * bitangent + (1.0 - t1 * t1 - t2prime * t2prime).max(0.0).sqrt() * incident_h;
 
         vec3(alpha.x * normal_h.x, alpha.y * normal_h.y, normal_h.z.max(0.0)).normalize()
     }
@@ -109,7 +105,7 @@ pub enum Sample {
         brdf: Spectrumf32,
         pdf: f32,
     },
-    Null
+    Null,
 }
 
 pub fn brdf_sample(mat: &MaterialSample, incident: Vector3<f32>) -> Sample {
@@ -130,11 +126,8 @@ pub fn brdf_sample(mat: &MaterialSample, incident: Vector3<f32>) -> Sample {
 }
 
 pub enum Evaluation {
-    Evaluation {
-        brdf: Spectrumf32,
-        pdf: f32,
-    },
-    Null
+    Evaluation { brdf: Spectrumf32, pdf: f32 },
+    Null,
 }
 
 pub fn brdf_eval(mat: &MaterialSample, incident: Vector3<f32>, outgoing: Vector3<f32>) -> Evaluation {

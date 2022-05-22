@@ -1,5 +1,5 @@
-use cgmath::{Vector3, vec3, Matrix3, InnerSpace};
 use super::geometry::orthogonal_vector;
+use cgmath::{vec3, InnerSpace, Matrix3, Vector3};
 
 pub struct ShadingFrame {
     normal: Vector3<f32>,
@@ -12,7 +12,11 @@ impl ShadingFrame {
         let tangent = orthogonal_vector(normal).normalize();
         let bitangent = normal.cross(tangent);
 
-        ShadingFrame { normal, tangent, bitangent }
+        ShadingFrame {
+            normal,
+            tangent,
+            bitangent,
+        }
     }
 
     pub fn new_with_tangent(normal: Vector3<f32>, tangent: Vector3<f32>) -> Self {
@@ -20,22 +24,30 @@ impl ShadingFrame {
         let tangent = (tangent - tangent.dot(normal) * normal).normalize();
         let bitangent = normal.cross(tangent);
 
-        ShadingFrame { normal, tangent, bitangent }
+        ShadingFrame {
+            normal,
+            tangent,
+            bitangent,
+        }
     }
 
     pub fn to_local(&self, global: Vector3<f32>) -> Vector3<f32> {
-        vec3(self.tangent.dot(global), self.bitangent.dot(global), self.normal.dot(global))
+        vec3(
+            self.tangent.dot(global),
+            self.bitangent.dot(global),
+            self.normal.dot(global),
+        )
     }
 
     pub fn to_global(&self, local: Vector3<f32>) -> Vector3<f32> {
-        Matrix3::from_cols(self.tangent, self.bitangent, self.normal) * local 
+        Matrix3::from_cols(self.tangent, self.bitangent, self.normal) * local
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use cgmath::assert_abs_diff_eq;
     use super::*;
+    use cgmath::assert_abs_diff_eq;
 
     #[test]
     fn dot() {

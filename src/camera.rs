@@ -1,4 +1,4 @@
-use cgmath::{perspective, Matrix4, SquareMatrix, Rad, Vector3, Point3, EuclideanSpace};
+use cgmath::{perspective, EuclideanSpace, Matrix4, Point3, Rad, SquareMatrix, Vector3};
 
 #[derive(Copy, Clone)]
 pub struct PerspectiveCamera {
@@ -21,7 +21,7 @@ impl PerspectiveCamera {
             z_far: 100.,
             z_near: 0.01,
             view,
-            model
+            model,
         }
     }
 

@@ -1,29 +1,32 @@
-use std::path::Path;
-use std::time::Instant;
+use std::{path::Path, time::Instant};
 
-use gltf::scene::Transform;
 use cgmath::{
-    Quaternion,
-    Point3,
-    Vector2, Vector3, Vector4,
-    vec3, vec4,
+    vec3,
+    vec4,
     InnerSpace,
-    Matrix, SquareMatrix,
-    Matrix3, Matrix4,
+    Matrix,
+    Matrix3,
+    Matrix4,
+    Point3,
+    Quaternion,
+    SquareMatrix,
+    Vector2,
+    Vector3,
+    Vector4,
     Zero,
 };
-use gltf::camera::Projection;
+use gltf::{camera::Projection, scene::Transform};
 
 use crate::{
-    mesh::{Vertex, Mesh},
     camera::PerspectiveCamera,
-    constants::GAMMA,
-    material::Material,
-    texture::{Texture, Format},
-    light::Light,
     color::RGBf32,
+    constants::GAMMA,
     environment::Environment,
+    light::Light,
+    material::Material,
+    mesh::{Mesh, Vertex},
     spectrum::Spectrumf32,
+    texture::{Format, Texture},
 };
 
 use rgb2spec::RGB2Spec;
@@ -38,8 +41,12 @@ pub struct Scene {
 
 fn transform_to_mat(t: Transform) -> Matrix4<f32> {
     match t {
-        Transform::Matrix { matrix } => { matrix.into() }
-        Transform::Decomposed { translation, rotation, scale } => {
+        Transform::Matrix { matrix } => matrix.into(),
+        Transform::Decomposed {
+            translation,
+            rotation,
+            scale,
+        } => {
             let r: Matrix4<f32> = Quaternion::from(rotation).into();
             let t = Matrix4::from_translation(translation.into());
             let s = Matrix4::from_nonuniform_scale(scale[0], scale[1], scale[2]);
@@ -60,23 +67,26 @@ impl Scene {
 
         let start = Instant::now();
 
-        match  gltf::import(path) {
+        match gltf::import(path) {
             Ok((document, buffers, images)) => {
                 let lib_time = start.elapsed().as_secs_f32();
 
-                let textures = images.into_iter().map(|i| {
-                    let (format, pixels) = match i.format {
-                        gltf::image::Format::R8G8B8 => (Format::Rgb, i.pixels),
-                        gltf::image::Format::R8G8B8A8 => (Format::Rgba, i.pixels),
-                        gltf::image::Format::R16G16B16 => (Format::Rgb, drop_every_other_byte(i.pixels)),
-                        gltf::image::Format::R16G16B16A16 => (Format::Rgba, drop_every_other_byte(i.pixels)),
-                        gltf::image::Format::R8 => (Format::Rgb, repeat_every_byte_thrice(i.pixels)),
-                        gltf::image::Format::R8G8 => (Format::Rgb, insert_zero_byte_every_two(i.pixels)),
-                        other => panic!("Texture format {:?} is not implemented", other)
-                    };
+                let textures = images
+                    .into_iter()
+                    .map(|i| {
+                        let (format, pixels) = match i.format {
+                            gltf::image::Format::R8G8B8 => (Format::Rgb, i.pixels),
+                            gltf::image::Format::R8G8B8A8 => (Format::Rgba, i.pixels),
+                            gltf::image::Format::R16G16B16 => (Format::Rgb, drop_every_other_byte(i.pixels)),
+                            gltf::image::Format::R16G16B16A16 => (Format::Rgba, drop_every_other_byte(i.pixels)),
+                            gltf::image::Format::R8 => (Format::Rgb, repeat_every_byte_thrice(i.pixels)),
+                            gltf::image::Format::R8G8 => (Format::Rgb, insert_zero_byte_every_two(i.pixels)),
+                            other => panic!("Texture format {:?} is not implemented", other),
+                        };
 
-                    Texture::new(pixels, i.width, i.height, format)
-                }).collect();
+                        Texture::new(pixels, i.width, i.height, format)
+                    })
+                    .collect();
 
                 let environment = {
                     let color = RGBf32::from_hex("#404040").pow(GAMMA);
@@ -84,7 +94,7 @@ impl Scene {
 
                     Environment {
                         color,
-                        spectrum: Spectrumf32::from_coefficients(coeffs)
+                        spectrum: Spectrumf32::from_coefficients(coeffs),
                     }
                 };
 
@@ -101,22 +111,26 @@ impl Scene {
                 }
 
                 let total_time = start.elapsed().as_secs_f32();
-                println!("Parsed scene in {} seconds ({} in library, {} in own code)", total_time, lib_time, total_time - lib_time);
+                println!(
+                    "Parsed scene in {} seconds ({} in library, {} in own code)",
+                    total_time,
+                    lib_time,
+                    total_time - lib_time
+                );
 
                 Ok(result)
             }
-            Err(e) => {
-                Err(format!("An error occured while opening the glTF file:\n\t{}", e))
-            }
+            Err(e) => Err(format!("An error occured while opening the glTF file:\n\t{}", e)),
         }
     }
 
-    fn parse_nodes(&mut self,
+    fn parse_nodes(
+        &mut self,
         nodes: Vec<gltf::Node>,
         buffers: &[gltf::buffer::Data],
         base_transform: Matrix4<f32>,
-        rgb2spec: &RGB2Spec) {
-
+        rgb2spec: &RGB2Spec,
+    ) {
         for node in nodes {
             let transform = base_transform * transform_to_mat(node.transform());
 
@@ -130,7 +144,7 @@ impl Scene {
                         z_far: perspective.zfar().unwrap(),
                         z_near: perspective.znear(),
                         view: transform.invert().unwrap(),
-                        model: transform
+                        model: transform,
                     }
                 } else {
                     println!("Non-perspective cameras are not supported");
@@ -145,7 +159,13 @@ impl Scene {
         }
     }
 
-    fn add_meshes_from_gltf_mesh(&mut self, mesh: gltf::Mesh, buffers: &[gltf::buffer::Data], transform: Matrix4<f32>, rgb2spec: &RGB2Spec) {
+    fn add_meshes_from_gltf_mesh(
+        &mut self,
+        mesh: gltf::Mesh,
+        buffers: &[gltf::buffer::Data],
+        transform: Matrix4<f32>,
+        rgb2spec: &RGB2Spec,
+    ) {
         let m = Matrix3::from_cols(transform.x.truncate(), transform.y.truncate(), transform.z.truncate());
         let normal_transform = m.invert().unwrap().transpose();
 
@@ -182,18 +202,20 @@ impl Scene {
             };
 
             let positions: Vec<Point3<f32>> = reader
-                    .read_positions()
-                    .unwrap_or_else(||
-                        panic!("Primitive does not have POSITION attribute (mesh: {}, primitive: {})", mesh.index(), primitive.index())
+                .read_positions()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Primitive does not have POSITION attribute (mesh: {}, primitive: {})",
+                        mesh.index(),
+                        primitive.index()
                     )
-                    .map(|pos| Point3::from_homogeneous(transform * Vector4::new(pos[0], pos[1], pos[2], 1.0)))
-                    .collect();
+                })
+                .map(|pos| Point3::from_homogeneous(transform * Vector4::new(pos[0], pos[1], pos[2], 1.0)))
+                .collect();
 
             let indices = reader
                 .read_indices()
-                .map(|read_indices| {
-                    read_indices.into_u32().collect::<Vec<_>>()
-                })
+                .map(|read_indices| read_indices.into_u32().collect::<Vec<_>>())
                 .unwrap_or_else(|| {
                     let count = positions.len();
                     let mut v = Vec::with_capacity(count);
@@ -206,11 +228,9 @@ impl Scene {
                 });
 
             let normals: Vec<Vector3<f32>> = match reader.read_normals() {
-                Some(normals) => {
-                    normals.map(|normal| -> Vector3<f32> {
-                        normal_transform * Vector3::from(normal)
-                    }).collect()
-                }
+                Some(normals) => normals
+                    .map(|normal| -> Vector3<f32> { normal_transform * Vector3::from(normal) })
+                    .collect(),
                 None => {
                     let mut tri_normals = Vec::with_capacity(indices.len() / 3);
 
@@ -227,7 +247,7 @@ impl Scene {
                     let mut vert_normals = vec![Vector3::zero(); positions.len()];
 
                     for i in 0..tri_normals.len() {
-                        vert_normals[indices[3 * i]     as usize] += tri_normals[i];
+                        vert_normals[indices[3 * i] as usize] += tri_normals[i];
                         vert_normals[indices[3 * i + 1] as usize] += tri_normals[i];
                         vert_normals[indices[3 * i + 2] as usize] += tri_normals[i];
                     }
@@ -237,13 +257,9 @@ impl Scene {
             };
 
             let tangents: Vec<Vector3<f32>> = match reader.read_tangents() {
-                Some(reader) => {
-                    reader
-                        .map(|tangent| {
-                            normal_transform * (tangent[3] * vec3(tangent[0], tangent[1], tangent[2]))
-                        })
-                        .collect()
-                }
+                Some(reader) => reader
+                    .map(|tangent| normal_transform * (tangent[3] * vec3(tangent[0], tangent[1], tangent[2])))
+                    .collect(),
                 None => {
                     let mut tri_tangents = Vec::with_capacity(indices.len() / 3);
 
@@ -257,7 +273,7 @@ impl Scene {
                     let mut vert_tangents = vec![Vector3::zero(); positions.len()];
 
                     for i in 0..tri_tangents.len() {
-                        vert_tangents[indices[3 * i]     as usize] += tri_tangents[i];
+                        vert_tangents[indices[3 * i] as usize] += tri_tangents[i];
                         vert_tangents[indices[3 * i + 1] as usize] += tri_tangents[i];
                         vert_tangents[indices[3 * i + 2] as usize] += tri_tangents[i];
                     }
@@ -267,29 +283,34 @@ impl Scene {
             };
 
             let tex_coords = match reader.read_tex_coords(0) {
-                Some(reader) => {
-                    reader
-                        .into_f32()
-                        .map(|uv| Some(Vector2::<f32>::new(uv[0], uv[1])))
-                        .collect()
-                }
-                None => vec![None; positions.len()]
+                Some(reader) => reader
+                    .into_f32()
+                    .map(|uv| Some(Vector2::<f32>::new(uv[0], uv[1])))
+                    .collect(),
+                None => vec![None; positions.len()],
             };
 
-            let vertices = positions.into_iter().zip(normals).zip(tex_coords.into_iter().zip(tangents.into_iter()))
-                .map(|((position, normal), (tex_coord, tangent))| {
-                    Vertex {
-                        position,
-                        normal,
-                        tangent,
-                        tex_coord,
-                    }
-                }).collect();
+            let vertices = positions
+                .into_iter()
+                .zip(normals)
+                .zip(tex_coords.into_iter().zip(tangents.into_iter()))
+                .map(|((position, normal), (tex_coord, tangent))| Vertex {
+                    position,
+                    normal,
+                    tangent,
+                    tex_coord,
+                })
+                .collect();
 
             let mesh = Mesh::new(vertices, indices, material);
 
             // Put meshes with RGBA textures at the end of the list so alpha blending works correctly
-            if mesh.material.base_color_texture.map(|i| self.textures[i].format == Format::Rgba).unwrap_or(false) {
+            if mesh
+                .material
+                .base_color_texture
+                .map(|i| self.textures[i].format == Format::Rgba)
+                .unwrap_or(false)
+            {
                 self.meshes.push(mesh);
             } else {
                 self.meshes.insert(0, mesh);
@@ -306,9 +327,13 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>)
             let normal_transform = m.invert().unwrap().transpose();
             let direction = -(normal_transform * vec3(0.0, 0.0, -1.0)).normalize();
             crate::light::Kind::Directional { direction }
-        },
-        gltf::khr_lights_punctual::Kind::Spot { inner_cone_angle, outer_cone_angle} => {
-            crate::light::Kind::Spot { inner_cone_angle, outer_cone_angle }
+        }
+        gltf::khr_lights_punctual::Kind::Spot {
+            inner_cone_angle,
+            outer_cone_angle,
+        } => crate::light::Kind::Spot {
+            inner_cone_angle,
+            outer_cone_angle,
         },
     };
 
@@ -317,7 +342,7 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>)
         intensity: light.intensity(),
         range: light.range().unwrap_or(f32::INFINITY),
         color: light.color().into(),
-        kind
+        kind,
     })
 }
 

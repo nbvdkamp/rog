@@ -1,4 +1,4 @@
-use cgmath::{Vector3, Point3, InnerSpace};
+use cgmath::{InnerSpace, Point3, Vector3};
 
 pub struct Ray {
     pub origin: Point3<f32>,
@@ -8,11 +8,7 @@ pub struct Ray {
 #[derive(PartialEq, Debug)]
 pub enum IntersectionResult {
     Miss,
-    Hit {
-        t: f32,
-        u: f32,
-        v: f32,
-    },
+    Hit { t: f32, u: f32, v: f32 },
 }
 
 impl Ray {
@@ -25,10 +21,10 @@ impl Ray {
         let h = self.direction.cross(edge2);
         let a = edge1.dot(h);
 
-        if  a > -EPSILON && a < EPSILON {
+        if a > -EPSILON && a < EPSILON {
             return IntersectionResult::Miss;
         }
-        
+
         let f = 1.0 / a;
         let s = self.origin - p1;
         let u = f * s.dot(h);
@@ -50,9 +46,8 @@ impl Ray {
         let t = f * edge2.dot(q);
 
         if t > EPSILON {
-            IntersectionResult::Hit{ t, u, v }
-        }
-        else {
+            IntersectionResult::Hit { t, u, v }
+        } else {
             IntersectionResult::Miss
         }
     }
@@ -68,53 +63,81 @@ mod tests {
 
     #[test]
     fn hit_triangle() {
-        let ray = Ray { origin: Point3::new(0., 0., -1.), direction: Vector3::unit_z() };
-        assert_eq!(IntersectionResult::Hit{ t: 1., u: 0.25, v: 0.5 }, ray.intersect_triangle(
-            Point3::new(-1.0, -1.0, 0.0),
-            Point3::new(1.0, -1.0, 0.0),
-            Point3::new(0.0, 1.0, 0.0)
-        ));
+        let ray = Ray {
+            origin: Point3::new(0., 0., -1.),
+            direction: Vector3::unit_z(),
+        };
+        assert_eq!(
+            IntersectionResult::Hit { t: 1., u: 0.25, v: 0.5 },
+            ray.intersect_triangle(
+                Point3::new(-1.0, -1.0, 0.0),
+                Point3::new(1.0, -1.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0)
+            )
+        );
     }
 
     #[test]
     fn barely_hit_triangle() {
-        let ray = Ray { origin: Point3::new(0.0, 0.0, -1.0), direction: Vector3::unit_z() };
-        assert_eq!(IntersectionResult::Hit{ t: 1., u: 0., v: 0.5 }, ray.intersect_triangle(
-            Point3::new(0.0, -1.0, 0.0),
-            Point3::new(1.0, -1.0, 0.0),
-            Point3::new(0.0, 1.0, 0.0)
-        ));
+        let ray = Ray {
+            origin: Point3::new(0.0, 0.0, -1.0),
+            direction: Vector3::unit_z(),
+        };
+        assert_eq!(
+            IntersectionResult::Hit { t: 1., u: 0., v: 0.5 },
+            ray.intersect_triangle(
+                Point3::new(0.0, -1.0, 0.0),
+                Point3::new(1.0, -1.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0)
+            )
+        );
     }
-
-    
 
     #[test]
     fn miss_triangle() {
-        let ray = Ray { origin: Point3::new(-0.01, 0.0, -1.0), direction: Vector3::unit_z() };
-        assert_eq!(IntersectionResult::Miss, ray.intersect_triangle(
-            Point3::new(0.0, -1.0, 0.0),
-            Point3::new(1.0, -1.0, 0.0),
-            Point3::new(0.0, 1.0, 0.0)
-        ));
+        let ray = Ray {
+            origin: Point3::new(-0.01, 0.0, -1.0),
+            direction: Vector3::unit_z(),
+        };
+        assert_eq!(
+            IntersectionResult::Miss,
+            ray.intersect_triangle(
+                Point3::new(0.0, -1.0, 0.0),
+                Point3::new(1.0, -1.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0)
+            )
+        );
     }
 
     #[test]
     fn miss_triangle_behind() {
-        let ray = Ray { origin: Point3::new(0.0, 0.0, 1.0), direction: Vector3::unit_z() };
-        assert_eq!(IntersectionResult::Miss, ray.intersect_triangle(
-            Point3::new(-1.0, -1.0, 0.0),
-            Point3::new(1.0, -1.0, 0.0),
-            Point3::new(0.0, 1.0, 0.0)
-        ));
+        let ray = Ray {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            direction: Vector3::unit_z(),
+        };
+        assert_eq!(
+            IntersectionResult::Miss,
+            ray.intersect_triangle(
+                Point3::new(-1.0, -1.0, 0.0),
+                Point3::new(1.0, -1.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0)
+            )
+        );
     }
 
     #[test]
     fn barely_miss_triangle_right() {
-        let ray = Ray { origin: Point3::new(0.001, 0.0, -1.0), direction: Vector3::unit_z() };
-        assert_eq!(IntersectionResult::Miss, ray.intersect_triangle(
-            Point3::new(-1.0, -1.0, 0.0),
-            Point3::new(0.0, -1.0, 0.0),
-            Point3::new(0.0, 1.0, 0.0)
-        ));
+        let ray = Ray {
+            origin: Point3::new(0.001, 0.0, -1.0),
+            direction: Vector3::unit_z(),
+        };
+        assert_eq!(
+            IntersectionResult::Miss,
+            ray.intersect_triangle(
+                Point3::new(-1.0, -1.0, 0.0),
+                Point3::new(0.0, -1.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0)
+            )
+        );
     }
 }
