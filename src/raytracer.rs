@@ -354,7 +354,8 @@ impl Raytracer {
                                 let mis_weight = mis2(light_pdf, pdf);
 
                                 result += path_weight * mat_sample.base_color_spectrum * light_sample.intensity * brdf
-                                    / light_pdf; //TODO: * light.color;
+                                    / light_pdf
+                                    * light.spectrum;
                             }
                         }
                     }

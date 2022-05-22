@@ -150,7 +150,7 @@ impl Scene {
                     println!("Non-perspective cameras are not supported");
                 }
             } else if let Some(light) = node.light() {
-                if let Some(light) = parse_light(light, transform) {
+                if let Some(light) = parse_light(light, transform, rgb2spec) {
                     self.lights.push(light);
                 }
             }
@@ -319,7 +319,7 @@ impl Scene {
     }
 }
 
-fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>) -> Option<Light> {
+fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>, rgb2spec: &RGB2Spec) -> Option<Light> {
     let kind = match light.kind() {
         gltf::khr_lights_punctual::Kind::Point => crate::light::Kind::Point,
         gltf::khr_lights_punctual::Kind::Directional => {
@@ -337,11 +337,19 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>)
         },
     };
 
+    let color: RGBf32 = light.color().into();
+
+    // TODO: rgb2spec is intended for reflectances, not emission,
+    // so using it like this is not very physically accurate
+    // though it seems to be a reasonable placeholder / fallback method.
+    let spectrum = Spectrumf32::from_coefficients(rgb2spec.fetch(color.into()));
+
     Some(Light {
         pos: Point3::from_homogeneous(transform * vec4(0.0, 0.0, 0.0, 1.0)),
         intensity: light.intensity(),
         range: light.range().unwrap_or(f32::INFINITY),
-        color: light.color().into(),
+        color,
+        spectrum,
         kind,
     })
 }
