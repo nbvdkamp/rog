@@ -66,12 +66,12 @@ impl Scene {
 
                 let textures = images.into_iter().map(|i| {
                     let (format, pixels) = match i.format {
-                        gltf::image::Format::R8G8B8 => (Format::RGB, i.pixels),
-                        gltf::image::Format::R8G8B8A8 => (Format::RGBA, i.pixels),
-                        gltf::image::Format::R16G16B16 => (Format::RGB, drop_every_other_byte(i.pixels)),
-                        gltf::image::Format::R16G16B16A16 => (Format::RGBA, drop_every_other_byte(i.pixels)),
-                        gltf::image::Format::R8 => (Format::RGB, repeat_every_byte_thrice(i.pixels)),
-                        gltf::image::Format::R8G8 => (Format::RGB, insert_zero_byte_every_two(i.pixels)),
+                        gltf::image::Format::R8G8B8 => (Format::Rgb, i.pixels),
+                        gltf::image::Format::R8G8B8A8 => (Format::Rgba, i.pixels),
+                        gltf::image::Format::R16G16B16 => (Format::Rgb, drop_every_other_byte(i.pixels)),
+                        gltf::image::Format::R16G16B16A16 => (Format::Rgba, drop_every_other_byte(i.pixels)),
+                        gltf::image::Format::R8 => (Format::Rgb, repeat_every_byte_thrice(i.pixels)),
+                        gltf::image::Format::R8G8 => (Format::Rgb, insert_zero_byte_every_two(i.pixels)),
                         other => panic!("Texture format {:?} is not implemented", other)
                     };
 
@@ -163,7 +163,9 @@ impl Scene {
             let get_index = |t: gltf::texture::Info| t.texture().source().index();
             let base_color_texture = pbr.base_color_texture().map(get_index);
 
-            base_color_texture.map(|i| self.textures[i].create_spectrum_coefficients(rgb2spec));
+            if let Some(i) = base_color_texture {
+                self.textures[i].create_spectrum_coefficients(rgb2spec)
+            }
 
             let material = Material {
                 base_color,
@@ -225,7 +227,7 @@ impl Scene {
                     let mut vert_normals = vec![Vector3::zero(); positions.len()];
 
                     for i in 0..tri_normals.len() {
-                        vert_normals[indices[3 * i + 0] as usize] += tri_normals[i];
+                        vert_normals[indices[3 * i]     as usize] += tri_normals[i];
                         vert_normals[indices[3 * i + 1] as usize] += tri_normals[i];
                         vert_normals[indices[3 * i + 2] as usize] += tri_normals[i];
                     }
@@ -255,7 +257,7 @@ impl Scene {
                     let mut vert_tangents = vec![Vector3::zero(); positions.len()];
 
                     for i in 0..tri_tangents.len() {
-                        vert_tangents[indices[3 * i + 0] as usize] += tri_tangents[i];
+                        vert_tangents[indices[3 * i]     as usize] += tri_tangents[i];
                         vert_tangents[indices[3 * i + 1] as usize] += tri_tangents[i];
                         vert_tangents[indices[3 * i + 2] as usize] += tri_tangents[i];
                     }
@@ -287,7 +289,7 @@ impl Scene {
             let mesh = Mesh::new(vertices, indices, material);
 
             // Put meshes with RGBA textures at the end of the list so alpha blending works correctly
-            if mesh.material.base_color_texture.map(|i| self.textures[i].format == Format::RGBA).unwrap_or(false) {
+            if mesh.material.base_color_texture.map(|i| self.textures[i].format == Format::Rgba).unwrap_or(false) {
                 self.meshes.push(mesh);
             } else {
                 self.meshes.insert(0, mesh);

@@ -57,18 +57,15 @@ impl Args {
 
         let input_file: String = matches.value_of("file").unwrap().into();
 
-        if input_file.contains(" ") {
+        if input_file.contains(' ') {
             println!("Warning: Spaces in filename might cause issues in opening the file.");
         }
 
         let output_file = matches.value_of("output").unwrap().into();
 
-        match ImageFormat::from_path(&output_file) {
-            Err(e) => {
-                eprintln!("Invalid output file specified:\n\t{e}");
-                std::process::exit(-1);
-            }
-            Ok(_) => (),
+        if let Err(e) = ImageFormat::from_path(&output_file) {
+            eprintln!("Invalid output file specified:\n\t{e}");
+            std::process::exit(-1);
         }
 
         Args {

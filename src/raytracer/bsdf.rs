@@ -74,8 +74,8 @@ mod ggx {
         let t2prime = (1.0 - s) * (1.0 - t1 * t1).sqrt() + s * t2;
 
         let normal_h = t1 * tangent + t2prime * bitangent + (1.0 - t1 * t1 - t2prime * t2prime).max(0.0).sqrt() * incident_h;
-        let normal = vec3(alpha.x * normal_h.x, alpha.y * normal_h.y, normal_h.z.max(0.0)).normalize();
-        normal
+
+        vec3(alpha.x * normal_h.x, alpha.y * normal_h.y, normal_h.z.max(0.0)).normalize()
     }
 }
 

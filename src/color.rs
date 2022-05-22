@@ -167,9 +167,9 @@ impl From<RGBf32> for Vec4<f32> {
 }
 
 impl XYZf32 {
-    pub fn to_srgb(&self) -> RGBf32 {
+    pub fn to_srgb(self) -> RGBf32 {
         let XYZf32 { x, y, z } = self;
-        let r =  3.240479 * x - 1.537150 * y - 0.498535 * z;
+        let r =  3.240479 * x - 1.53715  * y - 0.498535 * z;
         let g = -0.969256 * x + 1.875991 * y + 0.041556 * z;
         let b =  0.055648 * x - 0.204043 * y + 1.057311 * z;
 

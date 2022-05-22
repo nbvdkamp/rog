@@ -6,16 +6,16 @@ use crate::{color::RGBf32, constants::GAMMA};
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum Format {
-    RGB,
-    RGBA,
+    Rgb,
+    Rgba,
 }
 
 impl Format {
     fn bytes(&self) -> u32 {
         match self {
             // We're only dealing with 8 bit textures for now
-            Format::RGB => 3,
-            Format::RGBA => 4,
+            Format::Rgb => 3,
+            Format::Rgba => 4,
         }
     }
 }
@@ -57,7 +57,7 @@ impl Texture {
                 let pixel_index = y * self.width + x;
                 let i = (pixel_index * self.format.bytes()) as usize;
                 RGBf32::new(
-                    image[i + 0],
+                    image[i],
                     image[i + 1],
                     image[i + 2]
                 )
@@ -88,7 +88,7 @@ impl Texture {
             let pixel_index = y * self.width + x;
             let i = (pixel_index * self.format.bytes()) as usize;
             RGBf32::new(
-                self.image[i + 0] as f32 / 255.0,
+                self.image[i]     as f32 / 255.0,
                 self.image[i + 1] as f32 / 255.0,
                 self.image[i + 2] as f32 / 255.0
             )
@@ -114,16 +114,14 @@ impl Texture {
                 let i = (pixel_index * self.format.bytes()) as usize;
 
                 let coeffs = rgb2spec.fetch([
-                    (self.image[i + 0] as f32 / 255.0).powf(GAMMA),
+                    (self.image[i]     as f32 / 255.0).powf(GAMMA),
                     (self.image[i + 1] as f32 / 255.0).powf(GAMMA),
                     (self.image[i + 2] as f32 / 255.0).powf(GAMMA)
                 ]);
 
-                for k in 0..3 {
-                    result.push(coeffs[k]);
-                }
+                result.extend(coeffs);
 
-                if self.format == Format::RGBA {
+                if self.format == Format::Rgba {
                     result.push(self.image[i + 3] as f32 / 255.0);
                 }
             }

@@ -100,7 +100,7 @@ impl Raytracer {
             lights: scene.lights.clone(),
             textures: scene.textures.clone(), // FIXME: This wastes a lot of memory
             environment: scene.environment.clone(),
-            camera: scene.camera.clone(),
+            camera: scene.camera,
             max_depth: 10,
             accel_structures: Vec::new(),
         };
@@ -198,7 +198,7 @@ impl Raytracer {
                                     color += self.radiance(ray, accel_index);
                                 }
 
-                                color = color / samples as f32;
+                                color /= samples as f32;
 
                                 let mut buffer = buffer.lock().unwrap();
                                 buffer[image_size.x * y + x] = color;
@@ -326,7 +326,7 @@ impl Raytracer {
                                 let light_pdf = light_pick_prob * light_sample.pdf;
                                 let mis_weight = mis2(light_pdf, pdf);
 
-                                result += &path_weight * &mat_sample.base_color_spectrum * light_sample.intensity * brdf / light_pdf;//TODO: * light.color;
+                                result += path_weight * mat_sample.base_color_spectrum * light_sample.intensity * brdf / light_pdf;//TODO: * light.color;
                             }
                         }
                     }
@@ -339,7 +339,7 @@ impl Raytracer {
                     Sample::Null => break,
                 };
 
-                path_weight *= &brdf / pdf * mat_sample.base_color_spectrum;
+                path_weight *= brdf / pdf * mat_sample.base_color_spectrum;
 
                 let continue_prob = path_weight.max_value().max(1.0);
 

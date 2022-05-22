@@ -9,6 +9,7 @@ const fn xyz(x: f32, y: f32, z: f32) -> XYZf32 {
     XYZf32 { x, y, z }
 }
 
+#[allow(clippy::excessive_precision)]
 pub static OBSERVER_1931: [XYZf32; SAMPLES] = [
     xyz(0.000129900000, 0.000003917000, 0.000606100000),
     xyz(0.000232100000, 0.000006965000, 0.001086000000),
@@ -112,12 +113,12 @@ pub fn observer_1931_interp(wavelength: f32) -> XYZf32 {
     let offset = (wavelength as usize).min(SAMPLES - 2);
     let weight = wavelength - offset as f32;
 
-    return (1.0 - weight) * OBSERVER_1931[offset] + weight * OBSERVER_1931[offset + 1];
+    (1.0 - weight) * OBSERVER_1931[offset] + weight * OBSERVER_1931[offset + 1]
 }
 
 // Normalize to luminance of 1
 const fn n(x: f32) -> f32 {
-    x / 10567.864005283874576
+    x / 10567.864
 }
 
 pub static ILLUMINANT_D65: [f32; SAMPLES] = [
@@ -223,5 +224,5 @@ pub fn illuminant_d65_interp(wavelength: f32) -> f32 {
     let offset = (wavelength as usize).min(SAMPLES - 2);
     let weight = wavelength - offset as f32;
 
-    return (1.0 - weight) * ILLUMINANT_D65[offset] + weight * ILLUMINANT_D65[offset + 1];
+    (1.0 - weight) * ILLUMINANT_D65[offset] + weight * ILLUMINANT_D65[offset + 1]
 }

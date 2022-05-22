@@ -1,3 +1,4 @@
+#![allow(clippy::needless_range_loop)]
 use std::ops::{self, AddAssign, MulAssign, DivAssign};
 
 use crate::{
@@ -11,7 +12,7 @@ const SPECTRUM_RES: usize = 100;
 
 impl Spectrumf32 {
     /// Converts to CIE 1931 XYZ color space
-    pub fn to_xyz(&self) -> XYZf32 {
+    pub fn to_xyz(self) -> XYZf32 {
         let mut xyz = XYZf32::from_grayscale(0.0);
 
         let step_size = CIE::LAMBDA_RANGE / (SPECTRUM_RES - 1) as f32;
@@ -26,7 +27,7 @@ impl Spectrumf32 {
         xyz
     }
 
-    pub fn to_srgb(&self) -> RGBf32 {
+    pub fn to_srgb(self) -> RGBf32 {
         self.to_xyz().to_srgb()
     }
 

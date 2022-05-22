@@ -105,7 +105,7 @@ impl App {
             let (mut window, events) = glfw
                 .create_window(960, 540, "Rust renderer", WindowMode::Windowed)
                 .ok_or(GlfwSurfaceError::UserError(PlatformError::CannotCreateWindow))?;
-            
+
             window.make_current();
             window.set_all_polling(true);
             glfw.set_swap_interval(SwapInterval::Sync(1));
@@ -145,14 +145,14 @@ impl App {
 
         enum Tex {
             None,
-            RGB(Texture<Dim2, NormRGB8UI>),
-            RGBA(Texture<Dim2, NormRGBA8UI>),
+            Rgb(Texture<Dim2, NormRGB8UI>),
+            Rgba(Texture<Dim2, NormRGBA8UI>),
         }
 
         enum BoundTex<'a> {
             None,
-            RGB(BoundTexture<'a, Dim2, NormRGB8UI>),
-            RGBA(BoundTexture<'a, Dim2, NormRGBA8UI>),
+            Rgb(BoundTexture<'a, Dim2, NormRGB8UI>),
+            Rgba(BoundTexture<'a, Dim2, NormRGBA8UI>),
         }
 
         let mut textures: Vec<Tex> = self.scene.textures.iter().map(|texture| {
@@ -160,15 +160,15 @@ impl App {
             let upload = TexelUpload::base_level(texture.image.as_slice(), 2);
 
             match texture.format {
-                crate::texture::Format::RGB => match context.new_texture_raw([size.x, size.y], sampler, upload) {
-                    Ok(texture) => Tex::RGB(texture),
+                crate::texture::Format::Rgb => match context.new_texture_raw([size.x, size.y], sampler, upload) {
+                    Ok(texture) => Tex::Rgb(texture),
                     Err(e) => {
                         println!("An error occured while uploading textures: {e}");
                         Tex::None
                     }
                 }
-                crate::texture::Format::RGBA => match context.new_texture_raw([size.x, size.y], sampler, upload) {
-                    Ok(texture) => Tex::RGBA(texture),
+                crate::texture::Format::Rgba => match context.new_texture_raw([size.x, size.y], sampler, upload) {
+                    Ok(texture) => Tex::Rgba(texture),
                     Err(e) => {
                         println!("An error occured while uploading textures: {e}");
                         Tex::None
@@ -227,8 +227,8 @@ impl App {
 
                             let bound_tex = match tex {
                                 Tex::None => BoundTex::None,
-                                Tex::RGB(rgb) => BoundTex::RGB(pipeline.bind_texture(rgb)?),
-                                Tex::RGBA(rgba) => BoundTex::RGBA(pipeline.bind_texture(rgba)?),
+                                Tex::Rgb(rgb) => BoundTex::Rgb(pipeline.bind_texture(rgb)?),
+                                Tex::Rgba(rgba) => BoundTex::Rgba(pipeline.bind_texture(rgba)?),
                             };
 
                             shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
@@ -238,11 +238,11 @@ impl App {
                                 iface.set(&unif.u_light_position, light_position);
 
                                 match bound_tex {
-                                    BoundTex::RGB(rgb) => {
+                                    BoundTex::Rgb(rgb) => {
                                         iface.set(&unif.u_base_color_texture, rgb.binding());
                                         iface.set(&unif.u_use_texture, true);
                                     }
-                                    BoundTex::RGBA(rgba) => {
+                                    BoundTex::Rgba(rgba) => {
                                         iface.set(&unif.u_base_color_texture, rgba.binding());
                                         iface.set(&unif.u_use_texture, true);
                                     }
@@ -264,7 +264,7 @@ impl App {
                     },
                 )
                 .assume();
-            
+
             if !render.is_ok() {
                 break 'app;
             }
