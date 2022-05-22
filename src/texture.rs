@@ -1,5 +1,6 @@
 use cgmath::{vec2, Vector2};
 use lerp::Lerp;
+use rayon::prelude::*;
 use rgb2spec::RGB2Spec;
 
 use crate::{color::RGBf32, constants::GAMMA};
@@ -21,9 +22,15 @@ impl Format {
 }
 
 #[derive(Clone)]
+struct CoefficientPixel {
+    coeffs: [f32; 3],
+    alpha: f32,
+}
+
+#[derive(Clone)]
 pub struct Texture {
     pub image: Vec<u8>,
-    coefficients_image: Option<Vec<f32>>,
+    coefficients_image: Option<Vec<CoefficientPixel>>,
     width: u32,
     height: u32,
     pub format: Format,
@@ -53,11 +60,7 @@ impl Texture {
             let x1 = (x0 + 1) % self.width;
             let y1 = (y0 + 1) % self.height;
 
-            let to_rgbf32 = |x: u32, y: u32| {
-                let pixel_index = y * self.width + x;
-                let i = (pixel_index * self.format.bytes()) as usize;
-                RGBf32::new(image[i], image[i + 1], image[i + 2])
-            };
+            let to_rgbf32 = |x: u32, y: u32| RGBf32::from(image[(y * self.width + x) as usize].coeffs);
 
             // Bilinear interpolation
             let p00 = to_rgbf32(x0, y0);
@@ -101,29 +104,33 @@ impl Texture {
     }
 
     pub fn create_spectrum_coefficients(&mut self, rgb2spec: &RGB2Spec) {
-        let size = (self.width * self.height * self.format.bytes()) as usize;
-        let mut result = Vec::with_capacity(size);
+        let result = match self.format {
+            Format::Rgb => self
+                .image
+                .par_chunks(3)
+                .map(|slice| CoefficientPixel {
+                    coeffs: rgb2spec.fetch([
+                        (slice[0] as f32 / 255.0).powf(GAMMA),
+                        (slice[1] as f32 / 255.0).powf(GAMMA),
+                        (slice[2] as f32 / 255.0).powf(GAMMA),
+                    ]),
+                    alpha: 1.0,
+                })
+                .collect::<Vec<CoefficientPixel>>(),
+            Format::Rgba => self
+                .image
+                .par_chunks(4)
+                .map(|slice| CoefficientPixel {
+                    coeffs: rgb2spec.fetch([
+                        (slice[0] as f32 / 255.0).powf(GAMMA),
+                        (slice[1] as f32 / 255.0).powf(GAMMA),
+                        (slice[2] as f32 / 255.0).powf(GAMMA),
+                    ]),
+                    alpha: slice[3] as f32 / 255.0,
+                })
+                .collect::<Vec<CoefficientPixel>>(),
+        };
 
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let pixel_index = y * self.width + x;
-                let i = (pixel_index * self.format.bytes()) as usize;
-
-                let coeffs = rgb2spec.fetch([
-                    (self.image[i] as f32 / 255.0).powf(GAMMA),
-                    (self.image[i + 1] as f32 / 255.0).powf(GAMMA),
-                    (self.image[i + 2] as f32 / 255.0).powf(GAMMA),
-                ]);
-
-                result.extend(coeffs);
-
-                if self.format == Format::Rgba {
-                    result.push(self.image[i + 3] as f32 / 255.0);
-                }
-            }
-        }
-
-        assert_eq!(result.len(), size);
         self.coefficients_image = Some(result);
     }
 
