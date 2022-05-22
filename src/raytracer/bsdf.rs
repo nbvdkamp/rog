@@ -1,9 +1,9 @@
-use cgmath::{vec2, Vector3, vec3, InnerSpace};
+use cgmath::{vec2, Vector3, InnerSpace};
 use lerp::Lerp;
 
 use crate::{
     material::MaterialSample,
-    color::RGBf32,
+    spectrum::Spectrumf32,
 };
 
 use super::{
@@ -79,7 +79,7 @@ mod ggx {
     }
 }
 
-fn brdf(mat: &MaterialSample, i_dot_n: f32, o_dot_n: f32, m_dot_n: f32, i_dot_m: f32) -> (RGBf32, f32) {
+fn brdf(mat: &MaterialSample, i_dot_n: f32, o_dot_n: f32, m_dot_n: f32, i_dot_m: f32) -> (Spectrumf32, f32) {
     let alpha = mat.roughness * mat.roughness;
     let alpha_squared = alpha * alpha;
 
@@ -96,14 +96,23 @@ fn brdf(mat: &MaterialSample, i_dot_n: f32, o_dot_n: f32, m_dot_n: f32, i_dot_m:
     let fresnel = 1.0;
 
     // Leaving o_dot_n out of the divisor to multiply the result by cos theta
-    let brdf = RGBf32::white() * fresnel * shadow_masking * normal_distrib / (4.0 * i_dot_n);
+    let brdf = Spectrumf32::constant(1.0) * fresnel * shadow_masking * normal_distrib / (4.0 * i_dot_n);
     // VNDF eq. 17 (Heitz 2018)
     let pdf = visible_normal_distrib / (4.0 * i_dot_m);
 
     (brdf, pdf)
 }
 
-pub fn brdf_sample(mat: &MaterialSample, incident: Vector3<f32>) -> (Vector3<f32>, RGBf32, f32) {
+pub enum Sample {
+    Sample {
+        outgoing: Vector3<f32>,
+        brdf: Spectrumf32,
+        pdf: f32,
+    },
+    Null
+}
+
+pub fn brdf_sample(mat: &MaterialSample, incident: Vector3<f32>) -> Sample {
     let alpha = mat.roughness * mat.roughness;
     let micronormal = ggx::sample_micronormal(incident, vec2(alpha, alpha));
     let outgoing = reflect(incident, micronormal);
@@ -114,13 +123,21 @@ pub fn brdf_sample(mat: &MaterialSample, incident: Vector3<f32>) -> (Vector3<f32
 
     if i_dot_n > 0.0 && o_dot_n > 0.0 {
         let (brdf, pdf) = brdf(mat, i_dot_n, o_dot_n, m_dot_n, i_dot_m);
-        (outgoing, brdf, pdf)
+        Sample::Sample { outgoing, brdf, pdf }
     } else {
-        (vec3(0.0, 0.0, 0.0), RGBf32::from_grayscale(0.0), 0.0)
+        Sample::Null
     }
 }
 
-pub fn brdf_eval(mat: &MaterialSample, incident: Vector3<f32>, outgoing: Vector3<f32>) -> (RGBf32, f32) {
+pub enum Evaluation {
+    Evaluation {
+        brdf: Spectrumf32,
+        pdf: f32,
+    },
+    Null
+}
+
+pub fn brdf_eval(mat: &MaterialSample, incident: Vector3<f32>, outgoing: Vector3<f32>) -> Evaluation {
     let micronormal = (incident + outgoing).normalize();
     let i_dot_n = incident.z;
     let o_dot_n = outgoing.z;
@@ -128,9 +145,10 @@ pub fn brdf_eval(mat: &MaterialSample, incident: Vector3<f32>, outgoing: Vector3
     let i_dot_m = incident.dot(micronormal).max(0.0);
 
     if i_dot_n > 0.0 && o_dot_n > 0.0 {
-        brdf(mat, i_dot_n, o_dot_n, m_dot_n, i_dot_m)
+        let (brdf, pdf) = brdf(mat, i_dot_n, o_dot_n, m_dot_n, i_dot_m);
+        Evaluation::Evaluation { brdf, pdf }
     } else {
-        (RGBf32::from_grayscale(0.0), 0.0)
+        Evaluation::Null
     }
 }
 

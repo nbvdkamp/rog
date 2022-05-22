@@ -45,7 +45,7 @@ use crate::{
     mesh::{LuminanceVertex, VertexIndex, VertexSemantics},
     raytracer::Raytracer,
     scene::Scene,
-    util::{mat_to_shader_type, save_image},
+    util::{mat_to_shader_type, save_image, convert_spectrum_buffer_to_rgb},
 };
 
 #[derive(Debug, UniformInterface)]
@@ -325,6 +325,7 @@ impl App {
                         let (buffer, time_elapsed) = self.raytracer.render(self.image_size, self.samples_per_pixel, crate::ACCEL_INDEX);
                         println!("Finished rendering in {} seconds", time_elapsed);
 
+                        let buffer = convert_spectrum_buffer_to_rgb(buffer);
                         save_image(&buffer, self.image_size, &self.output_file);
                     }
                     Key::W => self.movement.forward_backward.set(1),

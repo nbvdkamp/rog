@@ -1,7 +1,14 @@
 use std::path::Path;
 
 use cgmath::{Vector2, Vector3, Matrix4};
-use luminance_front::shader::types::{Mat44};
+use luminance_front::shader::types::Mat44;
+
+use rayon::prelude::*;
+
+use crate::{
+    spectrum::Spectrumf32,
+    constants::GAMMA
+};
 
 use super::color::{RGBf32, RGBu8};
 
@@ -51,4 +58,8 @@ where
         Ok(_) => println!("File was saved succesfully"),
         Err(e) => println!("Couldn't save file: {}", e),
     }
+}
+
+pub fn convert_spectrum_buffer_to_rgb(buffer: Vec<Spectrumf32>) -> Vec<RGBf32> {
+    buffer.into_par_iter().map(|spectrum| spectrum.to_srgb().pow(1.0 / GAMMA)).collect()
 }

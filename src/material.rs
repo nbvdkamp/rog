@@ -2,8 +2,9 @@ use cgmath::{Vector2, Vector3, vec3};
 use super::color::RGBf32;
 
 use crate::{
-    texture::Texture,
     constants::GAMMA,
+    texture::Texture,
+    spectrum::Spectrumf32,
 };
 
 #[derive(Clone)]
@@ -23,7 +24,7 @@ pub struct Material {
 
 pub struct MaterialSample {
     pub base_color: RGBf32,
-    pub base_color_coefficients: [f32; 3],
+    pub base_color_spectrum: Spectrumf32,
     pub metallic: f32,
     pub roughness: f32,
     pub ior: f32,
@@ -51,10 +52,19 @@ impl Material {
             vec3(x, y, z)
         });
 
+        let base_color_spectrum = Spectrumf32::from_coefficients(self.base_color_coefficients);
+
+        let base_color_spectrum= match self.base_color_texture {
+            Some(index) => {
+                let coeffs_sample = textures[index].sample_coefficients(texture_coordinates.x, texture_coordinates.y).unwrap();
+                base_color_spectrum * Spectrumf32::from_coefficients(coeffs_sample)
+            },
+            None => base_color_spectrum,
+        };
+
         MaterialSample {
             base_color: self.base_color * sample(self.base_color_texture).pow(GAMMA),
-            //TODO: Figure out how to/whether to combine with texture sample
-            base_color_coefficients: self.base_color_coefficients,
+            base_color_spectrum,
             metallic: self.metallic * metallic_roughness.b,
             roughness: (self.roughness * metallic_roughness.g).max(0.001), 
             ior: self.ior,

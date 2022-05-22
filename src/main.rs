@@ -27,7 +27,10 @@ use preview::app::App;
 use args::Args;
 use raytracer::Raytracer;
 use scene::Scene;
-use util::save_image;
+use util::{
+    save_image,
+    convert_spectrum_buffer_to_rgb
+};
 
 pub const ACCEL_INDEX: usize = 2;
 
@@ -104,5 +107,6 @@ fn headless_render(args: Args)
     let (buffer, time_elapsed) = raytracer.render(image_size, args.samples, ACCEL_INDEX);
     println!("Finished rendering in {} seconds", time_elapsed);
 
+    let buffer = convert_spectrum_buffer_to_rgb(buffer);
     save_image(&buffer, image_size, args.output_file);
 }

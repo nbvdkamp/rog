@@ -21,14 +21,13 @@ use triangle::Triangle;
 use ray::{Ray, IntersectionResult};
 use crate::{
     camera::PerspectiveCamera,
-    color::RGBf32,
-    constants::GAMMA,
     material::Material,
     light::Light,
     texture::Texture,
     environment::Environment,
     mesh::Vertex,
     scene::Scene,
+    spectrum::Spectrumf32,
 };
 
 use aabb::BoundingBox;
@@ -43,7 +42,9 @@ use acceleration::{
 };
 use bsdf::{
     brdf_sample,
+    Sample,
     brdf_eval,
+    Evaluation,
     mis2,
 };
 
@@ -112,7 +113,7 @@ impl Raytracer {
         result
     }
 
-    pub fn render(&self, image_size: Vector2<usize>, samples: usize, accel_index: usize) -> (Vec::<RGBf32>, f32) {
+    pub fn render(&self, image_size: Vector2<usize>, samples: usize, accel_index: usize) -> (Vec::<Spectrumf32>, f32) {
         let aspect_ratio = image_size.x as f32 / image_size.y as f32;
         let fov_factor = (self.camera.y_fov / 2.).tan();
 
@@ -121,7 +122,7 @@ impl Raytracer {
         let cam_model = self.camera.model;
         let cam_pos4 =  cam_model * Vector4::new(0., 0., 0., 1.);
         let camera_pos = Point3::from_homogeneous(cam_pos4);
-        let buffer = vec!(RGBf32::from_grayscale(0.0); image_size.x * image_size.y);
+        let buffer = vec!(Spectrumf32::constant(0.0); image_size.x * image_size.y);
         let buffer= Arc::new(Mutex::new(buffer));
 
         let thread_count = usize::max(num_cpus::get() - 2, 1);
@@ -167,7 +168,7 @@ impl Raytracer {
 
                         for y in tile.start.y..tile.end.y {
                             for x in tile.start.x..tile.end.x {
-                                let mut color = RGBf32::new(0.0, 0.0, 0.0);
+                                let mut color = Spectrumf32::constant(0.0);
 
                                 for sample in 0..samples {
                                     let mut rng = rand::thread_rng();
@@ -198,7 +199,6 @@ impl Raytracer {
                                 }
 
                                 color = color / samples as f32;
-                                color = color.pow(1.0 / GAMMA);
 
                                 let mut buffer = buffer.lock().unwrap();
                                 buffer[image_size.x * y + x] = color;
@@ -209,9 +209,11 @@ impl Raytracer {
             }
         }).unwrap();
 
-        let lock = Arc::try_unwrap(buffer).expect("Buffer lock has multiple owners");
+        // Errors when the lock has multiple owners but the scope should guarantee that never happens
+        let lock = Arc::try_unwrap(buffer).ok().unwrap();
+        let buffer = lock.into_inner().expect("Cannot unlock buffer mutex");
 
-        (lock.into_inner().expect("Cannot unlock buffer mutex"), start.elapsed().as_secs_f32())
+        (buffer, start.elapsed().as_secs_f32())
     }
 
     fn pixel_to_screen(&self, pixel: Vector2<usize>, offset: Vector2<f32>, image_size: Vector2<usize>, aspect_ratio: f32, fov_factor: f32) -> Vector2<f32> {
@@ -226,9 +228,9 @@ impl Raytracer {
         self.triangles.len()
     }
 
-    fn radiance(&self, ray: Ray, accel_index: usize) -> RGBf32 {
-        let mut result = RGBf32::from_grayscale(0.0);
-        let mut path_weight = RGBf32::from_grayscale(1.0);
+    fn radiance(&self, ray: Ray, accel_index: usize) -> Spectrumf32 {
+        let mut result = Spectrumf32::constant(0.0);
+        let mut path_weight = Spectrumf32::constant(1.0);
         let mut ray = ray;
 
         let num_lights = self.lights.len();
@@ -317,26 +319,31 @@ impl Raytracer {
 
                         if !shadowed {
                             let local_outgoing = frame.to_local(light_sample.direction);
-                            let (brdf, pdf) = brdf_eval(&mat_sample, local_incident, local_outgoing);
+                            let eval = brdf_eval(&mat_sample, local_incident, local_outgoing);
 
-                            if brdf > RGBf32::from_grayscale(0.0) {
+                            if let Evaluation::Evaluation { brdf, pdf } = eval {
                                 let light_pick_prob= 1.0 / num_lights as f32;
                                 let light_pdf = light_pick_prob * light_sample.pdf;
                                 let mis_weight = mis2(light_pdf, pdf);
 
-                                result += path_weight * mat_sample.base_color * light_sample.intensity * brdf / light_pdf * light.color;
+                                result += &path_weight * &mat_sample.base_color_spectrum * light_sample.intensity * brdf / light_pdf;//TODO: * light.color;
                             }
                         }
                     }
                 }
 
-                let (local_bounce_dir, brdf, pdf) = brdf_sample(&mat_sample, local_incident);
+                let sample = brdf_sample(&mat_sample, local_incident);
 
-                path_weight *= brdf / pdf * mat_sample.base_color;
+                let (local_bounce_dir, brdf, pdf) = match sample {
+                    Sample::Sample { outgoing, brdf, pdf } => (outgoing, brdf, pdf),
+                    Sample::Null => break,
+                };
 
-                let continue_prob = path_weight.max_component().max(1.0);
+                path_weight *= &brdf / pdf * mat_sample.base_color_spectrum;
 
-                if pdf != 0.0 && rand::thread_rng().gen::<f32>() < continue_prob {
+                let continue_prob = path_weight.max_value().max(1.0);
+
+                if rand::thread_rng().gen::<f32>() < continue_prob {
                     path_weight /= continue_prob;
                 } else {
                     break;

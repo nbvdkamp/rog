@@ -20,9 +20,10 @@ use crate::{
     constants::GAMMA,
     material::Material,
     texture::{Texture, Format},
-    light::Light, 
+    light::Light,
     color::RGBf32,
     environment::Environment,
+    spectrum::Spectrumf32,
 };
 
 use rgb2spec::RGB2Spec;
@@ -38,7 +39,7 @@ pub struct Scene {
 fn transform_to_mat(t: Transform) -> Matrix4<f32> {
     match t {
         Transform::Matrix { matrix } => { matrix.into() }
-        Transform::Decomposed { translation, rotation, scale } => { 
+        Transform::Decomposed { translation, rotation, scale } => {
             let r: Matrix4<f32> = Quaternion::from(rotation).into();
             let t = Matrix4::from_translation(translation.into());
             let s = Matrix4::from_nonuniform_scale(scale[0], scale[1], scale[2]);
@@ -77,8 +78,14 @@ impl Scene {
                     Texture::new(pixels, i.width, i.height, format)
                 }).collect();
 
-                let environment = Environment {
-                    color: RGBf32::from_hex("#404040").pow(GAMMA),
+                let environment = {
+                    let color = RGBf32::from_hex("#404040").pow(GAMMA);
+                    let coeffs = rgb2spec.fetch(color.into());
+
+                    Environment {
+                        color,
+                        spectrum: Spectrumf32::from_coefficients(coeffs)
+                    }
                 };
 
                 let mut result = Scene {
@@ -88,7 +95,7 @@ impl Scene {
                     camera: PerspectiveCamera::default(),
                     environment,
                 };
-                
+
                 for scene in document.scenes() {
                     result.parse_nodes(scene.nodes().collect(), &buffers, Matrix4::identity(), &rgb2spec);
                 }
@@ -106,7 +113,7 @@ impl Scene {
 
     fn parse_nodes(&mut self,
         nodes: Vec<gltf::Node>,
-        buffers: &[gltf::buffer::Data], 
+        buffers: &[gltf::buffer::Data],
         base_transform: Matrix4<f32>,
         rgb2spec: &RGB2Spec) {
 
@@ -154,7 +161,7 @@ impl Scene {
             let base_color_coefficients = rgb2spec.fetch([base_color.r, base_color.g, base_color.b]);
 
             let get_index = |t: gltf::texture::Info| t.texture().source().index();
-            let base_color_texture= pbr.base_color_texture().map(get_index);
+            let base_color_texture = pbr.base_color_texture().map(get_index);
 
             base_color_texture.map(|i| self.textures[i].create_spectrum_coefficients(rgb2spec));
 
@@ -179,7 +186,7 @@ impl Scene {
                     )
                     .map(|pos| Point3::from_homogeneous(transform * Vector4::new(pos[0], pos[1], pos[2], 1.0)))
                     .collect();
-            
+
             let indices = reader
                 .read_indices()
                 .map(|read_indices| {
@@ -276,7 +283,7 @@ impl Scene {
                         tex_coord,
                     }
                 }).collect();
-            
+
             let mesh = Mesh::new(vertices, indices, material);
 
             // Put meshes with RGBA textures at the end of the list so alpha blending works correctly

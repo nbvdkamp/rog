@@ -5,7 +5,7 @@ use crate::{
     cie_data as CIE,
 };
 
-type Spectrumf32 = ArrSpectrumf32;
+pub type Spectrumf32 = ArrSpectrumf32;
 
 const SPECTRUM_RES: usize = 100;
 
@@ -20,7 +20,7 @@ impl Spectrumf32 {
             let wavelength = CIE::LAMBDA_MIN + i as f32 * step_size;
             let whitepoint_sample = CIE::illuminant_d65_interp(wavelength);
 
-            xyz += self.data[i] * CIE::observer_1931_interp(wavelength) * whitepoint_sample * step_size ;
+            xyz += self.data[i] * CIE::observer_1931_interp(wavelength) * whitepoint_sample * step_size;
         }
 
         xyz
@@ -42,9 +42,20 @@ impl Spectrumf32 {
 
         spectrum
     }
+
+    pub fn max_value(&self) -> f32 {
+        let mut result = f32::MIN;
+
+        for v in &self.data {
+            result = result.max(*v);
+        }
+
+        result
+    }
 }
 
-struct VecSpectrumf32 {
+#[derive(Clone)]
+pub struct VecSpectrumf32 {
     data: Vec<f32>
 }
 
@@ -87,13 +98,13 @@ impl_op_ex!(/ |a: &VecSpectrumf32, b: &VecSpectrumf32| -> VecSpectrumf32 {
     VecSpectrumf32 { data: data.collect() }
 });
 
-impl_op_commutative!(* |a: VecSpectrumf32, b: f32| -> VecSpectrumf32 {
+impl_op_ex_commutative!(* |a: &VecSpectrumf32, b: f32| -> VecSpectrumf32 {
     let data = a.data.iter().map(|a| a * b);
 
     VecSpectrumf32 { data: data.collect() }
 });
 
-impl_op_commutative!(/ |a: VecSpectrumf32, b: f32| -> VecSpectrumf32 {
+impl_op_ex_commutative!(/ |a: &VecSpectrumf32, b: f32| -> VecSpectrumf32 {
     let data = a.data.iter().map(|a| a / b);
 
     VecSpectrumf32 { data: data.collect() }
@@ -124,8 +135,9 @@ impl DivAssign<f32> for VecSpectrumf32 {
 }
 
 
-struct ArrSpectrumf32 {
-    data: [f32; SPECTRUM_RES],
+#[derive(Clone, Copy)]
+pub struct ArrSpectrumf32 {
+    pub data: [f32; SPECTRUM_RES],
 }
 
 impl ArrSpectrumf32 {
@@ -182,7 +194,7 @@ impl_op_ex!(/ |a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {
     ArrSpectrumf32 { data }
 });
 
-impl_op_commutative!(* |a: ArrSpectrumf32, b: f32| -> ArrSpectrumf32 {
+impl_op_ex_commutative!(* |a: &ArrSpectrumf32, b: f32| -> ArrSpectrumf32 {
     let mut data = [0.0; SPECTRUM_RES];
 
     for i in 0..SPECTRUM_RES {
@@ -192,7 +204,7 @@ impl_op_commutative!(* |a: ArrSpectrumf32, b: f32| -> ArrSpectrumf32 {
     ArrSpectrumf32 { data }
 });
 
-impl_op_commutative!(/ |a: ArrSpectrumf32, b: f32| -> ArrSpectrumf32 {
+impl_op_ex_commutative!(/ |a: &ArrSpectrumf32, b: f32| -> ArrSpectrumf32 {
     let mut data = [0.0; SPECTRUM_RES];
 
     for i in 0..SPECTRUM_RES {
