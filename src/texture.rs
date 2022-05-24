@@ -52,46 +52,18 @@ impl Texture {
     /// Note that the data returned is rgb2spec coefficients not actually in any RGB color space
     pub fn sample_coefficients(&self, u: f32, v: f32) -> Option<RGBAf32> {
         self.coefficients_image.as_ref().map(|image| {
-            let x = u * self.width as f32;
-            let y = v * self.height as f32;
-
-            // Can't use % and u32 here because texture coordinates can be negative
-            let x0 = (x.floor() as i32).rem_euclid(self.width as i32) as u32;
-            let y0 = (y.floor() as i32).rem_euclid(self.height as i32) as u32;
-            let x1 = (x0 + 1) % self.width;
-            let y1 = (y0 + 1) % self.height;
-
-            let to_rgbaf32 = |x: u32, y: u32| {
+            let get_pixel = |x: u32, y: u32| {
                 let pixel = &image[(y * self.width + x) as usize];
                 let c = pixel.coeffs;
                 RGBAf32::new(c[0], c[1], c[2], pixel.alpha)
             };
 
-            // Bilinear interpolation
-            let xfract = x - x.floor();
-            let yfract = y - y.floor();
-
-            let p00 = to_rgbaf32(x0, y0);
-            let p01 = to_rgbaf32(x0, y1);
-            let p10 = to_rgbaf32(x1, y0);
-            let p11 = to_rgbaf32(x1, y1);
-            let p0 = p00.lerp(p01, yfract);
-            let p1 = p10.lerp(p11, yfract);
-            p0.lerp(p1, xfract)
+            wrapping_linear_interp(u, v, self.width, self.height, get_pixel)
         })
     }
 
     pub fn sample(&self, u: f32, v: f32) -> RGBAf32 {
-        let x = u * self.width as f32;
-        let y = v * self.height as f32;
-
-        // Can't use % and u32 here because texture coordinates can be negative
-        let x0 = (x.trunc() as i32).rem_euclid(self.width as i32) as u32;
-        let y0 = (y.trunc() as i32).rem_euclid(self.height as i32) as u32;
-        let x1 = (x0 + 1) % self.width;
-        let y1 = (y0 + 1) % self.height;
-
-        let to_rgbaf32 = |x: u32, y: u32| {
+        let get_pixel = |x: u32, y: u32| {
             let pixel_index = y * self.width + x;
             let i = (pixel_index * self.format.bytes()) as usize;
 
@@ -109,14 +81,7 @@ impl Texture {
             )
         };
 
-        // Bilinear interpolation
-        let p00 = to_rgbaf32(x0, y0);
-        let p01 = to_rgbaf32(x0, y1);
-        let p10 = to_rgbaf32(x1, y0);
-        let p11 = to_rgbaf32(x1, y1);
-        let p0 = p00.lerp(p01, y.fract());
-        let p1 = p10.lerp(p11, y.fract());
-        p0.lerp(p1, x.fract())
+        wrapping_linear_interp(u, v, self.width, self.height, get_pixel)
     }
 
     pub fn sample_alpha(&self, u: f32, v: f32) -> f32 {
@@ -124,29 +89,13 @@ impl Texture {
             return 1.0;
         }
 
-        let x = u * self.width as f32;
-        let y = v * self.height as f32;
-
-        // Can't use % and u32 here because texture coordinates can be negative
-        let x0 = (x.trunc() as i32).rem_euclid(self.width as i32) as u32;
-        let y0 = (y.trunc() as i32).rem_euclid(self.height as i32) as u32;
-        let x1 = (x0 + 1) % self.width;
-        let y1 = (y0 + 1) % self.height;
-
-        let alpha = |x: u32, y: u32| {
+        let get_pixel = |x: u32, y: u32| {
             let pixel_index = y * self.width + x;
             let i = (pixel_index * self.format.bytes()) as usize;
             self.image[i + 3] as f32 / 255.0
         };
 
-        // Bilinear interpolation
-        let p00 = alpha(x0, y0);
-        let p01 = alpha(x0, y1);
-        let p10 = alpha(x1, y0);
-        let p11 = alpha(x1, y1);
-        let p0 = p00.lerp(p01, y.fract());
-        let p1 = p10.lerp(p11, y.fract());
-        p0.lerp(p1, x.fract())
+        wrapping_linear_interp(u, v, self.width, self.height, get_pixel)
     }
 
     pub fn create_spectrum_coefficients(&mut self, rgb2spec: &RGB2Spec) {
@@ -183,4 +132,30 @@ impl Texture {
     pub fn size(&self) -> Vector2<u32> {
         vec2(self.width, self.height)
     }
+}
+
+fn wrapping_linear_interp<R>(u: f32, v: f32, width: u32, height: u32, get_pixel: impl Fn(u32, u32) -> R) -> R
+where
+    R: Lerp<f32>,
+{
+    let x = u * width as f32;
+    let y = v * height as f32;
+
+    // Can't use % and u32 here because texture coordinates can be negative
+    let x0 = (x.floor() as i32).rem_euclid(width as i32) as u32;
+    let y0 = (y.floor() as i32).rem_euclid(height as i32) as u32;
+    let x1 = (x0 + 1) % width;
+    let y1 = (y0 + 1) % height;
+
+    // Bilinear interpolation
+    let xfract = x - x.floor();
+    let yfract = y - y.floor();
+
+    let p00 = get_pixel(x0, y0);
+    let p01 = get_pixel(x0, y1);
+    let p10 = get_pixel(x1, y0);
+    let p11 = get_pixel(x1, y1);
+    let p0 = p00.lerp(p01, yfract);
+    let p1 = p10.lerp(p11, yfract);
+    p0.lerp(p1, xfract)
 }
