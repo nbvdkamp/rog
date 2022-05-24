@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::{thread_rng, Rng};
 use std::{
     sync::{Arc, Mutex},
     time::Instant,
@@ -27,7 +27,7 @@ use crate::{
     mesh::Vertex,
     scene::Scene,
     spectrum::Spectrumf32,
-    texture::Texture,
+    texture::{Format, Texture},
 };
 use ray::{IntersectionResult, Ray};
 use triangle::Triangle;
@@ -258,8 +258,9 @@ impl Raytracer {
         let mut ray = ray;
 
         let num_lights = self.lights.len();
+        let mut depth = 0;
 
-        for _ in 0..self.max_depth {
+        while depth < self.max_depth {
             if let TraceResult::Hit {
                 triangle_index,
                 t,
@@ -276,6 +277,26 @@ impl Raytracer {
                     &self.verts[triangle.index2 as usize],
                     &self.verts[triangle.index3 as usize],
                 ];
+
+                let has_texture_coords = verts[0].tex_coord.is_some();
+
+                let texture_coords = if has_texture_coords {
+                    (1. - u - v) * verts[0].tex_coord.unwrap()
+                        + u * verts[1].tex_coord.unwrap()
+                        + v * verts[2].tex_coord.unwrap()
+                } else {
+                    vec2(0.0, 0.0)
+                };
+
+                let mat_sample = material.sample(texture_coords, &self.textures);
+
+                if thread_rng().gen::<f32>() > mat_sample.alpha {
+                    // Offset to the back of the triangle
+                    ray.origin = ray.traverse(t + 0.0002);
+
+                    // Don't count alpha hits for max bounces
+                    continue;
+                }
 
                 let edge1 = verts[0].position - verts[1].position;
                 let edge2 = verts[0].position - verts[2].position;
@@ -296,21 +317,10 @@ impl Raytracer {
                     normal = -normal;
                 }
 
-                let has_texture_coords = verts[0].tex_coord.is_some();
-
-                let texture_coords = if has_texture_coords {
-                    (1. - u - v) * verts[0].tex_coord.unwrap()
-                        + u * verts[1].tex_coord.unwrap()
-                        + v * verts[2].tex_coord.unwrap()
-                } else {
-                    vec2(0.0, 0.0)
-                };
-
                 let tangent =
                     ((1. - u - v) * verts[0].tangent + u * verts[1].tangent + v * verts[2].tangent).normalize();
 
                 let offset_hit_pos = hit_pos + 0.0002 * normal;
-                let mat_sample = material.sample(texture_coords, &self.textures);
 
                 let frame = {
                     let f = ShadingFrame::new_with_tangent(normal, tangent);
@@ -336,13 +346,8 @@ impl Raytracer {
                             origin: offset_hit_pos,
                             direction: light_sample.direction,
                         };
-                        let mut shadowed = false;
 
-                        if let TraceResult::Hit { t, .. } = self.trace(&shadow_ray, accel_index) {
-                            if t < light_sample.distance {
-                                shadowed = true;
-                            }
-                        }
+                        let shadowed = self.cast_shadow_ray(shadow_ray, light_sample.distance, accel_index);
 
                         if !shadowed {
                             let local_outgoing = frame.to_local(light_sample.direction);
@@ -386,9 +391,70 @@ impl Raytracer {
                 result += path_weight * self.environment.sample(ray.direction);
                 break;
             }
+
+            depth += 1;
         }
 
         result
+    }
+
+    /// Checks if distance to the nearest obstructing triangle is less than the distance to the light
+    /// Handles alpha by checking if R ~ U(0, 1) is greater than the texture's alpha and ignoring
+    /// the triangle if it is.
+    fn cast_shadow_ray(&self, ray: Ray, light_distance: f32, accel_index: usize) -> bool {
+        let mut distance = light_distance;
+        let mut ray = ray;
+
+        while let TraceResult::Hit {
+            t,
+            u,
+            v,
+            triangle_index,
+        } = self.trace(&ray, accel_index)
+        {
+            // Never shadowed
+            if t > distance {
+                break;
+            }
+
+            let triangle = &self.triangles[triangle_index as usize];
+            let material = &self.materials[triangle.material_index as usize];
+
+            if let Some(i) = material.base_color_texture {
+                if self.textures[i].format == Format::Rgb {
+                    return true;
+                }
+            } else {
+                return true;
+            }
+
+            let verts = [
+                &self.verts[triangle.index1 as usize],
+                &self.verts[triangle.index2 as usize],
+                &self.verts[triangle.index3 as usize],
+            ];
+
+            let has_texture_coords = verts[0].tex_coord.is_some();
+
+            let texture_coordinates = if has_texture_coords {
+                (1. - u - v) * verts[0].tex_coord.unwrap()
+                    + u * verts[1].tex_coord.unwrap()
+                    + v * verts[2].tex_coord.unwrap()
+            } else {
+                vec2(0.0, 0.0)
+            };
+
+            if thread_rng().gen::<f32>() > material.sample_alpha(texture_coordinates, &self.textures) {
+                // Cast another ray from slightly further than where we hit
+                let dist = t + 0.0002;
+                ray.origin = ray.traverse(dist);
+                distance -= dist;
+            } else {
+                return true;
+            }
+        }
+
+        false
     }
 
     fn trace(&self, ray: &Ray, accel_index: usize) -> TraceResult {

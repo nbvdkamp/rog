@@ -17,6 +17,14 @@ pub struct RGBu8 {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct RGBAf32 {
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct XYZf32 {
     pub x: f32,
     pub y: f32,
@@ -155,6 +163,7 @@ macro_rules! impl_u8_color_tuple {
 
 impl_f32_color_tuple!(RGBf32 { r, g, b });
 impl_f32_color_tuple_normalized!(RGBf32 { r, g, b }, RGBu8);
+impl_f32_color_tuple!(RGBAf32 { r, g, b, a });
 impl_u8_color_tuple!(RGBu8 { r, g, b });
 
 impl_f32_color_tuple!(XYZf32 { x, y, z });
@@ -174,6 +183,12 @@ impl XYZf32 {
         let b = 0.055648 * x - 0.204043 * y + 1.057311 * z;
 
         RGBf32::new(r.max(0.0), g.max(0.0), b.max(0.0))
+    }
+}
+
+impl RGBAf32 {
+    pub fn rgb(&self) -> RGBf32 {
+        RGBf32::new(self.r, self.g, self.b)
     }
 }
 

@@ -1,4 +1,4 @@
-use super::color::RGBf32;
+use super::color::{RGBAf32, RGBf32};
 use cgmath::{vec3, Vector2, Vector3};
 
 use crate::{constants::GAMMA, spectrum::Spectrumf32, texture::Texture};
@@ -19,7 +19,7 @@ pub struct Material {
 }
 
 pub struct MaterialSample {
-    pub base_color: RGBf32,
+    pub alpha: f32,
     pub base_color_spectrum: Spectrumf32,
     pub metallic: f32,
     pub roughness: f32,
@@ -34,7 +34,7 @@ impl Material {
     pub fn sample(&self, texture_coordinates: Vector2<f32>, textures: &[Texture]) -> MaterialSample {
         let sample = |tex: Option<usize>| match tex {
             Some(index) => textures[index].sample(texture_coordinates.x, texture_coordinates.y),
-            None => RGBf32::white(),
+            None => RGBAf32::white(),
         };
 
         // B channel is metallic, G is roughness
@@ -49,27 +49,36 @@ impl Material {
         });
 
         let base_color_spectrum = Spectrumf32::from_coefficients(self.base_color_coefficients);
+        let mut alpha = 1.0;
 
         let base_color_spectrum = match self.base_color_texture {
             Some(index) => {
                 let coeffs_sample = textures[index]
                     .sample_coefficients(texture_coordinates.x, texture_coordinates.y)
                     .unwrap();
-                base_color_spectrum * Spectrumf32::from_coefficients(coeffs_sample)
+                alpha = coeffs_sample.a;
+                base_color_spectrum * Spectrumf32::from_coefficients(coeffs_sample.rgb().into())
             }
             None => base_color_spectrum,
         };
 
         MaterialSample {
-            base_color: self.base_color * sample(self.base_color_texture).pow(GAMMA),
+            alpha,
             base_color_spectrum,
             metallic: self.metallic * metallic_roughness.b,
             roughness: (self.roughness * metallic_roughness.g).max(0.001),
             ior: self.ior,
             transmission: self.transmission,
-            emissive: self.emissive * sample(self.emissive_texture).pow(GAMMA),
+            emissive: self.emissive * sample(self.emissive_texture).rgb().pow(GAMMA),
             specular: 0.5,
             shading_normal,
+        }
+    }
+
+    pub fn sample_alpha(&self, texture_coordinates: Vector2<f32>, textures: &[Texture]) -> f32 {
+        match self.base_color_texture {
+            Some(index) => textures[index].sample_alpha(texture_coordinates.x, texture_coordinates.y),
+            None => 1.0,
         }
     }
 }
