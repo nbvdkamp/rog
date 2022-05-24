@@ -2,12 +2,8 @@ use cgmath::{vec2, Vector2};
 use lerp::Lerp;
 use rayon::prelude::*;
 use rgb2spec::RGB2Spec;
-use std::ops;
 
-use crate::{
-    color::{RGBAf32, RGBf32},
-    constants::GAMMA,
-};
+use crate::{color::RGBAf32, constants::GAMMA};
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum Format {
@@ -60,8 +56,8 @@ impl Texture {
             let y = v * self.height as f32;
 
             // Can't use % and u32 here because texture coordinates can be negative
-            let x0 = (x.trunc() as i32).rem_euclid(self.width as i32) as u32;
-            let y0 = (y.trunc() as i32).rem_euclid(self.height as i32) as u32;
+            let x0 = (x.floor() as i32).rem_euclid(self.width as i32) as u32;
+            let y0 = (y.floor() as i32).rem_euclid(self.height as i32) as u32;
             let x1 = (x0 + 1) % self.width;
             let y1 = (y0 + 1) % self.height;
 
@@ -72,13 +68,16 @@ impl Texture {
             };
 
             // Bilinear interpolation
+            let xfract = x - x.floor();
+            let yfract = y - y.floor();
+
             let p00 = to_rgbaf32(x0, y0);
             let p01 = to_rgbaf32(x0, y1);
             let p10 = to_rgbaf32(x1, y0);
             let p11 = to_rgbaf32(x1, y1);
-            let p0 = p00.lerp(p01, y.fract());
-            let p1 = p10.lerp(p11, y.fract());
-            p0.lerp(p1, x.fract())
+            let p0 = p00.lerp(p01, yfract);
+            let p1 = p10.lerp(p11, yfract);
+            p0.lerp(p1, xfract)
         })
     }
 
