@@ -14,7 +14,7 @@ mod aabb;
 mod acceleration;
 mod axis;
 mod bsdf;
-mod geometry;
+pub mod geometry;
 mod ray;
 mod shadingframe;
 mod triangle;
@@ -356,9 +356,18 @@ impl Raytracer {
                             if let Evaluation::Evaluation { brdf, pdf } = eval {
                                 let light_pick_prob = 1.0 / num_lights as f32;
                                 let light_pdf = light_pick_prob * light_sample.pdf;
-                                let mis_weight = mis2(light_pdf, pdf);
 
-                                result += path_weight * mat_sample.base_color_spectrum * light_sample.intensity * brdf
+                                let mis_weight = if light_sample.use_mis {
+                                    mis2(light_pdf, pdf)
+                                } else {
+                                    1.0
+                                };
+
+                                result += path_weight
+                                    * mat_sample.base_color_spectrum
+                                    * mis_weight
+                                    * light_sample.intensity
+                                    * brdf
                                     / light_pdf
                                     * light.spectrum;
                             }

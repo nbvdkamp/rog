@@ -16,6 +16,7 @@ use cgmath::{
     Zero,
 };
 use gltf::{camera::Projection, scene::Transform};
+use serde::Deserialize;
 
 use crate::{
     camera::PerspectiveCamera,
@@ -319,14 +320,34 @@ impl Scene {
     }
 }
 
+#[derive(Deserialize)]
+struct LightExtras {
+    angular_diameter: Option<f32>,
+}
+
 fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>, rgb2spec: &RGB2Spec) -> Option<Light> {
+    let extras: Option<LightExtras> = light
+        .extras()
+        .as_ref()
+        .and_then(|extras| serde_json::from_str(&extras.as_ref().get()).ok());
+
     let kind = match light.kind() {
         gltf::khr_lights_punctual::Kind::Point => crate::light::Kind::Point,
         gltf::khr_lights_punctual::Kind::Directional => {
             let m = Matrix3::from_cols(transform.x.truncate(), transform.y.truncate(), transform.z.truncate());
             let normal_transform = m.invert().unwrap().transpose();
             let direction = -(normal_transform * vec3(0.0, 0.0, -1.0)).normalize();
-            crate::light::Kind::Directional { direction }
+
+            let angular_diameter = (|| extras?.angular_diameter)().map_or(0.0, |degrees| degrees.to_radians());
+            let angle = angular_diameter / 2.0;
+            let radius = angle.tan();
+            let area = std::f32::consts::PI * radius * radius;
+
+            crate::light::Kind::Directional {
+                direction,
+                radius,
+                area,
+            }
         }
         gltf::khr_lights_punctual::Kind::Spot {
             inner_cone_angle,
