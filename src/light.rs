@@ -14,7 +14,9 @@ pub struct Light {
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Kind {
-    Point,
+    Point {
+        radius: f32,
+    },
     Directional {
         direction: Vector3<f32>,
         radius: f32,
@@ -37,19 +39,37 @@ pub struct LightSample {
 impl Light {
     pub fn sample(&self, p: Point3<f32>) -> LightSample {
         match self.kind {
-            Kind::Point => {
-                let v = self.pos - p;
+            Kind::Point { radius } => {
+                let area = std::f32::consts::PI * radius * radius;
+                let pdf;
+                let use_mis;
+                let sample_pos;
+                let dir_to_center = (self.pos - p).normalize();
+
+                if area > 0.0 {
+                    sample_pos = self.pos + radius * orthogonal_disk_sample(dir_to_center);
+                    use_mis = true;
+                    pdf = 1.0 / area;
+                } else {
+                    sample_pos = self.pos;
+                    use_mis = false;
+                    pdf = 1.0;
+                }
+
+                let v = sample_pos - p;
                 let distance = v.magnitude();
                 let direction = v / distance;
                 let falloff = distance * distance;
-                let intensity = self.intensity / (falloff * 4.0 * std::f32::consts::PI);
+
+                let cos_theta = dir_to_center.dot(direction);
+                let factor = if cos_theta <= 0.0 { 0.0 } else { falloff / cos_theta };
 
                 LightSample {
                     direction,
                     distance,
-                    intensity,
-                    pdf: 1.0,
-                    use_mis: false,
+                    intensity: pdf * self.intensity / (4.0 * std::f32::consts::PI),
+                    pdf: pdf * factor,
+                    use_mis,
                 }
             }
             Kind::Directional {

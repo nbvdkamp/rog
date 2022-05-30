@@ -322,6 +322,7 @@ impl Scene {
 
 #[derive(Deserialize)]
 struct LightExtras {
+    radius: Option<f32>,
     angular_diameter: Option<f32>,
 }
 
@@ -332,7 +333,10 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>,
         .and_then(|extras| serde_json::from_str(&extras.as_ref().get()).ok());
 
     let kind = match light.kind() {
-        gltf::khr_lights_punctual::Kind::Point => crate::light::Kind::Point,
+        gltf::khr_lights_punctual::Kind::Point => {
+            let radius = (|| extras?.radius)().unwrap_or(0.0);
+            crate::light::Kind::Point { radius }
+        }
         gltf::khr_lights_punctual::Kind::Directional => {
             let m = Matrix3::from_cols(transform.x.truncate(), transform.y.truncate(), transform.z.truncate());
             let normal_transform = m.invert().unwrap().transpose();
