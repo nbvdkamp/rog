@@ -81,7 +81,7 @@ mod ggx {
         // VNDF eq. 3 (Heitz 2018)
         let visible_normal_distrib = g_i * i_dot_m.max(0.0) * normal_distrib / i_dot_n;
 
-        let fresnel = fresnel::disney(mat, i_dot_m, mat.ior);
+        let fresnel = fresnel::disney(mat, i_dot_m);
 
         // Leaving o_dot_n out of the divisor to multiply the result by cos theta
         let brdf = fresnel * shadow_masking * normal_distrib / (4.0 * i_dot_n);
@@ -252,14 +252,14 @@ pub fn eval(mat: &MaterialSample, incident: Vector3<f32>, outgoing: Vector3<f32>
 
     // TODO: Clearcoat
 
-    // if diffuse_weight > 0.0 {
-    //     let diffuse = eval_disney_diffuse(mat, wo, wm, wi, thin);
-    //     //TODO: Add Sheen
-    //     reflectance += diffuse_weight * (diffuse * mat.base_color_spectrum); //+ sheen);
+    if diffuse_weight > 0.0 {
+        let diffuse = eval_disney_diffuse(mat, wo, wm, wi, thin);
+        //TODO: Add Sheen
+        reflectance += diffuse_weight * (diffuse * mat.base_color_spectrum); //+ sheen);
 
-    //     forward_pdf += lobe_pdfs.diffuse * wi.z.abs();
-    //     reverse_pdf += lobe_pdfs.diffuse * wo.z.abs();
-    // }
+        forward_pdf += lobe_pdfs.diffuse * wi.z.abs();
+        reverse_pdf += lobe_pdfs.diffuse * wo.z.abs();
+    }
 
     // if transmission_weight > 0.0 {
     //     let scaled_rougness = if thin {
