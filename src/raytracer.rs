@@ -39,7 +39,7 @@ use acceleration::{
     kdtree::KdTree,
     structure::{AccelerationStructure, TraceResult},
 };
-use bsdf::{brdf_eval, brdf_sample, mis2, Evaluation, Sample};
+use bsdf::{mis2, Evaluation, Sample};
 use shadingframe::ShadingFrame;
 
 use geometry::ensure_valid_reflection;
@@ -302,6 +302,8 @@ impl Raytracer {
                 let edge2 = verts[0].position - verts[2].position;
                 let mut geom_normal = edge1.cross(edge2).normalize();
 
+                //TODO: Determine and pass if in or outside material
+
                 // Interpolate the vertex normals
                 let mut normal =
                     ((1. - u - v) * verts[0].normal + u * verts[1].normal + v * verts[2].normal).normalize();
@@ -351,7 +353,7 @@ impl Raytracer {
 
                         if !shadowed {
                             let local_outgoing = frame.to_local(light_sample.direction);
-                            let eval = brdf_eval(&mat_sample, local_incident, local_outgoing);
+                            let eval = bsdf::eval(&mat_sample, local_incident, local_outgoing);
 
                             if let Evaluation::Evaluation { brdf, pdf } = eval {
                                 let light_pick_prob = 1.0 / num_lights as f32;
@@ -364,7 +366,7 @@ impl Raytracer {
                                 };
 
                                 result += path_weight
-                                    * mat_sample.base_color_spectrum
+                                    // * mat_sample.base_color_spectrum
                                     * mis_weight
                                     * light_sample.intensity
                                     * brdf
@@ -374,8 +376,9 @@ impl Raytracer {
                         }
                     }
                 }
+                break; // no indirect for now
 
-                let sample = brdf_sample(&mat_sample, local_incident);
+                let sample = bsdf::sample(&mat_sample, local_incident);
 
                 let (local_bounce_dir, brdf, pdf) = match sample {
                     Sample::Sample { outgoing, brdf, pdf } => (outgoing, brdf, pdf),
