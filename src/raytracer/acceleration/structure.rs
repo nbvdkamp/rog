@@ -7,7 +7,7 @@ use crate::{
 pub enum TraceResult {
     Miss,
     Hit {
-        triangle_index: i32,
+        triangle_index: u32,
         t: f32,
         u: f32,
         v: f32,

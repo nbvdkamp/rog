@@ -193,7 +193,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                             if t < min_distance {
                                 min_distance = t;
                                 result = TraceResult::Hit {
-                                    triangle_index: *triangle_index,
+                                    triangle_index: *triangle_index as u32,
                                     t,
                                     u,
                                     v,

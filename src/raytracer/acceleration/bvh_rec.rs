@@ -18,7 +18,7 @@ pub struct BoundingVolumeHierarchyRec {
 
 enum Node {
     Leaf {
-        triangle_index: i32,
+        triangle_index: u32,
         bounds: BoundingBox,
     },
     Inner {
@@ -156,7 +156,7 @@ impl BoundingVolumeHierarchyRec {
         }
     }
 
-    fn leaf_intersect(&self, triangle_index: i32, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+    fn leaf_intersect(&self, triangle_index: u32, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
         let triangle = &triangles[triangle_index as usize];
         let p1 = &verts[triangle.index1 as usize];
         let p2 = &verts[triangle.index2 as usize];
@@ -216,7 +216,7 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: &mut 
 
     if triangle_indices.len() == 1 {
         return Some(Box::new(Node::Leaf {
-            triangle_index: triangle_indices[0] as i32,
+            triangle_index: triangle_indices[0] as u32,
             bounds,
         }));
     }

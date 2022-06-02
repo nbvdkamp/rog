@@ -226,7 +226,7 @@ impl KdTree {
 
                 if t < min_dist {
                     result = TraceResult::Hit {
-                        triangle_index: *triangle_index as i32,
+                        triangle_index: *triangle_index as u32,
                         t,
                         u,
                         v,
