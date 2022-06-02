@@ -316,8 +316,8 @@ impl Raytracer {
                     normal = -normal;
                 }
 
+                let offset_hit_pos = Raytracer::offset_hit_pos(hit_pos, geom_normal);
 
-                let offset_hit_pos = hit_pos + 0.0002 * normal;
 
                 let frame = {
                     let f = ShadingFrame::new_with_tangent(normal, tangent);
@@ -467,5 +467,44 @@ impl Raytracer {
 
     fn trace(&self, ray: &Ray, accel_index: usize) -> TraceResult {
         self.accel_structures[accel_index].intersect(ray, &self.verts, &self.triangles)
+    }
+
+    /// From Ray Tracing Gems chapter 6: "A Fast and Robust Method for Avoiding Self-Intersection"
+    fn offset_hit_pos(pos: Point3<f32>, normal: Vector3<f32>) -> Point3<f32> {
+        const ORIGIN: f32 = 1.0 / 32.0;
+        const FLOAT_SCALE: f32 = 1.0 / 65536.0;
+        const INT_SCALE: f32 = 256.0;
+
+        let offset_int = vec3(
+            (INT_SCALE * normal.x) as i32,
+            (INT_SCALE * normal.y) as i32,
+            (INT_SCALE * normal.z) as i32,
+        );
+
+        let scale = |p: f32, o: i32| {
+            use crate::util::bit_hacks::{f32_as_i32, i32_as_f32};
+
+            i32_as_f32(f32_as_i32(p) + p.signum() as i32 * o)
+        };
+
+        let p_i = vec3(
+            scale(pos.x, offset_int.x),
+            scale(pos.y, offset_int.y),
+            scale(pos.z, offset_int.z),
+        );
+
+        let e = |pos: f32, normal, p_i| {
+            if pos.abs() < ORIGIN {
+                pos + FLOAT_SCALE * normal
+            } else {
+                p_i
+            }
+        };
+
+        point3(
+            e(pos.x, normal.x, p_i.x),
+            e(pos.y, normal.y, p_i.y),
+            e(pos.z, normal.z, p_i.z),
+        )
     }
 }
