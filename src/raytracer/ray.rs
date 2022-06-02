@@ -51,10 +51,6 @@ impl Ray {
             IntersectionResult::Miss
         }
     }
-
-    pub fn traverse(&self, t: f32) -> Point3<f32> {
-        self.origin + t * self.direction
-    }
 }
 
 #[cfg(test)]

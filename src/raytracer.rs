@@ -4,7 +4,7 @@ use std::{
     time::Instant,
 };
 
-use cgmath::{vec2, InnerSpace, Point3, Vector2, Vector4};
+use cgmath::{point3, vec2, vec3, EuclideanSpace, InnerSpace, Point3, Vector2, Vector3, Vector4};
 use crossbeam::{
     deque::{Injector, Steal},
     scope,
@@ -262,13 +262,9 @@ impl Raytracer {
 
         while depth < self.max_depth {
             if let TraceResult::Hit {
-                triangle_index,
-                t,
-                u,
-                v,
+                triangle_index, u, v, ..
             } = self.trace(&ray, accel_index)
             {
-                let hit_pos = ray.traverse(t);
                 let triangle = &self.triangles[triangle_index as usize];
                 let material = &self.materials[triangle.material_index as usize];
 
@@ -278,12 +274,13 @@ impl Raytracer {
                     &self.verts[triangle.index3 as usize],
                 ];
 
+                let w = 1.0 - u - v;
+                let hit_pos = w * verts[0].position + u * verts[1].position.to_vec() + v * verts[2].position.to_vec();
+
                 let has_texture_coords = verts[0].tex_coord.is_some();
 
                 let texture_coords = if has_texture_coords {
-                    (1. - u - v) * verts[0].tex_coord.unwrap()
-                        + u * verts[1].tex_coord.unwrap()
-                        + v * verts[2].tex_coord.unwrap()
+                    w * verts[0].tex_coord.unwrap() + u * verts[1].tex_coord.unwrap() + v * verts[2].tex_coord.unwrap()
                 } else {
                     vec2(0.0, 0.0)
                 };
@@ -292,7 +289,7 @@ impl Raytracer {
 
                 if thread_rng().gen::<f32>() > mat_sample.alpha {
                     // Offset to the back of the triangle
-                    ray.origin = ray.traverse(t + 0.0002);
+                    ray.origin = hit_pos + ray.direction * 0.0002;
 
                     // Don't count alpha hits for max bounces
                     continue;
@@ -305,8 +302,8 @@ impl Raytracer {
                 //TODO: Determine and pass if in or outside material
 
                 // Interpolate the vertex normals
-                let mut normal =
-                    ((1. - u - v) * verts[0].normal + u * verts[1].normal + v * verts[2].normal).normalize();
+                let mut normal = (w * verts[0].normal + u * verts[1].normal + v * verts[2].normal).normalize();
+                let tangent = (w * verts[0].tangent + u * verts[1].tangent + v * verts[2].tangent).normalize();
 
                 // Flip the computed geometric normal to the same side as the interpolated vertex normal.
                 if geom_normal.dot(normal) < 0.0 {
@@ -319,8 +316,6 @@ impl Raytracer {
                     normal = -normal;
                 }
 
-                let tangent =
-                    ((1. - u - v) * verts[0].tangent + u * verts[1].tangent + v * verts[2].tangent).normalize();
 
                 let offset_hit_pos = hit_pos + 0.0002 * normal;
 
@@ -448,19 +443,20 @@ impl Raytracer {
 
             let has_texture_coords = verts[0].tex_coord.is_some();
 
+            let w = 1.0 - u - v;
+
             let texture_coordinates = if has_texture_coords {
-                (1. - u - v) * verts[0].tex_coord.unwrap()
-                    + u * verts[1].tex_coord.unwrap()
-                    + v * verts[2].tex_coord.unwrap()
+                w * verts[0].tex_coord.unwrap() + u * verts[1].tex_coord.unwrap() + v * verts[2].tex_coord.unwrap()
             } else {
                 vec2(0.0, 0.0)
             };
 
             if thread_rng().gen::<f32>() > material.sample_alpha(texture_coordinates, &self.textures) {
                 // Cast another ray from slightly further than where we hit
-                let dist = t + 0.0002;
-                ray.origin = ray.traverse(dist);
-                distance -= dist;
+                let hit_pos = w * verts[0].position + u * verts[1].position.to_vec() + v * verts[2].position.to_vec();
+                let offset = 0.0002;
+                ray.origin = hit_pos + offset * ray.direction;
+                distance -= t + offset;
             } else {
                 return true;
             }
