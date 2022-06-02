@@ -186,7 +186,7 @@ fn eval_disney_diffuse(mat: &MaterialSample, wo: Vector3<f32>, wi: Vector3<f32>,
         rr * (fl + fv + fl * fv * (rr - 1.0))
     };
 
-    let lambert = n_dot_v;
+    let lambert = n_dot_l;
 
     let weight = if thin { flatness } else { 0.0 };
     let subsurf_approximation = lambert.lerp(hanrahan_krueger, weight);
