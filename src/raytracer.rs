@@ -16,6 +16,7 @@ mod axis;
 mod bsdf;
 pub mod geometry;
 mod ray;
+mod sampling;
 mod shadingframe;
 mod triangle;
 
@@ -40,6 +41,7 @@ use acceleration::{
     structure::{AccelerationStructure, TraceResult},
 };
 use bsdf::{mis2, Evaluation, Sample};
+use sampling::tent_sample;
 use shadingframe::ShadingFrame;
 
 use geometry::ensure_valid_reflection;
@@ -178,18 +180,6 @@ impl Raytracer {
                                 let mut color = Spectrumf32::constant(0.0);
 
                                 for sample in 0..samples {
-                                    let mut rng = rand::thread_rng();
-
-                                    let mut tent_sample = || {
-                                        let r = 2.0 * rng.gen::<f32>();
-
-                                        if r < 1.0 {
-                                            r.sqrt() - 1.0
-                                        } else {
-                                            1.0 - (2.0 - r).sqrt()
-                                        }
-                                    };
-
                                     let mut offset = vec2(0.5, 0.5);
 
                                     if sample > 0 {
@@ -392,7 +382,7 @@ impl Raytracer {
 
                 let continue_prob = path_weight.max_value().max(1.0);
 
-                if rand::thread_rng().gen::<f32>() < continue_prob {
+                if thread_rng().gen::<f32>() < continue_prob {
                     path_weight /= continue_prob;
                 } else {
                     break;

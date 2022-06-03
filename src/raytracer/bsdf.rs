@@ -8,7 +8,7 @@ use rand::{thread_rng, Rng};
 
 use crate::{material::MaterialSample, spectrum::Spectrumf32};
 
-use super::geometry::reflect;
+use super::{geometry::reflect, sampling::cos_weighted_sample_hemisphere};
 
 pub fn mis2(pdf1: f32, pdf2: f32) -> f32 {
     // Power heuristic (Veach 95)
@@ -98,20 +98,6 @@ mod ggx {
         sample_micronormal(incident, vec2(alpha, alpha))
     }
 
-    // pub fn sample(mat: &MaterialSample, incident: Vector3<f32>, micronormal: Vector3<f32>) -> (Vector3<f32>, f32, f32) {
-    //     let i_dot_n = incident.z;
-    //     let o_dot_n = outgoing.z;
-    //     let m_dot_n = micronormal.z;
-    //     let i_dot_m = incident.dot(micronormal).max(0.0);
-
-    //     if i_dot_n > 0.0 && o_dot_n > 0.0 {
-    //         let (brdf, pdf) = brdf(mat, i_dot_n, o_dot_n, m_dot_n, i_dot_m);
-    //         (outgoing, brdf, pdf)
-    //     } else {
-    //         (vec3(0.0, 0.0, 0.0), 0.0, 0.0)
-    //     }
-    // }
-
     pub fn eval(mat: &MaterialSample, incident: Vector3<f32>, outgoing: Vector3<f32>) -> Evaluation {
         let micronormal = (incident + outgoing).normalize();
         eval_m(mat, incident, outgoing, micronormal)
@@ -135,18 +121,6 @@ mod ggx {
             Evaluation::Null
         }
     }
-}
-
-pub fn cos_weighted_sample_hemisphere() -> Vector3<f32> {
-    let mut rng = rand::thread_rng();
-
-    let rand: f32 = rng.gen();
-    let radius = rand.sqrt();
-    let z = (1.0 - rand).sqrt();
-
-    let theta: f32 = 2.0 * std::f32::consts::PI * rng.gen::<f32>();
-
-    Vector3::new(radius * theta.cos(), radius * theta.sin(), z)
 }
 
 pub enum Sample {

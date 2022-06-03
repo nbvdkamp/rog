@@ -18,7 +18,6 @@ mod material;
 mod mesh;
 mod preview;
 mod raytracer;
-mod sampling;
 mod scene;
 mod spectrum;
 mod texture;
