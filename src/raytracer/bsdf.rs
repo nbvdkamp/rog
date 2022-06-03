@@ -1,5 +1,7 @@
 mod fresnel;
 
+use std::f32::consts::PI;
+
 use cgmath::{vec2, InnerSpace, Vector2, Vector3};
 use lerp::Lerp;
 use rand::{thread_rng, Rng};
@@ -162,8 +164,8 @@ pub enum Evaluation {
 }
 
 fn eval_disney_diffuse(mat: &MaterialSample, wo: Vector3<f32>, wi: Vector3<f32>, wm: Vector3<f32>, thin: bool) -> f32 {
-    let n_dot_l = wi.z.abs();
-    let n_dot_v = wo.z.abs();
+    let n_dot_l = wi.z.max(0.0);
+    let n_dot_v = wo.z.max(0.0);
 
     let fl = fresnel::schlick_weight(n_dot_l);
     let fv = fresnel::schlick_weight(n_dot_v);
@@ -186,12 +188,12 @@ fn eval_disney_diffuse(mat: &MaterialSample, wo: Vector3<f32>, wi: Vector3<f32>,
         rr * (fl + fv + fl * fv * (rr - 1.0))
     };
 
-    let lambert = n_dot_l;
+    let lambert = 1.0;
 
     let weight = if thin { flatness } else { 0.0 };
     let subsurf_approximation = lambert.lerp(hanrahan_krueger, weight);
 
-    (retro + subsurf_approximation * (1.0 - 0.5 * fl) * (1.0 - 0.5 * fv)) / std::f32::consts::PI
+    n_dot_l * (retro + subsurf_approximation * (1.0 - 0.5 * fl) * (1.0 - 0.5 * fv)) / PI
 }
 
 struct LobePdfs {
@@ -253,7 +255,7 @@ pub fn eval(mat: &MaterialSample, incident: Vector3<f32>, outgoing: Vector3<f32>
     // TODO: Clearcoat
 
     if diffuse_weight > 0.0 {
-        let diffuse = eval_disney_diffuse(mat, wo, wm, wi, thin);
+        let diffuse = eval_disney_diffuse(mat, wo, wi, wm, thin);
         //TODO: Add Sheen
         reflectance += diffuse_weight * (diffuse * mat.base_color_spectrum); //+ sheen);
 
