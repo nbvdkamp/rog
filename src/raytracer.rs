@@ -380,7 +380,7 @@ impl Raytracer {
                     Sample::Null => break,
                 };
 
-                path_weight *= brdf / pdf * mat_sample.base_color_spectrum;
+                path_weight *= brdf / pdf;
 
                 let continue_prob = path_weight.max_value().max(1.0);
 
