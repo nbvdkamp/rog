@@ -318,18 +318,15 @@ impl Raytracer {
 
                 let offset_hit_pos = Raytracer::offset_hit_pos(hit_pos, geom_normal);
 
+                let mut frame = ShadingFrame::new_with_tangent(normal, tangent);
 
-                let frame = {
-                    let f = ShadingFrame::new_with_tangent(normal, tangent);
+                let shading_normal = mat_sample
+                    .shading_normal
+                    .map(|n| ensure_valid_reflection(geom_normal, -ray.direction, frame.to_global(n)));
 
-                    if let Some(shading_normal) = mat_sample.shading_normal {
-                        let normal = f.to_global(shading_normal).normalize();
-                        let normal = ensure_valid_reflection(geom_normal, -ray.direction, normal);
-                        ShadingFrame::new(normal)
-                    } else {
-                        f
-                    }
-                };
+                if let Some(shading_normal) = shading_normal {
+                    frame = ShadingFrame::new(shading_normal);
+                }
 
                 let local_incident = frame.to_local(-ray.direction);
 
@@ -360,10 +357,15 @@ impl Raytracer {
                                     1.0
                                 };
 
+                                let shadow_terminator = shading_normal.map_or(1.0, |shading_normal| {
+                                    bump_shading_factor(normal, shading_normal, light_sample.direction)
+                                });
+
                                 result += path_weight
                                     // * mat_sample.base_color_spectrum
                                     * mis_weight
                                     * light_sample.intensity
+                                    * shadow_terminator
                                     * brdf
                                     / light_pdf
                                     * light.spectrum;
@@ -380,7 +382,13 @@ impl Raytracer {
                     Sample::Null => break,
                 };
 
-                path_weight *= brdf / pdf;
+                let bounce_dir = frame.to_global(local_bounce_dir);
+
+                let shadow_terminator = shading_normal.map_or(1.0, |shading_normal| {
+                    bump_shading_factor(normal, shading_normal, bounce_dir)
+                });
+
+                path_weight *= brdf / pdf * shadow_terminator;
 
                 let continue_prob = path_weight.max_value().max(1.0);
 
@@ -392,7 +400,7 @@ impl Raytracer {
 
                 ray = Ray {
                     origin: offset_hit_pos,
-                    direction: frame.to_global(local_bounce_dir),
+                    direction: bounce_dir,
                 };
             } else {
                 result += path_weight * self.environment.sample(ray.direction);
@@ -507,4 +515,19 @@ impl Raytracer {
             e(pos.z, normal.z, p_i.z),
         )
     }
+}
+
+/// From Chiang et. al. 2019, 'Taming the Shadow Terminator'
+fn bump_shading_factor(
+    geometric_normal: Vector3<f32>,
+    shading_normal: Vector3<f32>,
+    light_direction: Vector3<f32>,
+) -> f32 {
+    let g_dot_i = geometric_normal.dot(light_direction);
+    let s_dot_i = shading_normal.dot(light_direction);
+    let g_dot_s = geometric_normal.dot(shading_normal);
+    let g = (g_dot_i / (s_dot_i * g_dot_s)).min(1.0).max(0.0);
+
+    // Hermite interpolation
+    -(g * g * g) + (g * g) + g
 }

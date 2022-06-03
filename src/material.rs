@@ -1,5 +1,5 @@
 use super::color::{RGBAf32, RGBf32};
-use cgmath::{vec3, Vector2, Vector3};
+use cgmath::{vec3, InnerSpace, Vector2, Vector3};
 
 use crate::{constants::GAMMA, spectrum::Spectrumf32, texture::Texture};
 
@@ -45,7 +45,7 @@ impl Material {
             let x = 2.0 * sample.r - 1.0;
             let y = 2.0 * sample.g - 1.0;
             let z = 2.0 * sample.b - 1.0;
-            vec3(x, y, z)
+            vec3(x, y, z).normalize()
         });
 
         let base_color_spectrum = Spectrumf32::from_coefficients(self.base_color_coefficients);
