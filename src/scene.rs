@@ -175,7 +175,6 @@ impl Scene {
 
             let mat = primitive.material();
             let pbr = mat.pbr_metallic_roughness();
-            let transmission = mat.transmission();
             let base = pbr.base_color_factor();
 
             let base_color = RGBf32::new(base[0], base[1], base[2]);
@@ -188,6 +187,13 @@ impl Scene {
                 self.textures[i].create_spectrum_coefficients(rgb2spec)
             }
 
+            let (transmission_factor, transmission_texture) = if let Some(transmission) = mat.transmission() {
+                let texture = transmission.transmission_texture().map(get_index);
+                (transmission.transmission_factor(), texture)
+            } else {
+                (0.0, None)
+            };
+
             let material = Material {
                 base_color,
                 base_color_coefficients,
@@ -196,7 +202,8 @@ impl Scene {
                 metallic: pbr.metallic_factor(),
                 metallic_roughness_texture: pbr.metallic_roughness_texture().map(get_index),
                 ior: mat.ior().unwrap_or(1.45),
-                transmission: transmission.map(|t| t.transmission_factor()).unwrap_or(0.0),
+                transmission_factor,
+                transmission_texture,
                 emissive: mat.emissive_factor().into(),
                 emissive_texture: mat.emissive_texture().map(get_index),
                 normal_texture: mat.normal_texture().map(|t| t.texture().source().index()),
