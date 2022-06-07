@@ -15,6 +15,11 @@ pub fn reflect(v: Vector3<f32>, normal: Vector3<f32>) -> Vector3<f32> {
     2.0 * normal.dot(v) * normal - v
 }
 
+/// normal must be a unit vector
+pub fn refract(v: Vector3<f32>, normal: Vector3<f32>, relative_ior: f32, cos_theta_t: f32) -> Vector3<f32> {
+    (relative_ior * normal.dot(v) - cos_theta_t) * normal - relative_ior * v
+}
+
 /*
  * The following function is adapted from Blender cycles with this license:
  *
