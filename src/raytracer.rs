@@ -1,7 +1,8 @@
 use rand::{thread_rng, Rng};
 use std::{
     sync::{Arc, Mutex},
-    time::Instant,
+    thread,
+    time::{self, Duration, Instant},
 };
 
 use cgmath::{point3, vec2, vec3, EuclideanSpace, InnerSpace, Point3, Vector2, Vector3, Vector4};
@@ -56,6 +57,12 @@ pub struct Raytracer {
     pub camera: PerspectiveCamera,
     max_depth: usize,
     pub accel_structures: Vec<Box<dyn AccelerationStructure + Sync>>,
+}
+
+pub struct RenderProgress {
+    pub report_interval: Duration,
+    /// Completed count, total count, seconds per completed item so far
+    pub report: Box<dyn Fn(usize, usize, f32)>,
 }
 
 impl Raytracer {
@@ -122,11 +129,18 @@ impl Raytracer {
         result
     }
 
-    pub fn render(&self, image_size: Vector2<usize>, samples: usize, accel_index: usize) -> (Vec<Spectrumf32>, f32) {
+    pub fn render(
+        &self,
+        image_size: Vector2<usize>,
+        samples: usize,
+        accel_index: usize,
+        progress: Option<RenderProgress>,
+    ) -> (Vec<Spectrumf32>, f32) {
         let aspect_ratio = image_size.x as f32 / image_size.y as f32;
         let fov_factor = (self.camera.y_fov / 2.).tan();
 
         let start = Instant::now();
+        let mut last_progress_report = start;
 
         let cam_model = self.camera.model;
         let cam_pos4 = cam_model * Vector4::new(0., 0., 0., 1.);
@@ -160,6 +174,8 @@ impl Raytracer {
 
             tiles
         };
+
+        let total_tiles = tiles.len();
 
         scope(|s| {
             for _ in 0..thread_count {
@@ -212,6 +228,20 @@ impl Raytracer {
                         }
                     }
                 });
+            }
+
+            if let Some(progress) = progress {
+                while !tiles.is_empty() {
+                    // We don't sleep for the progress report interval here to not wait needlessly once the render is done
+                    let sleep_duration = Duration::from_millis(10);
+                    thread::sleep(sleep_duration);
+
+                    if last_progress_report.elapsed() > progress.report_interval {
+                        let completed = total_tiles - tiles.len();
+                        (progress.report)(completed, total_tiles, start.elapsed().as_secs_f32() / completed as f32);
+                        last_progress_report = Instant::now();
+                    }
+                }
             }
         })
         .unwrap();

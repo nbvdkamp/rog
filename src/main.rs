@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate impl_ops;
 
-use std::vec;
+use std::{time::Duration, vec};
 
 use cgmath::{vec2, Vector2};
 
@@ -75,7 +75,7 @@ fn accel_benchmark() {
         println!("{: <25} | {: <10}", "Acceleration structure", "Time (s)");
 
         for i in 0..raytracer.accel_structures.len() {
-            let (_, time_elapsed) = raytracer.render(image_size, samples, i);
+            let (_, time_elapsed) = raytracer.render(image_size, samples, i, None);
 
             #[cfg(feature = "stats")]
             {
@@ -114,7 +114,17 @@ fn headless_render(args: Args) {
     let raytracer = Raytracer::new(&scene);
     let image_size = vec2(args.width, args.height);
 
-    let (buffer, time_elapsed) = raytracer.render(image_size, args.samples, ACCEL_INDEX);
+    let report_progress = |completed, total, seconds_per_tile| {
+        let time_remaining = (total - completed) as f32 * seconds_per_tile;
+        println!("Completed {completed}/{total} tiles. Approximately {time_remaining} seconds remaining");
+    };
+
+    let progress = Some(raytracer::RenderProgress {
+        report_interval: Duration::from_secs(5),
+        report: Box::new(report_progress),
+    });
+
+    let (buffer, time_elapsed) = raytracer.render(image_size, args.samples, ACCEL_INDEX, progress);
     println!("Finished rendering in {} seconds", time_elapsed);
 
     let buffer = convert_spectrum_buffer_to_rgb(buffer);
