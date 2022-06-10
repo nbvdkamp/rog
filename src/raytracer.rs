@@ -305,7 +305,7 @@ impl Raytracer {
                     vec2(0.0, 0.0)
                 };
 
-                let mat_sample = material.sample(texture_coords, &self.textures);
+                let mut mat_sample = material.sample(texture_coords, &self.textures);
 
                 if thread_rng().gen::<f32>() > mat_sample.alpha {
                     // Offset to the back of the triangle
@@ -334,9 +334,10 @@ impl Raytracer {
 
                 if backfacing {
                     normal = -normal;
-                }
 
-                let offset_hit_pos = Raytracer::offset_hit_pos(hit_pos, geom_normal);
+                    // Swap IORs
+                    (mat_sample.ior, mat_sample.medium_ior) = (mat_sample.medium_ior, mat_sample.ior);
+                }
 
                 let mut frame = ShadingFrame::new_with_tangent(normal, tangent);
 
@@ -350,10 +351,25 @@ impl Raytracer {
 
                 let local_incident = frame.to_local(-ray.direction);
 
+                let sample = bsdf::sample(&mat_sample, local_incident);
+
+                let (local_bounce_dir, brdf, pdf) = match sample {
+                    Sample::Sample { outgoing, brdf, pdf } => (outgoing, brdf, pdf),
+                    Sample::Null => break,
+                };
+
+                let offset_direction = if backfacing { -1.0 } else { 1.0 } * local_bounce_dir.z.signum() * geom_normal;
+
+                let offset_hit_pos = Raytracer::offset_hit_pos(hit_pos, offset_direction);
+
                 // Next event estimation (directly sampling lights)
                 if num_lights > 0 {
                     let light = &self.lights[rand::thread_rng().gen_range(0..num_lights)];
-                    let light_sample = light.sample(offset_hit_pos);
+                    let light_sample = light.sample(hit_pos);
+
+                    // TODO: This makes sense but it makes the rough transmissive patches brighter than expected
+                    let offset_direction = light_sample.direction.dot(geom_normal).signum() * geom_normal;
+                    let offset_hit_pos = Raytracer::offset_hit_pos(hit_pos, offset_direction);
 
                     if light_sample.distance <= light.range {
                         let shadow_ray = Ray {
@@ -393,14 +409,7 @@ impl Raytracer {
                         }
                     }
                 }
-                break; // no indirect for now
-
-                let sample = bsdf::sample(&mat_sample, local_incident);
-
-                let (local_bounce_dir, brdf, pdf) = match sample {
-                    Sample::Sample { outgoing, brdf, pdf } => (outgoing, brdf, pdf),
-                    Sample::Null => break,
-                };
+                // break; // no indirect for now
 
                 let bounce_dir = frame.to_global(local_bounce_dir);
 
@@ -537,7 +546,7 @@ impl Raytracer {
     }
 }
 
-/// From Chiang et. al. 2019, 'Taming the Shadow Terminator'
+/// From Chiang et al. 2019, 'Taming the Shadow Terminator'
 fn bump_shading_factor(
     geometric_normal: Vector3<f32>,
     shading_normal: Vector3<f32>,

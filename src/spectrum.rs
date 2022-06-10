@@ -75,6 +75,16 @@ impl VecSpectrumf32 {
     pub fn zero() -> Self {
         Self::constant(0.0)
     }
+
+    pub fn sqrt(&self) -> Self {
+        let mut data = vec![0.0; SPECTRUM_RES];
+
+        for i in 0..SPECTRUM_RES {
+            data[i] = self.data[i].sqrt();
+        }
+
+        Self { data }
+    }
 }
 
 impl_op_ex!(+ |a: &VecSpectrumf32, b: &VecSpectrumf32| -> VecSpectrumf32 {
@@ -155,6 +165,16 @@ impl ArrSpectrumf32 {
 
     pub fn zero() -> Self {
         Self::constant(0.0)
+    }
+
+    pub fn sqrt(&self) -> Self {
+        let mut data = [0.0; SPECTRUM_RES];
+
+        for i in 0..SPECTRUM_RES {
+            data[i] = self.data[i].sqrt();
+        }
+
+        Self { data }
     }
 }
 
