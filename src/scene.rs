@@ -201,7 +201,7 @@ impl Scene {
                 roughness: pbr.roughness_factor(),
                 metallic: pbr.metallic_factor(),
                 metallic_roughness_texture: pbr.metallic_roughness_texture().map(get_index),
-                ior: mat.ior().unwrap_or(1.45),
+                ior: mat.ior().unwrap_or(1.5),
                 transmission_factor,
                 transmission_texture,
                 emissive: mat.emissive_factor().into(),
