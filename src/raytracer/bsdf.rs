@@ -2,7 +2,7 @@ mod fresnel;
 
 use std::f32::consts::PI;
 
-use cgmath::{vec2, vec3, InnerSpace, Vector2, Vector3};
+use cgmath::{vec2, InnerSpace, Vector2, Vector3};
 use lerp::Lerp;
 use rand::{thread_rng, Rng};
 
@@ -187,9 +187,6 @@ fn eval_disney_specular_transmission(
     alpha: Vector2<f32>,
     thin: bool,
 ) -> Evaluation {
-    let relative_ior = mat.medium_ior / mat.ior;
-    let n2 = relative_ior * relative_ior;
-
     let n_dot_l = wi.z;
     let n_dot_v = wo.z;
     let m_dot_l = wm.dot(wi);
@@ -202,32 +199,32 @@ fn eval_disney_specular_transmission(
     let g_o = ggx::smith_shadow_term(wi.z, alpha_squared);
     let shadow_masking = g_o * g_i;
     let normal_distrib = ggx::normal_distribution(alpha_squared, wm.z);
-    // VNDF eq. 3 (Heitz 2018) TODO: min, max reflection vs refraction?
+    // VNDF eq. 3 (Heitz 2018)
     let visible_normal_distrib = g_i * m_dot_v.max(0.0) * normal_distrib / n_dot_v;
 
     let fresnel = fresnel::dielectric(m_dot_v, mat.medium_ior, mat.ior).reflectance();
 
-    let forward_pdf = 1.0;
-    let reverse_pdf = 1.0;
-
-    let c = m_dot_l.abs() * m_dot_v.abs() / (n_dot_l.abs() * n_dot_v.abs());
-    let square = |x| x * x;
-    let t = n2 / square(m_dot_l + relative_ior * m_dot_v);
-
-    // VNDF eq. 17 (Heitz 2018)
-    let pdf = visible_normal_distrib / (4.0 * m_dot_l.abs()); // TODO: Wrong jacobian for transmission
-
     if n_dot_l * n_dot_v > 0.0 {
         // Reflection
+        let jacobian = 1.0 / (4.0 * m_dot_l.abs());
+
         Evaluation::Evaluation {
-            brdf: Spectrumf32::constant(fresnel) * shadow_masking * normal_distrib,
-            pdf,
+            // Leaving n_dot_l out of the divisor to multiply the result by cos theta
+            brdf: Spectrumf32::constant(fresnel * shadow_masking * normal_distrib / (4.0 * n_dot_v)),
+            pdf: fresnel * visible_normal_distrib * jacobian,
         }
     } else {
         //Refraction
+
+        let square = |x| x * x;
+        let c = m_dot_l.abs() * m_dot_v.abs() / (n_dot_l.abs() * n_dot_v.abs());
+        let t = square(mat.medium_ior) / square(mat.ior * m_dot_l + mat.medium_ior * m_dot_v);
+        // Walter et al. 2007 eq. 17
+        let jacobian = m_dot_l.abs() * t;
+
         Evaluation::Evaluation {
-            brdf: mat.base_color_spectrum.sqrt() * c * t * (1.0 - fresnel) * shadow_masking * normal_distrib, //TODO: Mul by 1/n2?
-            pdf,
+            brdf: mat.base_color_spectrum.sqrt() * c * t * (1.0 - fresnel) * shadow_masking * normal_distrib,
+            pdf: (1.0 - fresnel) * visible_normal_distrib * jacobian,
         }
     }
 }
@@ -308,7 +305,6 @@ pub fn eval(mat: &MaterialSample, incident: Vector3<f32>, outgoing: Vector3<f32>
 
         let transmission_alpha = calculate_alpha(scaled_roughness);
 
-        //TODO: does this need specf32 or is a float enough?
         if let Evaluation::Evaluation {
             brdf: transmission,
             pdf,
@@ -348,6 +344,7 @@ pub fn bsdf_sample_specular_transmission(mat: &MaterialSample, incident: Vector3
     }
 
     let alpha = calculate_alpha(mat.roughness);
+    let alpha_squared = alpha.x * alpha.x;
 
     let wm = ggx::sample_micronormal(incident, alpha);
     let m_dot_v = wm.dot(incident);
@@ -357,7 +354,11 @@ pub fn bsdf_sample_specular_transmission(mat: &MaterialSample, incident: Vector3
     let refl = fresnel::dielectric(m_dot_v, mat.medium_ior, mat.ior);
     let fresnel = refl.reflectance();
 
-    let g_v = ggx::smith_shadow_term(m_dot_v, alpha.x * alpha.x);
+    let g_v = ggx::smith_shadow_term(m_dot_v, alpha_squared);
+    let normal_distrib = ggx::normal_distribution(alpha_squared, wm.z);
+
+    // VNDF eq. 3 (Heitz 2018)
+    let visible_normal_distrib = g_v * m_dot_v.max(0.0) * normal_distrib / v_dot_n;
 
     let pdf;
     let wi;
@@ -365,17 +366,15 @@ pub fn bsdf_sample_specular_transmission(mat: &MaterialSample, incident: Vector3
 
     if thread_rng().gen::<f32>() <= fresnel {
         wi = reflect(incident, wm);
-        reflectance = Spectrumf32::constant(g_v);
+        let g_l = ggx::smith_shadow_term(wm.dot(wi), alpha_squared);
+
+        // Leaving n_dot_l out of the divisor to multiply the result by cos theta
+        reflectance = Spectrumf32::constant(fresnel * g_v * g_l * normal_distrib / (4.0 * v_dot_n));
         let jacobian = 1.0 / (4.0 * m_dot_v.abs());
-        pdf = fresnel * jacobian;
+        pdf = fresnel * visible_normal_distrib * jacobian;
     } else {
         match refl {
-            Reflectance::TotalInternalReflection => {
-                wi = reflect(incident, wm);
-                reflectance = Spectrumf32::constant(g_v);
-                let jacobian = 1.0 / (4.0 * m_dot_v.abs());
-                pdf = fresnel * jacobian;
-            }
+            Reflectance::TotalInternalReflection => unreachable!(),
             Reflectance::Refract {
                 cos_theta_transmission, ..
             } => {
@@ -383,26 +382,22 @@ pub fn bsdf_sample_specular_transmission(mat: &MaterialSample, incident: Vector3
                 let m_dot_l = wm.dot(wi);
                 let n_dot_l = wi.z;
                 let n_dot_v = incident.z;
-                let g_l = ggx::smith_shadow_term(m_dot_l, alpha.x * alpha.x);
-
-                let c = m_dot_l.abs() * m_dot_v.abs() / (n_dot_l.abs() * n_dot_v.abs());
-                let t = relative_ior * relative_ior / m_dot_l.abs();
+                let g_l = ggx::smith_shadow_term(m_dot_l, alpha_squared);
 
                 let square = |x| x * x;
-                let jacobian = m_dot_l.abs() / square(m_dot_l.abs() + relative_ior * m_dot_v);
 
-                reflectance = g_l * g_v * c * t * jacobian * mat.base_color_spectrum.sqrt();
-                pdf = (1.0 - fresnel) * jacobian;
+                let c = m_dot_l.abs() * m_dot_v.abs() / (n_dot_l.abs() * n_dot_v.abs());
+                let t = square(mat.medium_ior) / square(mat.ior * m_dot_l + mat.medium_ior * m_dot_v);
+                // Walter et al. 2007 eq. 17
+                let jacobian = m_dot_l.abs() * t;
+
+                reflectance = (1.0 - fresnel) * c * t * g_l * g_v * normal_distrib * mat.base_color_spectrum.sqrt();
+                pdf = (1.0 - fresnel) * visible_normal_distrib * jacobian;
             }
         }
     }
 
-    let normal_distrib = ggx::normal_distribution(alpha.x * alpha.x, wm.z);
-    let reflectance = reflectance * normal_distrib;
 
-    // VNDF eq. 3 (Heitz 2018)
-    let visible_normal_distrib = g_v * m_dot_v.max(0.0) * normal_distrib / v_dot_n;
-    let pdf = pdf * visible_normal_distrib;
 
     if wi.z == 0.0 {
         Sample::Null
