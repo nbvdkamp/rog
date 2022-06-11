@@ -349,12 +349,12 @@ impl Raytracer {
                     frame = ShadingFrame::new(shading_normal);
                 }
 
-                let local_incident = frame.to_local(-ray.direction);
+                let local_outgoing = frame.to_local(-ray.direction);
 
-                let sample = bsdf::sample(&mat_sample, local_incident);
+                let sample = bsdf::sample(&mat_sample, local_outgoing);
 
-                let (local_bounce_dir, brdf, pdf) = match sample {
-                    Sample::Sample { outgoing, brdf, pdf } => (outgoing, brdf, pdf),
+                let (local_bounce_dir, bsdf, pdf) = match sample {
+                    Sample::Sample { incident, weight, pdf } => (incident, weight, pdf),
                     Sample::Null => break,
                 };
 
@@ -380,10 +380,10 @@ impl Raytracer {
                         let shadowed = self.cast_shadow_ray(shadow_ray, light_sample.distance, accel_index);
 
                         if !shadowed {
-                            let local_outgoing = frame.to_local(light_sample.direction);
-                            let eval = bsdf::eval(&mat_sample, local_incident, local_outgoing);
+                            let local_incident = frame.to_local(light_sample.direction);
+                            let eval = bsdf::eval(&mat_sample, local_outgoing, local_incident);
 
-                            if let Evaluation::Evaluation { brdf, pdf } = eval {
+                            if let Evaluation::Evaluation { weight: bsdf, pdf } = eval {
                                 let light_pick_prob = 1.0 / num_lights as f32;
                                 let light_pdf = light_pick_prob * light_sample.pdf;
 
@@ -402,7 +402,7 @@ impl Raytracer {
                                     * mis_weight
                                     * light_sample.intensity
                                     * shadow_terminator
-                                    * brdf
+                                    * bsdf
                                     / light_pdf
                                     * light.spectrum;
                             }
@@ -417,7 +417,7 @@ impl Raytracer {
                     bump_shading_factor(normal, shading_normal, bounce_dir)
                 });
 
-                path_weight *= brdf / pdf * shadow_terminator;
+                path_weight *= bsdf * shadow_terminator / pdf;
 
                 let continue_prob = path_weight.max_value().max(1.0);
 

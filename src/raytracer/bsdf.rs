@@ -30,16 +30,16 @@ mod ggx {
 
     use super::{fresnel, Evaluation};
 
-    pub fn smith_shadow_term(v_dot_n: f32, alpha_squared: f32) -> f32 {
-        let cos2 = v_dot_n * v_dot_n;
+    pub fn smith_shadow_term(n_dot_v: f32, alpha_squared: f32) -> f32 {
+        let cos2 = n_dot_v * n_dot_v;
         let tan2 = (1.0 - cos2) / cos2;
         2.0 / (1.0 + (1.0 + alpha_squared * tan2).sqrt())
     }
 
-    pub fn normal_distribution(alpha_squared: f32, cos_theta: f32) -> f32 {
+    pub fn normal_distribution(alpha_squared: f32, n_dot_m: f32) -> f32 {
         // Using f64 since single precision leads to nans for near perfect mirror surfaces
         let alpha_squared = alpha_squared as f64;
-        let cos_theta = cos_theta as f64;
+        let cos_theta = n_dot_m as f64;
 
         let cos_theta_squared = cos_theta * cos_theta;
         let b = (alpha_squared - 1.0) * cos_theta_squared + 1.0;
@@ -48,16 +48,16 @@ mod ggx {
     }
 
     /// Samples distribution of visible normals (Heitz 2018)
-    pub fn sample_micronormal(incident: Vector3<f32>, alpha: Vector2<f32>) -> Vector3<f32> {
-        let incident_h = vec3(alpha.x * incident.x, alpha.y * incident.y, incident.z).normalize();
+    pub fn sample_micronormal(outgoing: Vector3<f32>, alpha: Vector2<f32>) -> Vector3<f32> {
+        let outgoing_h = vec3(alpha.x * outgoing.x, alpha.y * outgoing.y, outgoing.z).normalize();
 
-        let length_squared = incident_h.x * incident_h.x + incident_h.y * incident_h.y;
+        let length_squared = outgoing_h.x * outgoing_h.x + outgoing_h.y * outgoing_h.y;
         let tangent = if length_squared > 0.0 {
-            vec3(-incident_h.y, incident_h.x, 0.0) / length_squared.sqrt()
+            vec3(-outgoing_h.y, outgoing_h.x, 0.0) / length_squared.sqrt()
         } else {
             vec3(1.0, 0.0, 0.0)
         };
-        let bitangent = incident_h.cross(tangent);
+        let bitangent = outgoing_h.cross(tangent);
 
         let mut rng = rand::thread_rng();
         let r1 = rng.gen::<f32>();
@@ -67,61 +67,61 @@ mod ggx {
         let phi = 2.0 * std::f32::consts::PI * r2;
         let t1 = radius * phi.cos();
         let t2 = radius * phi.sin();
-        let s = 0.5 * (1.0 + incident_h.z);
+        let s = 0.5 * (1.0 + outgoing_h.z);
 
         let t2prime = (1.0 - s) * (1.0 - t1 * t1).sqrt() + s * t2;
 
         let normal_h =
-            t1 * tangent + t2prime * bitangent + (1.0 - t1 * t1 - t2prime * t2prime).max(0.0).sqrt() * incident_h;
+            t1 * tangent + t2prime * bitangent + (1.0 - t1 * t1 - t2prime * t2prime).max(0.0).sqrt() * outgoing_h;
 
         vec3(alpha.x * normal_h.x, alpha.y * normal_h.y, normal_h.z.max(0.0)).normalize()
     }
 
-    fn brdf(mat: &MaterialSample, i_dot_n: f32, o_dot_n: f32, m_dot_n: f32, i_dot_m: f32) -> (Spectrumf32, f32) {
+    fn brdf(mat: &MaterialSample, n_dot_o: f32, n_dot_i: f32, n_dot_m: f32, m_dot_i: f32) -> (Spectrumf32, f32) {
         let alpha = mat.roughness * mat.roughness;
         let alpha_squared = alpha * alpha;
 
-        let g_i = smith_shadow_term(i_dot_n, alpha_squared);
-        let g_o = smith_shadow_term(o_dot_n, alpha_squared);
+        let g_o = smith_shadow_term(n_dot_o, alpha_squared);
+        let g_i = smith_shadow_term(n_dot_i, alpha_squared);
         let shadow_masking = g_o * g_i;
-        let normal_distrib = normal_distribution(alpha_squared, m_dot_n);
+        let normal_distrib = normal_distribution(alpha_squared, n_dot_m);
         // VNDF eq. 3 (Heitz 2018)
-        let visible_normal_distrib = g_i * i_dot_m.max(0.0) * normal_distrib / i_dot_n;
+        let visible_normal_distrib = g_o * m_dot_i.max(0.0) * normal_distrib / n_dot_o;
 
-        let fresnel = fresnel::disney(mat, i_dot_m);
+        let fresnel = fresnel::disney(mat, m_dot_i);
 
         // Leaving o_dot_n out of the divisor to multiply the result by cos theta
-        let brdf = fresnel * shadow_masking * normal_distrib / (4.0 * i_dot_n);
+        let brdf = fresnel * shadow_masking * normal_distrib / (4.0 * n_dot_o);
         // VNDF eq. 17 (Heitz 2018)
-        let pdf = visible_normal_distrib / (4.0 * i_dot_m);
+        let pdf = visible_normal_distrib / (4.0 * m_dot_i);
 
         (brdf, pdf)
     }
 
-    pub fn sample_m(mat: &MaterialSample, incident: Vector3<f32>) -> Vector3<f32> {
+    pub fn sample_m(mat: &MaterialSample, outgoing: Vector3<f32>) -> Vector3<f32> {
         let alpha = mat.roughness * mat.roughness;
-        sample_micronormal(incident, vec2(alpha, alpha))
+        sample_micronormal(outgoing, vec2(alpha, alpha))
     }
 
-    pub fn eval(mat: &MaterialSample, incident: Vector3<f32>, outgoing: Vector3<f32>) -> Evaluation {
+    pub fn eval(mat: &MaterialSample, outgoing: Vector3<f32>, incident: Vector3<f32>) -> Evaluation {
         let micronormal = (incident + outgoing).normalize();
-        eval_m(mat, incident, outgoing, micronormal)
+        eval_m(mat, outgoing, incident, micronormal)
     }
 
     pub fn eval_m(
         mat: &MaterialSample,
-        incident: Vector3<f32>,
         outgoing: Vector3<f32>,
+        incident: Vector3<f32>,
         micronormal: Vector3<f32>,
     ) -> Evaluation {
-        let i_dot_n = incident.z;
-        let o_dot_n = outgoing.z;
-        let m_dot_n = micronormal.z;
-        let i_dot_m = incident.dot(micronormal).max(0.0);
+        let n_dot_i = incident.z;
+        let n_dot_o = outgoing.z;
+        let n_dot_m = micronormal.z;
+        let m_dot_i = incident.dot(micronormal).max(0.0);
 
-        if i_dot_n > 0.0 && o_dot_n > 0.0 {
-            let (brdf, pdf) = brdf(mat, i_dot_n, o_dot_n, m_dot_n, i_dot_m);
-            Evaluation::Evaluation { brdf, pdf }
+        if n_dot_i > 0.0 && n_dot_o > 0.0 {
+            let (brdf, pdf) = brdf(mat, n_dot_o, n_dot_i, n_dot_m, m_dot_i);
+            Evaluation::Evaluation { weight: brdf, pdf }
         } else {
             Evaluation::Null
         }
@@ -130,40 +130,47 @@ mod ggx {
 
 pub enum Sample {
     Sample {
-        outgoing: Vector3<f32>,
-        brdf: Spectrumf32,
+        /// Scattered direction, named this way because we are tracing the paths backwards
+        incident: Vector3<f32>,
+        weight: Spectrumf32,
         pdf: f32,
     },
     Null,
 }
 
 pub enum Evaluation {
-    Evaluation { brdf: Spectrumf32, pdf: f32 },
+    Evaluation { weight: Spectrumf32, pdf: f32 },
     Null,
 }
 
-fn eval_disney_diffuse(mat: &MaterialSample, wo: Vector3<f32>, wi: Vector3<f32>, wm: Vector3<f32>, thin: bool) -> f32 {
-    let n_dot_l = wi.z.max(0.0);
-    let n_dot_v = wo.z.max(0.0);
+fn eval_disney_diffuse(
+    mat: &MaterialSample,
+    outgoing: Vector3<f32>,
+    incident: Vector3<f32>,
+    micronormal: Vector3<f32>,
+    thin: bool,
+) -> f32 {
+    let n_dot_i = incident.z.max(0.0);
+    let n_dot_o = outgoing.z.max(0.0);
 
-    let fl = fresnel::schlick_weight(n_dot_l);
-    let fv = fresnel::schlick_weight(n_dot_v);
+    let fl = fresnel::schlick_weight(n_dot_i);
+    let fv = fresnel::schlick_weight(n_dot_o);
 
     let flatness = 0.0; //TODO:
 
     let hanrahan_krueger = if thin && flatness > 0.0 {
-        let m_dot_l = wm.dot(wi);
+        let m_dot_l = micronormal.dot(incident);
         let fss90 = m_dot_l * m_dot_l * mat.roughness * mat.roughness;
         let fss = 1.0.lerp(fss90, fl) * 1.0.lerp(fss90, fv);
 
-        1.25 * (fss * (1.0 / (n_dot_l + n_dot_v) - 0.5) + 0.5)
+        1.25 * (fss * (1.0 / (n_dot_i + n_dot_o) - 0.5) + 0.5)
     } else {
         0.0
     };
 
-    let retro = {
-        let m_dot_l = wm.dot(wi);
-        let rr = 2.0 * mat.roughness * m_dot_l * m_dot_l;
+    let retro_reflection = {
+        let m_dot_i = micronormal.dot(incident);
+        let rr = 2.0 * mat.roughness * m_dot_i * m_dot_i;
         rr * (fl + fv + fl * fv * (rr - 1.0))
     };
 
@@ -172,7 +179,7 @@ fn eval_disney_diffuse(mat: &MaterialSample, wo: Vector3<f32>, wi: Vector3<f32>,
     let weight = if thin { flatness } else { 0.0 };
     let subsurf_approximation = lambert.lerp(hanrahan_krueger, weight);
 
-    n_dot_l * (retro + subsurf_approximation * (1.0 - 0.5 * fl) * (1.0 - 0.5 * fv)) / PI
+    n_dot_i * (retro_reflection + subsurf_approximation * (1.0 - 0.5 * fl) * (1.0 - 0.5 * fv)) / PI
 }
 
 fn thin_transmission_roughness(ior: f32, roughness: f32) -> f32 {
@@ -181,52 +188,52 @@ fn thin_transmission_roughness(ior: f32, roughness: f32) -> f32 {
 
 fn eval_disney_specular_transmission(
     mat: &MaterialSample,
-    wo: Vector3<f32>,
-    wi: Vector3<f32>,
-    wm: Vector3<f32>,
+    outgoing: Vector3<f32>,
+    incident: Vector3<f32>,
+    micronormal: Vector3<f32>,
     alpha: Vector2<f32>,
     thin: bool,
 ) -> Evaluation {
-    let n_dot_l = wi.z;
-    let n_dot_v = wo.z;
-    let m_dot_l = wm.dot(wi);
-    let m_dot_v = wm.dot(wo);
+    let n_dot_i = incident.z;
+    let n_dot_o = outgoing.z;
+    let m_dot_i = micronormal.dot(incident);
+    let m_dot_o = micronormal.dot(outgoing);
 
     // TODO: Anisotropy
     let alpha_squared = alpha.x * alpha.x;
 
-    let g_i = ggx::smith_shadow_term(wo.z, alpha_squared);
-    let g_o = ggx::smith_shadow_term(wi.z, alpha_squared);
+    let g_o = ggx::smith_shadow_term(outgoing.z, alpha_squared);
+    let g_i = ggx::smith_shadow_term(incident.z, alpha_squared);
     let shadow_masking = g_o * g_i;
-    let normal_distrib = ggx::normal_distribution(alpha_squared, wm.z);
+    let normal_distrib = ggx::normal_distribution(alpha_squared, micronormal.z);
     // VNDF eq. 3 (Heitz 2018)
-    let visible_normal_distrib = g_i * m_dot_v.max(0.0) * normal_distrib / n_dot_v;
+    let visible_normal_distrib = g_o * m_dot_o.max(0.0) * normal_distrib / n_dot_o;
 
-    let fresnel = fresnel::dielectric(m_dot_v, mat.medium_ior, mat.ior).reflectance();
+    let fresnel = fresnel::dielectric(m_dot_o, mat.medium_ior, mat.ior).reflectance();
 
-    if n_dot_l * n_dot_v > 0.0 {
+    if n_dot_i * n_dot_o > 0.0 {
         // Reflection
-        let jacobian = 1.0 / (4.0 * m_dot_l.abs());
+        let jacobian = 1.0 / (4.0 * m_dot_i.abs());
 
         Evaluation::Evaluation {
             // Leaving n_dot_l out of the divisor to multiply the result by cos theta
-            brdf: Spectrumf32::constant(fresnel * shadow_masking * normal_distrib / (4.0 * n_dot_v)),
+            weight: Spectrumf32::constant(fresnel * shadow_masking * normal_distrib / (4.0 * n_dot_o)),
             pdf: fresnel * visible_normal_distrib * jacobian,
         }
     } else {
         //Refraction
 
         let square = |x| x * x;
-        let c = m_dot_l.abs() * m_dot_v.abs() / (n_dot_l.abs() * n_dot_v.abs());
-        let t = square(mat.medium_ior) / square(mat.ior * m_dot_l + mat.medium_ior * m_dot_v);
+        let c = m_dot_i.abs() * m_dot_o.abs() / (n_dot_i.abs() * n_dot_o.abs());
+        let t = square(mat.medium_ior) / square(mat.ior * m_dot_i + mat.medium_ior * m_dot_o);
         // Walter et al. 2007 eq. 17
-        let jacobian = m_dot_l.abs() * t;
+        let jacobian = m_dot_i.abs() * t;
 
         if (1.0 - fresnel) == 0.0 {
             Evaluation::Null
         } else {
             Evaluation::Evaluation {
-                brdf: mat.base_color_spectrum.sqrt() * c * t * (1.0 - fresnel) * shadow_masking * normal_distrib,
+                weight: mat.base_color_spectrum.sqrt() * c * t * (1.0 - fresnel) * shadow_masking * normal_distrib,
                 pdf: (1.0 - fresnel) * visible_normal_distrib * jacobian,
             }
         }
@@ -267,14 +274,12 @@ fn calculate_alpha(roughness: f32) -> Vector2<f32> {
     vec2(alpha / aspect, alpha * aspect)
 }
 
-pub fn eval(mat: &MaterialSample, incident: Vector3<f32>, outgoing: Vector3<f32>) -> Evaluation {
+pub fn eval(mat: &MaterialSample, outgoing: Vector3<f32>, incident: Vector3<f32>) -> Evaluation {
     let thin = false;
-    let wo = incident;
-    let wi = outgoing;
-    let wm = (wo + wi).normalize();
+    let micronormal = (outgoing + incident).normalize();
 
-    let n_dot_v = wo.z;
-    let n_dot_l = wi.z;
+    let n_dot_o = outgoing.z;
+    let n_dot_i = incident.z;
 
     let mut reflectance = Spectrumf32::constant(0.0);
     let mut forward_pdf = 0.0;
@@ -287,17 +292,17 @@ pub fn eval(mat: &MaterialSample, incident: Vector3<f32>, outgoing: Vector3<f32>
     let transmission_weight = (1.0 - mat.metallic) * mat.transmission;
     let diffuse_weight = (1.0 - mat.metallic) * (1.0 - mat.transmission);
 
-    let upper_hemisphere = n_dot_l > 0.0 && n_dot_v > 0.0;
+    let upper_hemisphere = n_dot_i > 0.0 && n_dot_o > 0.0;
 
     // TODO: Clearcoat
 
     if diffuse_weight > 0.0 {
-        let diffuse = eval_disney_diffuse(mat, wo, wi, wm, thin);
+        let diffuse = eval_disney_diffuse(mat, outgoing, incident, micronormal, thin);
         //TODO: Add Sheen
         reflectance += diffuse_weight * (diffuse * mat.base_color_spectrum); //+ sheen);
 
-        forward_pdf += lobe_pdfs.diffuse * wi.z.abs();
-        reverse_pdf += lobe_pdfs.diffuse * wo.z.abs();
+        forward_pdf += lobe_pdfs.diffuse * incident.z.abs();
+        reverse_pdf += lobe_pdfs.diffuse * outgoing.z.abs();
     }
 
     if transmission_weight > 0.0 {
@@ -310,71 +315,71 @@ pub fn eval(mat: &MaterialSample, incident: Vector3<f32>, outgoing: Vector3<f32>
         let transmission_alpha = calculate_alpha(scaled_roughness);
 
         if let Evaluation::Evaluation {
-            brdf: transmission,
+            weight: transmission,
             pdf,
-        } = eval_disney_specular_transmission(mat, wo, wi, wm, transmission_alpha, thin)
+        } = eval_disney_specular_transmission(mat, outgoing, incident, micronormal, transmission_alpha, thin)
         {
             reflectance += transmission_weight * transmission;
 
-            let l_dot_m = wm.dot(wi);
-            let v_dot_m = wm.dot(wo);
+            let m_dot_i = micronormal.dot(incident);
+            let m_dot_o = micronormal.dot(outgoing);
             let eta = mat.medium_ior / mat.ior;
             let square = |x| x * x;
 
-            forward_pdf += lobe_pdfs.specular_transmission * pdf / square(l_dot_m + eta * v_dot_m);
-            // reverse_pdf += lobe_pdfs.specular_transmission * reverse_transmission_pdf / square(v_dot_m + eta * l_dot_m);
+            forward_pdf += lobe_pdfs.specular_transmission * pdf / square(m_dot_i + eta * m_dot_o);
+            // reverse_pdf += lobe_pdfs.specular_transmission * reverse_transmission_pdf / square(m_dot_o + eta * m_dot_i);
         }
     }
 
     if upper_hemisphere {
-        if let Evaluation::Evaluation { brdf: specular, pdf } = ggx::eval_m(mat, wo, wi, wm) {
+        if let Evaluation::Evaluation { weight: specular, pdf } = ggx::eval_m(mat, outgoing, incident, micronormal) {
             reflectance += specular;
-            forward_pdf += lobe_pdfs.specular_reflection * pdf / /*maybe already in eval_m?*/ (4.0 * wm.dot(wo).abs());
-            // TODO: reverse pdf
+            forward_pdf += lobe_pdfs.specular_reflection * pdf; // / /*maybe already in eval_m?*/ (4.0 * micronormal.dot(outgoing).abs());
+                                                                // TODO: reverse pdf
         }
     }
 
     Evaluation::Evaluation {
-        brdf: reflectance,
+        weight: reflectance,
         pdf: forward_pdf,
     }
 }
 
-pub fn bsdf_sample_specular_transmission(mat: &MaterialSample, incident: Vector3<f32>) -> Sample {
-    let v_dot_n = incident.z;
+pub fn bsdf_sample_specular_transmission(mat: &MaterialSample, outgoing: Vector3<f32>) -> Sample {
+    let n_dot_o = outgoing.z;
 
-    if v_dot_n <= 0.0 {
+    if n_dot_o <= 0.0 {
         return Sample::Null;
     }
 
     let alpha = calculate_alpha(mat.roughness);
     let alpha_squared = alpha.x * alpha.x;
 
-    let wm = ggx::sample_micronormal(incident, alpha);
-    let m_dot_v = wm.dot(incident);
+    let micronormal = ggx::sample_micronormal(outgoing, alpha);
+    let n_dot_o = micronormal.dot(outgoing);
 
     let relative_ior = mat.medium_ior / mat.ior;
 
-    let refl = fresnel::dielectric(m_dot_v, mat.medium_ior, mat.ior);
+    let refl = fresnel::dielectric(n_dot_o, mat.medium_ior, mat.ior);
     let fresnel = refl.reflectance();
 
-    let g_v = ggx::smith_shadow_term(m_dot_v, alpha_squared);
-    let normal_distrib = ggx::normal_distribution(alpha_squared, wm.z);
+    let g_o = ggx::smith_shadow_term(n_dot_o, alpha_squared);
+    let normal_distrib = ggx::normal_distribution(alpha_squared, micronormal.z);
 
     // VNDF eq. 3 (Heitz 2018)
-    let visible_normal_distrib = g_v * m_dot_v.max(0.0) * normal_distrib / v_dot_n;
+    let visible_normal_distrib = g_o * n_dot_o.max(0.0) * normal_distrib / n_dot_o;
 
     let pdf;
-    let wi;
-    let reflectance;
+    let incident;
+    let weight;
 
     if thread_rng().gen::<f32>() <= fresnel {
-        wi = reflect(incident, wm);
-        let g_l = ggx::smith_shadow_term(wm.dot(wi), alpha_squared);
+        incident = reflect(outgoing, micronormal);
+        let g_i = ggx::smith_shadow_term(incident.z, alpha_squared);
 
         // Leaving n_dot_l out of the divisor to multiply the result by cos theta
-        reflectance = Spectrumf32::constant(fresnel * g_v * g_l * normal_distrib / (4.0 * v_dot_n));
-        let jacobian = 1.0 / (4.0 * m_dot_v.abs());
+        weight = Spectrumf32::constant(fresnel * g_o * g_i * normal_distrib / (4.0 * n_dot_o));
+        let jacobian = 1.0 / (4.0 * n_dot_o.abs());
         pdf = fresnel * visible_normal_distrib * jacobian;
     } else {
         match refl {
@@ -382,49 +387,42 @@ pub fn bsdf_sample_specular_transmission(mat: &MaterialSample, incident: Vector3
             Reflectance::Refract {
                 cos_theta_transmission, ..
             } => {
-                wi = refract(incident, wm, relative_ior, cos_theta_transmission).normalize();
-                let m_dot_l = wm.dot(wi);
-                let n_dot_l = wi.z;
-                let n_dot_v = incident.z;
-                let g_l = ggx::smith_shadow_term(m_dot_l, alpha_squared);
+                incident = refract(outgoing, micronormal, relative_ior, cos_theta_transmission).normalize();
+                let n_dot_i = incident.z;
+                let m_dot_i = micronormal.dot(incident);
+                let m_dot_o = micronormal.dot(outgoing);
+                let g_i = ggx::smith_shadow_term(n_dot_i, alpha_squared);
 
                 let square = |x| x * x;
 
-                let c = m_dot_l.abs() * m_dot_v.abs() / (n_dot_l.abs() * n_dot_v.abs());
-                let t = square(mat.medium_ior) / square(mat.ior * m_dot_l + mat.medium_ior * m_dot_v);
+                let c = m_dot_i.abs() * m_dot_o.abs() / (n_dot_i.abs() * n_dot_o.abs());
+                let t = square(mat.medium_ior) / square(mat.ior * m_dot_i + mat.medium_ior * m_dot_o);
                 // Walter et al. 2007 eq. 17
-                let jacobian = m_dot_l.abs() * t;
+                let jacobian = n_dot_i.abs() * t;
 
-                reflectance = (1.0 - fresnel) * c * t * g_l * g_v * normal_distrib * mat.base_color_spectrum.sqrt();
+                weight = (1.0 - fresnel) * c * t * g_i * g_o * normal_distrib * mat.base_color_spectrum.sqrt();
                 pdf = (1.0 - fresnel) * visible_normal_distrib * jacobian;
             }
         }
     }
 
-
-
-    if wi.z == 0.0 {
+    if incident.z == 0.0 {
         Sample::Null
     } else {
-        Sample::Sample {
-            outgoing: wi,
-            brdf: reflectance,
-            pdf,
-        }
+        Sample::Sample { incident, weight, pdf }
     }
 }
 
-pub fn bsdf_sample_diffuse_reflection(mat: &MaterialSample, incident: Vector3<f32>) -> Sample {
-    let wo = incident;
-    let sign = wo.z.signum();
+pub fn bsdf_sample_diffuse_reflection(mat: &MaterialSample, outgoing: Vector3<f32>) -> Sample {
+    let sign = outgoing.z.signum();
 
-    let wi = sign * cos_weighted_sample_hemisphere();
-    let wm = (wi + wo).normalize();
+    let incident = sign * cos_weighted_sample_hemisphere();
+    let micronormal = (incident + outgoing).normalize();
 
-    let n_dot_l = wi.z;
-    let n_dot_v = wo.z;
+    let n_dot_i = incident.z;
+    let n_dot_o = outgoing.z;
 
-    if n_dot_l == 0.0 {
+    if n_dot_i == 0.0 {
         return Sample::Null;
     }
 
@@ -434,27 +432,27 @@ pub fn bsdf_sample_diffuse_reflection(mat: &MaterialSample, incident: Vector3<f3
 
     let thin = false;
 
-    let diffuse = eval_disney_diffuse(mat, wo, wi, wm, thin);
+    let diffuse = eval_disney_diffuse(mat, outgoing, incident, micronormal, thin);
 
     Sample::Sample {
-        outgoing: wi,
-        brdf: mat.base_color_spectrum * diffuse / pdf, // + sheen
-        pdf: pdf * n_dot_l.abs(),
+        incident,
+        weight: mat.base_color_spectrum * diffuse / pdf, // + sheen
+        pdf: pdf * n_dot_i.abs(),
     }
 }
 
-pub fn sample(mat: &MaterialSample, incident: Vector3<f32>) -> Sample {
+pub fn sample(mat: &MaterialSample, outgoing: Vector3<f32>) -> Sample {
     let pdfs = lobe_pdfs(mat);
 
     let mut r = thread_rng().gen::<f32>();
 
     if r < pdfs.specular_reflection {
-        let micronormal = ggx::sample_m(mat, incident);
-        let outgoing = reflect(incident, micronormal);
-        return if let Evaluation::Evaluation { brdf, pdf } = ggx::eval(mat, incident, outgoing) {
+        let micronormal = ggx::sample_m(mat, outgoing);
+        let incident = reflect(outgoing, micronormal);
+        return if let Evaluation::Evaluation { weight, pdf } = ggx::eval(mat, outgoing, incident) {
             Sample::Sample {
-                outgoing,
-                brdf,
+                incident,
+                weight,
                 pdf: pdf * pdfs.specular_reflection,
             }
         } else {
@@ -465,20 +463,20 @@ pub fn sample(mat: &MaterialSample, incident: Vector3<f32>) -> Sample {
     }
 
     if r < pdfs.specular_transmission {
-        if let Sample::Sample { outgoing, brdf, pdf } = bsdf_sample_specular_transmission(mat, incident) {
+        if let Sample::Sample { incident, weight, pdf } = bsdf_sample_specular_transmission(mat, outgoing) {
             Sample::Sample {
-                outgoing,
-                brdf,
+                incident,
+                weight,
                 pdf: pdf * pdfs.specular_transmission,
             }
         } else {
             Sample::Null
         }
     } else {
-        if let Sample::Sample { outgoing, brdf, pdf } = bsdf_sample_diffuse_reflection(mat, incident) {
+        if let Sample::Sample { incident, weight, pdf } = bsdf_sample_diffuse_reflection(mat, outgoing) {
             Sample::Sample {
-                outgoing,
-                brdf,
+                incident,
+                weight,
                 pdf: pdf * pdfs.diffuse,
             }
         } else {
