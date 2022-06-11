@@ -30,6 +30,7 @@ pub struct MaterialSample {
     pub emissive: RGBf32,
     pub specular: f32,
     pub shading_normal: Option<Vector3<f32>>,
+    pub sub_surface_scattering: f32,
 }
 
 impl Material {
@@ -75,6 +76,7 @@ impl Material {
             emissive: self.emissive * sample(self.emissive_texture).rgb().pow(GAMMA),
             specular: 0.5,
             shading_normal,
+            sub_surface_scattering: 0.0,
         }
     }
 

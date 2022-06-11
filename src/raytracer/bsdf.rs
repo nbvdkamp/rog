@@ -148,42 +148,31 @@ fn eval_disney_diffuse(
     outgoing: Vector3<f32>,
     incident: Vector3<f32>,
     micronormal: Vector3<f32>,
-    thin: bool,
 ) -> f32 {
     let n_dot_i = incident.z.max(0.0);
     let n_dot_o = outgoing.z.max(0.0);
+    let m_dot_i = micronormal.dot(incident);
 
     let fl = fresnel::schlick_weight(n_dot_i);
     let fv = fresnel::schlick_weight(n_dot_o);
 
-    let flatness = 0.0; //TODO:
-
-    let hanrahan_krueger = if thin && flatness > 0.0 {
-        let m_dot_l = micronormal.dot(incident);
-        let fss90 = m_dot_l * m_dot_l * mat.roughness * mat.roughness;
+    let hanrahan_krueger = {
+        let fss90 = m_dot_i * m_dot_i * mat.roughness * mat.roughness;
         let fss = 1.0.lerp(fss90, fl) * 1.0.lerp(fss90, fv);
 
         1.25 * (fss * (1.0 / (n_dot_i + n_dot_o) - 0.5) + 0.5)
-    } else {
-        0.0
     };
 
     let retro_reflection = {
-        let m_dot_i = micronormal.dot(incident);
         let rr = 2.0 * mat.roughness * m_dot_i * m_dot_i;
         rr * (fl + fv + fl * fv * (rr - 1.0))
     };
 
     let lambert = 1.0;
 
-    let weight = if thin { flatness } else { 0.0 };
-    let subsurf_approximation = lambert.lerp(hanrahan_krueger, weight);
+    let subsurf_approximation = lambert.lerp(hanrahan_krueger, mat.sub_surface_scattering);
 
     n_dot_i * (retro_reflection + subsurf_approximation * (1.0 - 0.5 * fl) * (1.0 - 0.5 * fv)) / PI
-}
-
-fn thin_transmission_roughness(ior: f32, roughness: f32) -> f32 {
-    ((0.65 * ior - 0.35) * roughness).min(1.0).max(0.0)
 }
 
 fn eval_disney_specular_transmission(
@@ -192,7 +181,6 @@ fn eval_disney_specular_transmission(
     incident: Vector3<f32>,
     micronormal: Vector3<f32>,
     alpha: Vector2<f32>,
-    thin: bool,
 ) -> Evaluation {
     let n_dot_i = incident.z;
     let n_dot_o = outgoing.z;
@@ -275,7 +263,6 @@ fn calculate_alpha(roughness: f32) -> Vector2<f32> {
 }
 
 pub fn eval(mat: &MaterialSample, outgoing: Vector3<f32>, incident: Vector3<f32>) -> Evaluation {
-    let thin = false;
     let micronormal = (outgoing + incident).normalize();
 
     let n_dot_o = outgoing.z;
@@ -297,7 +284,7 @@ pub fn eval(mat: &MaterialSample, outgoing: Vector3<f32>, incident: Vector3<f32>
     // TODO: Clearcoat
 
     if diffuse_weight > 0.0 {
-        let diffuse = eval_disney_diffuse(mat, outgoing, incident, micronormal, thin);
+        let diffuse = eval_disney_diffuse(mat, outgoing, incident, micronormal);
         //TODO: Add Sheen
         reflectance += diffuse_weight * (diffuse * mat.base_color_spectrum); //+ sheen);
 
@@ -306,18 +293,12 @@ pub fn eval(mat: &MaterialSample, outgoing: Vector3<f32>, incident: Vector3<f32>
     }
 
     if transmission_weight > 0.0 {
-        let scaled_roughness = if thin {
-            mat.roughness // TODO:
-        } else {
-            mat.roughness
-        };
-
-        let transmission_alpha = calculate_alpha(scaled_roughness);
+        let transmission_alpha = calculate_alpha(mat.roughness);
 
         if let Evaluation::Evaluation {
             weight: transmission,
             pdf,
-        } = eval_disney_specular_transmission(mat, outgoing, incident, micronormal, transmission_alpha, thin)
+        } = eval_disney_specular_transmission(mat, outgoing, incident, micronormal, transmission_alpha)
         {
             reflectance += transmission_weight * transmission;
 
@@ -420,7 +401,6 @@ pub fn bsdf_sample_diffuse_reflection(mat: &MaterialSample, outgoing: Vector3<f3
     let micronormal = (incident + outgoing).normalize();
 
     let n_dot_i = incident.z;
-    let n_dot_o = outgoing.z;
 
     if n_dot_i == 0.0 {
         return Sample::Null;
@@ -430,9 +410,7 @@ pub fn bsdf_sample_diffuse_reflection(mat: &MaterialSample, outgoing: Vector3<f3
     // but then is it still logical to use that value to choose between specular transmission or diffuse?
     let pdf = 1.0;
 
-    let thin = false;
-
-    let diffuse = eval_disney_diffuse(mat, outgoing, incident, micronormal, thin);
+    let diffuse = eval_disney_diffuse(mat, outgoing, incident, micronormal);
 
     Sample::Sample {
         incident,
