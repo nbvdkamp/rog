@@ -222,9 +222,13 @@ fn eval_disney_specular_transmission(
         // Walter et al. 2007 eq. 17
         let jacobian = m_dot_l.abs() * t;
 
-        Evaluation::Evaluation {
-            brdf: mat.base_color_spectrum.sqrt() * c * t * (1.0 - fresnel) * shadow_masking * normal_distrib,
-            pdf: (1.0 - fresnel) * visible_normal_distrib * jacobian,
+        if (1.0 - fresnel) == 0.0 {
+            Evaluation::Null
+        } else {
+            Evaluation::Evaluation {
+                brdf: mat.base_color_spectrum.sqrt() * c * t * (1.0 - fresnel) * shadow_masking * normal_distrib,
+                pdf: (1.0 - fresnel) * visible_normal_distrib * jacobian,
+            }
         }
     }
 }
