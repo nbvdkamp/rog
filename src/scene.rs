@@ -299,7 +299,12 @@ impl Scene {
                             let r = 1.0 / (uv_edge1.x * uv_edge2.y - uv_edge1.y * uv_edge2.x);
                             let tangent = (edge1 * uv_edge2.y - edge2 * uv_edge1.y) * r;
 
-                            tri_tangents.push(tangent);
+                            // Bad UVs can cause infinite or NaN values so fall back to an edge
+                            if !tangent.x.is_finite() || !tangent.y.is_finite() || !tangent.z.is_finite() {
+                                tri_tangents.push(edge1);
+                            } else {
+                                tri_tangents.push(tangent);
+                            }
                         } else {
                             tri_tangents.push(edge1);
                         }
