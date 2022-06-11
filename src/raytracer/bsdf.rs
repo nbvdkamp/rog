@@ -149,8 +149,8 @@ fn eval_disney_diffuse(
     incident: Vector3<f32>,
     micronormal: Vector3<f32>,
 ) -> f32 {
-    let n_dot_i = incident.z.max(0.0);
-    let n_dot_o = outgoing.z.max(0.0);
+    let n_dot_i = incident.z.abs();
+    let n_dot_o = outgoing.z.abs();
     let m_dot_i = micronormal.dot(incident);
 
     let fl = fresnel::schlick_weight(n_dot_i);
