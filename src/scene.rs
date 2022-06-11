@@ -170,7 +170,7 @@ impl Scene {
         let m = Matrix3::from_cols(transform.x.truncate(), transform.y.truncate(), transform.z.truncate());
         let normal_transform = m.invert().unwrap().transpose();
 
-        for primitive in mesh.primitives() {
+        'primitive: for primitive in mesh.primitives() {
             let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
             let mat = primitive.material();
@@ -264,6 +264,16 @@ impl Scene {
                 }
             };
 
+            let has_tex_coords = reader.read_tex_coords(0).is_some();
+
+            let tex_coords = match reader.read_tex_coords(0) {
+                Some(reader) => reader
+                    .into_f32()
+                    .map(|uv| Some(Vector2::<f32>::new(uv[0], uv[1])))
+                    .collect(),
+                None => vec![None; positions.len()],
+            };
+
             let tangents: Vec<Vector3<f32>> = match reader.read_tangents() {
                 Some(reader) => reader
                     .map(|tangent| normal_transform * (tangent[3] * vec3(tangent[0], tangent[1], tangent[2])))
@@ -274,8 +284,25 @@ impl Scene {
                     indices.chunks_exact(3).for_each(|i| {
                         let p0 = positions[i[0] as usize];
                         let p1 = positions[i[1] as usize];
+                        let p2 = positions[i[2] as usize];
 
-                        tri_tangents.push(p0 - p1);
+                        let edge1 = p1 - p0;
+                        let edge2 = p2 - p0;
+
+                        if has_tex_coords {
+                            let uv0 = tex_coords[i[0] as usize].unwrap();
+                            let uv1 = tex_coords[i[1] as usize].unwrap();
+                            let uv2 = tex_coords[i[2] as usize].unwrap();
+                            let uv_edge1 = uv1 - uv0;
+                            let uv_edge2 = uv2 - uv0;
+
+                            let r = 1.0 / (uv_edge1.x * uv_edge2.y - uv_edge1.y * uv_edge2.x);
+                            let tangent = (edge1 * uv_edge2.y - edge2 * uv_edge1.y) * r;
+
+                            tri_tangents.push(tangent);
+                        } else {
+                            tri_tangents.push(edge1);
+                        }
                     });
 
                     let mut vert_tangents = vec![Vector3::zero(); positions.len()];
@@ -286,16 +313,24 @@ impl Scene {
                         vert_tangents[indices[3 * i + 2] as usize] += tri_tangents[i];
                     }
 
-                    vert_tangents.into_iter().map(|v| v.normalize()).collect()
-                }
-            };
+                    for i in 0..vert_tangents.len() {
+                        let t = vert_tangents[i];
 
-            let tex_coords = match reader.read_tex_coords(0) {
-                Some(reader) => reader
-                    .into_f32()
-                    .map(|uv| Some(Vector2::<f32>::new(uv[0], uv[1])))
-                    .collect(),
-                None => vec![None; positions.len()],
+                        if t == Vector3::zero() {
+                            println!(
+                                "Encountered an error in computing tangents for primitive {} of mesh {}, skipping the primitive.",
+                                primitive.index(),
+                                mesh.name().unwrap_or(&mesh.index().to_string())
+                            );
+                            continue 'primitive;
+                        }
+
+                        let n = normals[i];
+                        vert_tangents[i] = (t - n * t.dot(n)).normalize();
+                    }
+
+                    vert_tangents
+                }
             };
 
             let vertices = positions
