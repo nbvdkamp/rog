@@ -78,4 +78,18 @@ mod tests {
     fn f0_ior() {
         assert_abs_diff_eq!(f_zero(1.0, 1.5), 0.04);
     }
+
+    #[test]
+    fn dielectric_no_ior_difference() {
+        match dielectric(1.0, 1.0, 1.0) {
+            Reflectance::Refract {
+                reflectance,
+                cos_theta_transmission,
+            } => {
+                assert_abs_diff_eq!(reflectance, 0.0);
+                assert_abs_diff_eq!(cos_theta_transmission, 1.0);
+            }
+            Reflectance::TotalInternalReflection => assert!(false),
+        }
+    }
 }
