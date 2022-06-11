@@ -353,15 +353,6 @@ impl Raytracer {
 
                 let sample = bsdf::sample(&mat_sample, local_outgoing);
 
-                let (local_bounce_dir, bsdf, pdf) = match sample {
-                    Sample::Sample { incident, weight, pdf } => (incident, weight, pdf),
-                    Sample::Null => break,
-                };
-
-                let offset_direction = if backfacing { -1.0 } else { 1.0 } * local_bounce_dir.z.signum() * geom_normal;
-
-                let offset_hit_pos = Raytracer::offset_hit_pos(hit_pos, offset_direction);
-
                 // Next event estimation (directly sampling lights)
                 if num_lights > 0 {
                     let light = &self.lights[rand::thread_rng().gen_range(0..num_lights)];
@@ -409,7 +400,14 @@ impl Raytracer {
                         }
                     }
                 }
-                // break; // no indirect for now
+
+                let (local_bounce_dir, bsdf, pdf) = match sample {
+                    Sample::Sample { incident, weight, pdf } => (incident, weight, pdf),
+                    Sample::Null => break,
+                };
+
+                let offset_direction = if backfacing { -1.0 } else { 1.0 } * local_bounce_dir.z.signum() * geom_normal;
+                let offset_hit_pos = Raytracer::offset_hit_pos(hit_pos, offset_direction);
 
                 let bounce_dir = frame.to_global(local_bounce_dir);
 
