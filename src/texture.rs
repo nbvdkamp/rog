@@ -3,7 +3,7 @@ use lerp::Lerp;
 use rayon::prelude::*;
 use rgb2spec::RGB2Spec;
 
-use crate::{color::RGBAf32, constants::GAMMA};
+use crate::color::{RGBAf32, RGBf32};
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum Format {
@@ -104,11 +104,11 @@ impl Texture {
                 .image
                 .par_chunks(3)
                 .map(|slice| CoefficientPixel {
-                    coeffs: rgb2spec.fetch([
-                        (slice[0] as f32 / 255.0).powf(GAMMA),
-                        (slice[1] as f32 / 255.0).powf(GAMMA),
-                        (slice[2] as f32 / 255.0).powf(GAMMA),
-                    ]),
+                    coeffs: rgb2spec.fetch(
+                        (RGBf32::new(slice[0] as f32, slice[1] as f32, slice[2] as f32) / 255.0)
+                            .srgb_to_linear()
+                            .into(),
+                    ),
                     alpha: 1.0,
                 })
                 .collect::<Vec<CoefficientPixel>>(),
@@ -116,11 +116,11 @@ impl Texture {
                 .image
                 .par_chunks(4)
                 .map(|slice| CoefficientPixel {
-                    coeffs: rgb2spec.fetch([
-                        (slice[0] as f32 / 255.0).powf(GAMMA),
-                        (slice[1] as f32 / 255.0).powf(GAMMA),
-                        (slice[2] as f32 / 255.0).powf(GAMMA),
-                    ]),
+                    coeffs: rgb2spec.fetch(
+                        (RGBf32::new(slice[0] as f32, slice[1] as f32, slice[2] as f32) / 255.0)
+                            .srgb_to_linear()
+                            .into(),
+                    ),
                     alpha: slice[3] as f32 / 255.0,
                 })
                 .collect::<Vec<CoefficientPixel>>(),

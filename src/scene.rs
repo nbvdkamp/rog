@@ -21,7 +21,6 @@ use serde::Deserialize;
 use crate::{
     camera::PerspectiveCamera,
     color::RGBf32,
-    constants::GAMMA,
     environment::Environment,
     light::Light,
     material::Material,
@@ -90,7 +89,7 @@ impl Scene {
                     .collect();
 
                 let environment = {
-                    let color = RGBf32::from_hex("#404040").pow(GAMMA);
+                    let color = RGBf32::from_hex("#404040").srgb_to_linear();
                     let coeffs = rgb2spec.fetch(color.into());
 
                     Environment {

@@ -5,7 +5,7 @@ use luminance_front::shader::types::Mat44;
 
 use rayon::prelude::*;
 
-use crate::{constants::GAMMA, spectrum::Spectrumf32};
+use crate::spectrum::Spectrumf32;
 
 use super::color::{RGBf32, RGBu8};
 
@@ -68,7 +68,23 @@ where
 pub fn convert_spectrum_buffer_to_rgb(buffer: Vec<Spectrumf32>) -> Vec<RGBf32> {
     buffer
         .into_par_iter()
-        .map(|spectrum| spectrum.to_srgb().pow(1.0 / GAMMA))
+        // .map(|spectrum| spectrum.to_srgb().linear_to_srgb())
+        .map(|spectrum| {
+            if spectrum.data[0] == 69.0 {
+                return RGBf32::new(0.0, 1.0, 1.0);
+            }
+
+            if spectrum.data.iter().any(|v| v.is_nan()) {
+                return RGBf32::new(1.0, 0.5, 0.0);
+            }
+
+            let c = spectrum.to_srgb().linear_to_srgb();
+            if c.has_nan_component() {
+                RGBf32::new(0.0, 1.0, 0.0)
+            } else {
+                c
+            }
+        })
         .collect()
 }
 

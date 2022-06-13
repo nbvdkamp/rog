@@ -175,6 +175,49 @@ impl From<RGBf32> for Vec4<f32> {
     }
 }
 
+impl RGBf32 {
+    pub fn linear_to_srgb(&self) -> Self {
+        let m = |c: f32| {
+            if c < 0.0031308 {
+                if c < 0.0 {
+                    0.0
+                } else {
+                    c * 12.92
+                }
+            } else {
+                1.055 * c.powf(1.0 / 2.4) - 0.055
+            }
+        };
+
+        RGBf32 {
+            r: m(self.r),
+            g: m(self.g),
+            b: m(self.b),
+        }
+    }
+
+    pub fn srgb_to_linear(&self) -> Self {
+        let m = |c| {
+            if c < 0.04045 {
+                if c < 0.0 {
+                    0.0
+                } else {
+                    c / 12.92
+                }
+            } else {
+                let x: f32 = (c + 0.055) / 1.055;
+                x.powf(2.4)
+            }
+        };
+
+        RGBf32 {
+            r: m(self.r),
+            g: m(self.g),
+            b: m(self.b),
+        }
+    }
+}
+
 impl XYZf32 {
     pub fn to_srgb(self) -> RGBf32 {
         let XYZf32 { x, y, z } = self;

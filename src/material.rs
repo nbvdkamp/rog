@@ -1,7 +1,7 @@
 use super::color::{RGBAf32, RGBf32};
 use cgmath::{vec3, InnerSpace, Vector2, Vector3};
 
-use crate::{constants::GAMMA, spectrum::Spectrumf32, texture::Texture};
+use crate::{spectrum::Spectrumf32, texture::Texture};
 
 #[derive(Clone)]
 pub struct Material {
@@ -73,7 +73,7 @@ impl Material {
             medium_ior: 1.0,
             ior: self.ior,
             transmission: self.transmission_factor * sample(self.transmission_texture).r,
-            emissive: self.emissive * sample(self.emissive_texture).rgb().pow(GAMMA),
+            emissive: self.emissive * sample(self.emissive_texture).rgb().srgb_to_linear(),
             specular: 0.5,
             shading_normal,
             sub_surface_scattering: 0.0,

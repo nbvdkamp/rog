@@ -92,7 +92,7 @@ impl App {
         .expect("Failed to create GLFW surface");
 
         let background_color = {
-            let c = self.scene.environment.color.pow(1.0 / crate::constants::GAMMA);
+            let c = self.scene.environment.color.srgb_to_linear();
             [c.r, c.g, c.b, 1.0]
         };
 

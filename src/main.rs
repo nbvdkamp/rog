@@ -11,7 +11,6 @@ mod args;
 mod camera;
 mod cie_data;
 mod color;
-mod constants;
 mod environment;
 mod light;
 mod material;
