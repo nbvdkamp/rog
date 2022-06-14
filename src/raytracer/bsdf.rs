@@ -23,12 +23,8 @@ pub fn mis2(pdf1: f32, pdf2: f32) -> f32 {
 }
 
 mod ggx {
-    use cgmath::{vec2, vec3, InnerSpace, Vector2, Vector3};
+    use cgmath::{vec3, InnerSpace, Vector2, Vector3};
     use rand::Rng;
-
-    use crate::{material::MaterialSample, spectrum::Spectrumf32};
-
-    use super::{fresnel, Evaluation};
 
     pub fn smith_shadow_term(n_dot_v: f32, alpha_squared: f32) -> f32 {
         let cos2 = n_dot_v * n_dot_v;
@@ -76,56 +72,6 @@ mod ggx {
 
         vec3(alpha.x * normal_h.x, alpha.y * normal_h.y, normal_h.z.max(0.0)).normalize()
     }
-
-    fn brdf(mat: &MaterialSample, n_dot_o: f32, n_dot_i: f32, n_dot_m: f32, m_dot_i: f32) -> (Spectrumf32, f32) {
-        let alpha = mat.roughness * mat.roughness;
-        let alpha_squared = alpha * alpha;
-
-        let g_o = smith_shadow_term(n_dot_o, alpha_squared);
-        let g_i = smith_shadow_term(n_dot_i, alpha_squared);
-        let shadow_masking = g_o * g_i;
-        let normal_distrib = normal_distribution(alpha_squared, n_dot_m);
-        // VNDF eq. 3 (Heitz 2018)
-        let visible_normal_distrib = g_o * m_dot_i.max(0.0) * normal_distrib / n_dot_o;
-
-        let fresnel = fresnel::disney(mat, m_dot_i);
-
-        // Leaving o_dot_n out of the divisor to multiply the result by cos theta
-        let brdf = fresnel * shadow_masking * normal_distrib / (4.0 * n_dot_o);
-        // VNDF eq. 17 (Heitz 2018)
-        let pdf = visible_normal_distrib / (4.0 * m_dot_i);
-
-        (brdf, pdf)
-    }
-
-    pub fn sample_m(mat: &MaterialSample, outgoing: Vector3<f32>) -> Vector3<f32> {
-        let alpha = mat.roughness * mat.roughness;
-        sample_micronormal(outgoing, vec2(alpha, alpha))
-    }
-
-    pub fn eval(mat: &MaterialSample, outgoing: Vector3<f32>, incident: Vector3<f32>) -> Evaluation {
-        let micronormal = (incident + outgoing).normalize();
-        eval_m(mat, outgoing, incident, micronormal)
-    }
-
-    pub fn eval_m(
-        mat: &MaterialSample,
-        outgoing: Vector3<f32>,
-        incident: Vector3<f32>,
-        micronormal: Vector3<f32>,
-    ) -> Evaluation {
-        let n_dot_i = incident.z;
-        let n_dot_o = outgoing.z;
-        let n_dot_m = micronormal.z;
-        let m_dot_i = incident.dot(micronormal).max(0.0);
-
-        if n_dot_i > 0.0 && n_dot_o > 0.0 {
-            let (brdf, pdf) = brdf(mat, n_dot_o, n_dot_i, n_dot_m, m_dot_i);
-            Evaluation::Evaluation { weight: brdf, pdf }
-        } else {
-            Evaluation::Null
-        }
-    }
 }
 
 pub enum Sample {
@@ -141,6 +87,42 @@ pub enum Sample {
 pub enum Evaluation {
     Evaluation { weight: Spectrumf32, pdf: f32 },
     Null,
+}
+
+pub fn eval_specular_reflection(
+    mat: &MaterialSample,
+    outgoing: Vector3<f32>,
+    incident: Vector3<f32>,
+    micronormal: Vector3<f32>,
+) -> Evaluation {
+    let n_dot_i = incident.z;
+    let n_dot_o = outgoing.z;
+
+    if n_dot_i <= 0.0 && n_dot_o <= 0.0 {
+        return Evaluation::Null;
+    }
+
+    let n_dot_m = micronormal.z;
+    let m_dot_i = incident.dot(micronormal).max(0.0);
+
+    let alpha = mat.roughness * mat.roughness;
+    let alpha_squared = alpha * alpha;
+
+    let g_o = ggx::smith_shadow_term(n_dot_o, alpha_squared);
+    let g_i = ggx::smith_shadow_term(n_dot_i, alpha_squared);
+    let shadow_masking = g_o * g_i;
+    let normal_distrib = ggx::normal_distribution(alpha_squared, n_dot_m);
+    // VNDF eq. 3 (Heitz 2018)
+    let visible_normal_distrib = g_o * m_dot_i.max(0.0) * normal_distrib / n_dot_o;
+
+    let fresnel = fresnel::disney(mat, m_dot_i);
+
+    // Leaving o_dot_n out of the divisor to multiply the result by cos theta
+    let brdf = fresnel * shadow_masking * normal_distrib / (4.0 * n_dot_o);
+    // VNDF eq. 17 (Heitz 2018)
+    let pdf = visible_normal_distrib / (4.0 * m_dot_i);
+
+    Evaluation::Evaluation { weight: brdf, pdf }
 }
 
 fn eval_disney_diffuse(
@@ -313,10 +295,12 @@ pub fn eval(mat: &MaterialSample, outgoing: Vector3<f32>, incident: Vector3<f32>
     }
 
     if upper_hemisphere {
-        if let Evaluation::Evaluation { weight: specular, pdf } = ggx::eval_m(mat, outgoing, incident, micronormal) {
+        if let Evaluation::Evaluation { weight: specular, pdf } =
+            eval_specular_reflection(mat, outgoing, incident, micronormal)
+        {
             reflectance += specular;
-            forward_pdf += lobe_pdfs.specular_reflection * pdf; // / /*maybe already in eval_m?*/ (4.0 * micronormal.dot(outgoing).abs());
-                                                                // TODO: reverse pdf
+            forward_pdf += lobe_pdfs.specular_reflection * pdf;
+            // TODO: reverse pdf
         }
     }
 
@@ -425,9 +409,12 @@ pub fn sample(mat: &MaterialSample, outgoing: Vector3<f32>) -> Sample {
     let mut r = thread_rng().gen::<f32>();
 
     if r < pdfs.specular_reflection {
-        let micronormal = ggx::sample_m(mat, outgoing);
+        let alpha = calculate_alpha(mat.roughness);
+        let micronormal = ggx::sample_micronormal(outgoing, alpha);
         let incident = reflect(outgoing, micronormal);
-        return if let Evaluation::Evaluation { weight, pdf } = ggx::eval(mat, outgoing, incident) {
+        return if let Evaluation::Evaluation { weight, pdf } =
+            eval_specular_reflection(mat, outgoing, incident, micronormal)
+        {
             Sample::Sample {
                 incident,
                 weight,
