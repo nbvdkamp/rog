@@ -304,7 +304,7 @@ impl App {
                     let (buffer, time_elapsed) =
                         self.raytracer
                             .render(self.image_size, self.samples_per_pixel, crate::ACCEL_INDEX, None);
-                    println!("Finished rendering in {} seconds", time_elapsed);
+                    println!("Finished rendering in {time_elapsed} seconds");
 
                     let buffer = convert_spectrum_buffer_to_rgb(buffer);
                     save_image(&buffer, self.image_size, &self.output_file);

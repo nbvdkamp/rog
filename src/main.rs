@@ -61,7 +61,7 @@ fn accel_benchmark() {
     let samples = 1;
 
     for path in test_scene_filenames {
-        let scene = Scene::load(format!("res/{}.glb", path)).unwrap();
+        let scene = Scene::load(format!("res/{path}.glb")).unwrap();
         let raytracer = Raytracer::new(&scene);
 
         println!("\nFilename: {}, tris: {}", path, raytracer.get_num_tris());
@@ -75,6 +75,7 @@ fn accel_benchmark() {
 
         for i in 0..raytracer.accel_structures.len() {
             let (_, time_elapsed) = raytracer.render(image_size, samples, i, None);
+            let name = raytracer.accel_structures[i].get_name();
 
             #[cfg(feature = "stats")]
             {
@@ -82,21 +83,10 @@ fn accel_benchmark() {
                 let traversals_per_ray = stats.inner_node_traversals as f32 / stats.rays as f32;
                 let tests_per_ray = stats.intersection_tests as f32 / stats.rays as f32;
                 let hits_per_test = stats.intersection_hits as f32 / stats.intersection_tests as f32;
-                println!(
-                    "{: <25} | {: <10} | {: <10} | {: <10} | {: <10}",
-                    raytracer.accel_structures[i].get_name(),
-                    time_elapsed,
-                    traversals_per_ray,
-                    tests_per_ray,
-                    hits_per_test
-                );
+                println!("{name: <25} | {time_elapsed: <10} | {traversals_per_ray: <10} | {tests_per_ray: <10} | {hits_per_test: <10}");
             }
             #[cfg(not(feature = "stats"))]
-            println!(
-                "{: <25} | {: <10}",
-                raytracer.accel_structures[i].get_name(),
-                time_elapsed
-            );
+            println!("{name: <25} | {time_elapsed: <10}");
         }
     }
 }
@@ -105,7 +95,7 @@ fn headless_render(args: Args) {
     let scene = match Scene::load(args.file) {
         Ok(scene) => scene,
         Err(message) => {
-            eprintln!("{}", message);
+            eprintln!("{message}");
             std::process::exit(-1);
         }
     };
@@ -124,7 +114,7 @@ fn headless_render(args: Args) {
     });
 
     let (buffer, time_elapsed) = raytracer.render(image_size, args.samples, ACCEL_INDEX, progress);
-    println!("Finished rendering in {} seconds", time_elapsed);
+    println!("Finished rendering in {time_elapsed} seconds");
 
     let buffer = convert_spectrum_buffer_to_rgb(buffer);
     save_image(&buffer, image_size, args.output_file);
