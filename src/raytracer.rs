@@ -319,8 +319,6 @@ impl Raytracer {
                 let edge2 = verts[0].position - verts[2].position;
                 let mut geom_normal = edge1.cross(edge2).normalize();
 
-                //TODO: Determine and pass if in or outside material
-
                 // Interpolate the vertex normals
                 let mut normal = (w * verts[0].normal + u * verts[1].normal + v * verts[2].normal).normalize();
                 let tangent = (w * verts[0].tangent + u * verts[1].tangent + v * verts[2].tangent).normalize();
@@ -358,7 +356,6 @@ impl Raytracer {
                     let light = &self.lights[rand::thread_rng().gen_range(0..num_lights)];
                     let light_sample = light.sample(hit_pos);
 
-                    // TODO: This makes sense but it makes the rough transmissive patches brighter than expected
                     let offset_direction = light_sample.direction.dot(geom_normal).signum() * geom_normal;
                     let offset_hit_pos = Raytracer::offset_hit_pos(hit_pos, offset_direction);
 
