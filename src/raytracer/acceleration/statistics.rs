@@ -28,31 +28,31 @@ impl Statistics {
         self.store.lock().unwrap().to_owned()
     }
 
-    #[cfg(feature = "stats")]
     pub fn count_inner_node_traversal(&self) {
-        self.store.lock().unwrap().inner_node_traversals += 1;
+        #[cfg(feature = "stats")]
+        {
+            self.store.lock().unwrap().inner_node_traversals += 1;
+        }
     }
-    #[cfg(not(feature = "stats"))]
-    pub fn count_inner_node_traversal(&self) {}
 
-    #[cfg(feature = "stats")]
     pub fn count_intersection_test(&self) {
-        self.store.lock().unwrap().intersection_tests += 1;
+        #[cfg(feature = "stats")]
+        {
+            self.store.lock().unwrap().intersection_tests += 1;
+        }
     }
-    #[cfg(not(feature = "stats"))]
-    pub fn count_intersection_test(&self) {}
 
-    #[cfg(feature = "stats")]
     pub fn count_intersection_hit(&self) {
-        self.store.lock().unwrap().intersection_hits += 1;
+        #[cfg(feature = "stats")]
+        {
+            self.store.lock().unwrap().intersection_hits += 1;
+        }
     }
-    #[cfg(not(feature = "stats"))]
-    pub fn count_intersection_hit(&self) {}
 
-    #[cfg(feature = "stats")]
     pub fn count_ray(&self) {
-        self.store.lock().unwrap().rays += 1;
+        #[cfg(feature = "stats")]
+        {
+            self.store.lock().unwrap().rays += 1;
+        }
     }
-    #[cfg(not(feature = "stats"))]
-    pub fn count_ray(&self) {}
 }
