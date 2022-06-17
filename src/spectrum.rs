@@ -45,13 +45,7 @@ impl Spectrumf32 {
     }
 
     pub fn max_value(&self) -> f32 {
-        let mut result = f32::MIN;
-
-        for v in &self.data {
-            result = result.max(*v);
-        }
-
-        result
+        self.data.iter().fold(f32::MIN, |old, v| old.max(*v))
     }
 }
 
