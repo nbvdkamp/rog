@@ -54,14 +54,15 @@ impl AccelerationStructure for BoundingVolumeHierarchyRec {
 impl BoundingVolumeHierarchyRec {
     pub fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
         let mut item_indices = Vec::new();
+        let mut stats = Statistics::new();
 
         for i in 0..triangles.len() {
             item_indices.push(i);
         }
 
         BoundingVolumeHierarchyRec {
-            root: create_node(verts, triangles, &mut item_indices),
-            stats: Statistics::new(),
+            root: create_node(verts, triangles, &mut item_indices, 0, &mut stats),
+            stats,
         }
     }
 
@@ -207,14 +208,24 @@ fn intersects_bounds_distance(node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: 
     }
 }
 
-fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: &mut [usize]) -> Option<Box<Node>> {
+fn create_node(
+    verts: &[Vertex],
+    triangles: &[Triangle],
+    triangle_indices: &mut [usize],
+    depth: usize,
+    stats: &mut Statistics,
+) -> Option<Box<Node>> {
     if triangle_indices.is_empty() {
         return None;
     }
 
+    stats.count_max_depth(depth);
+
     let bounds = compute_bounding_box_triangle_indexed(verts, triangles, triangle_indices);
 
     if triangle_indices.len() == 1 {
+        stats.count_leaf_node();
+
         return Some(Box::new(Node::Leaf {
             triangle_index: triangle_indices[0] as u32,
             bounds,
@@ -252,8 +263,10 @@ fn create_node(verts: &[Vertex], triangles: &[Triangle], triangle_indices: &mut 
         right_indices.push(*item);
     }
 
-    let left = create_node(verts, triangles, &mut left_indices);
-    let right = create_node(verts, triangles, &mut right_indices);
+    let left = create_node(verts, triangles, &mut left_indices, depth + 1, stats);
+    let right = create_node(verts, triangles, &mut right_indices, depth + 1, stats);
+
+    stats.count_inner_node();
 
     Some(Box::new(Node::Inner {
         left_child: left,

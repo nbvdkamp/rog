@@ -64,11 +64,13 @@ fn accel_benchmark() {
         let scene = Scene::load(format!("res/{path}.glb")).unwrap();
         let raytracer = Raytracer::new(&scene);
 
-        println!("\nFilename: {}, tris: {}", path, raytracer.get_num_tris());
+        println!("Filename: {}, tris: {}", path, raytracer.get_num_tris());
         #[cfg(feature = "stats")]
         println!(
-            "{: <25} | {: <10} | {: <10} | {: <10} | {: <10}",
-            "Acceleration structure", "Time (s)", "Nodes/ray", "Tests/ray", "Hits/test"
+            "{: <25} | {: <10} | {}",
+            "Acceleration structure",
+            "Time (s)",
+            raytracer::acceleration::statistics::Statistics::format_header()
         );
         #[cfg(not(feature = "stats"))]
         println!("{: <25} | {: <10}", "Acceleration structure", "Time (s)");
@@ -77,17 +79,13 @@ fn accel_benchmark() {
             let (_, time_elapsed) = raytracer.render(image_size, samples, i, None);
             let name = raytracer.accel_structures[i].get_name();
 
+            let _stats = raytracer.accel_structures[i].get_statistics();
             #[cfg(feature = "stats")]
-            {
-                let stats = raytracer.accel_structures[i].get_statistics();
-                let traversals_per_ray = stats.inner_node_traversals as f32 / stats.rays as f32;
-                let tests_per_ray = stats.intersection_tests as f32 / stats.rays as f32;
-                let hits_per_test = stats.intersection_hits as f32 / stats.intersection_tests as f32;
-                println!("{name: <25} | {time_elapsed: <10} | {traversals_per_ray: <10} | {tests_per_ray: <10} | {hits_per_test: <10}");
-            }
+            println!("{name: <25} | {time_elapsed: <10} | {_stats}");
             #[cfg(not(feature = "stats"))]
             println!("{name: <25} | {time_elapsed: <10}");
         }
+        println!();
     }
 }
 

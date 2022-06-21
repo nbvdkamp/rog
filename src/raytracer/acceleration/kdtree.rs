@@ -55,6 +55,7 @@ impl AccelerationStructure for KdTree {
 impl KdTree {
     pub fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
         let mut item_indices = Vec::new();
+        let mut stats = Statistics::new();
 
         for i in 0..triangles.len() {
             item_indices.push(i);
@@ -63,9 +64,9 @@ impl KdTree {
         let scene_bounds = compute_bounding_box(verts);
 
         KdTree {
-            root: create_node(verts, triangles, item_indices, 0, &scene_bounds),
+            root: create_node(verts, triangles, item_indices, 0, &scene_bounds, &mut stats),
             scene_bounds,
-            stats: Statistics::new(),
+            stats,
         }
     }
 
@@ -244,17 +245,22 @@ fn create_node(
     verts: &[Vertex],
     triangles: &[Triangle],
     triangle_indices: Vec<usize>,
-    depth: i32,
+    depth: usize,
     bounds: &BoundingBox,
+    stats: &mut Statistics,
 ) -> Option<Box<Node>> {
     if triangle_indices.is_empty() {
         return None;
     }
 
+    stats.count_max_depth(depth);
+
     let early_term_leaf_size = 10;
-    let max_depth = (f32::log2(triangles.len() as f32) * 1.2) as i32;
+    let max_depth = (f32::log2(triangles.len() as f32) * 1.2) as usize;
 
     if triangle_indices.len() <= early_term_leaf_size || depth > max_depth {
+        stats.count_leaf_node();
+
         return Some(Box::new(Node::Leaf {
             items: triangle_indices,
         }));
@@ -309,8 +315,10 @@ fn create_node(
         }
     }
 
-    let left = create_node(verts, triangles, left_indices, depth + 1, &left_bounds);
-    let right = create_node(verts, triangles, right_indices, depth + 1, &right_bounds);
+    let left = create_node(verts, triangles, left_indices, depth + 1, &left_bounds, stats);
+    let right = create_node(verts, triangles, right_indices, depth + 1, &right_bounds, stats);
+
+    stats.count_inner_node();
 
     Some(Box::new(Node::Inner {
         left_child: left,

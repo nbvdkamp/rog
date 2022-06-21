@@ -12,7 +12,7 @@ use crossbeam::{
 };
 
 mod aabb;
-mod acceleration;
+pub mod acceleration;
 mod axis;
 mod bsdf;
 pub mod geometry;
