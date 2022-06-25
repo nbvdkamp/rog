@@ -98,7 +98,7 @@ pub fn eval_specular_reflection(
     let n_dot_i = incident.z;
     let n_dot_o = outgoing.z;
 
-    if n_dot_i <= 0.0 && n_dot_o <= 0.0 {
+    if n_dot_i <= 0.0 || n_dot_o <= 0.0 {
         return Evaluation::Null;
     }
 
