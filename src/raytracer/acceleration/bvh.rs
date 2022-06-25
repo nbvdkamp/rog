@@ -16,7 +16,7 @@ pub struct BoundingVolumeHierarchy {
 
 enum Node {
     Leaf {
-        triangle_index: i32,
+        triangle_indices: Vec<usize>,
         bounds: BoundingBox,
     },
     Inner {
@@ -27,8 +27,11 @@ enum Node {
 }
 
 impl Node {
-    fn new_leaf(triangle_index: i32, bounds: BoundingBox) -> Node {
-        Node::Leaf { triangle_index, bounds }
+    fn new_leaf(triangle_indices: Vec<usize>, bounds: BoundingBox) -> Node {
+        Node::Leaf {
+            triangle_indices,
+            bounds,
+        }
     }
 
     fn new_inner(bounds: BoundingBox) -> Node {
@@ -43,6 +46,7 @@ impl Node {
 impl BoundingVolumeHierarchy {
     pub fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
         let mut nodes = Vec::new();
+        let stats = Statistics::new();
 
         let bounds = compute_bounding_box(verts);
         let mut item_indices = Vec::new();
@@ -51,102 +55,149 @@ impl BoundingVolumeHierarchy {
             item_indices.push(i);
         }
 
+        stats.count_inner_node();
         nodes.push(Node::new_inner(bounds));
 
-        let mut stack = vec![(0, item_indices)];
+        let mut stack = vec![(0, item_indices, 1)];
 
-        while let Some((index, mut item_indices)) = stack.pop() {
+        while let Some((index, mut item_indices, depth)) = stack.pop() {
             let new_left_index = nodes.len() as i32;
             let new_right_index = new_left_index + 1;
             let left_is_leaf;
             let right_is_leaf;
+            stats.count_max_depth(depth);
 
             let node = nodes.get_mut(index).unwrap();
 
-            let mut left_indices = Vec::new();
-            let mut right_indices = Vec::new();
+            let left_indices: Vec<usize>;
+            let right_indices: Vec<usize>;
 
             let left_bounds;
             let right_bounds;
 
-            let mut left_triangle_index = -1;
-            let mut right_triangle_index = -1;
+            if let Node::Inner {
+                left_child,
+                right_child,
+                bounds,
+            } = node
+            {
+                let (split_axis, _) = bounds.find_split_plane();
+                let axis_index = split_axis.index();
 
-            match node {
-                Node::Inner {
-                    left_child,
-                    right_child,
-                    bounds,
-                } => {
-                    let (split_axis, _) = bounds.find_split_plane();
-                    let axis_index = split_axis.index();
+                let mut centroid_bounds = BoundingBox::new();
 
-                    item_indices.sort_by(|index_a, index_b| {
-                        let triangle_a = &triangles[*index_a];
-                        let triangle_b = &triangles[*index_b];
-                        let mid_a = (verts[triangle_a.index1 as usize].position[axis_index]
-                            + verts[triangle_a.index2 as usize].position[axis_index]
-                            + verts[triangle_a.index3 as usize].position[axis_index])
-                            / 3.0;
-                        let mid_b = (verts[triangle_b.index1 as usize].position[axis_index]
-                            + verts[triangle_b.index2 as usize].position[axis_index]
-                            + verts[triangle_b.index3 as usize].position[axis_index])
-                            / 3.0;
+                item_indices.iter().for_each(|index| {
+                    let triangle = &triangles[*index];
 
-                        mid_a.partial_cmp(&mid_b).unwrap()
-                    });
+                    centroid_bounds.add(triangle.bounds.center());
+                });
 
-                    let mid_item_index = item_indices.len() / 2;
+                const BUCKET_COUNT: usize = 12;
 
-                    for item in item_indices.iter().take(mid_item_index) {
-                        left_indices.push(*item);
+                #[derive(Clone, Copy)]
+                struct Bucket {
+                    count: u32,
+                    bounds: BoundingBox,
+                }
+
+                let mut buckets = [Bucket {
+                    count: 0,
+                    bounds: BoundingBox::new(),
+                }; BUCKET_COUNT];
+
+                let bucket_index = |center| {
+                    let x = (center - centroid_bounds.min[axis_index])
+                        / (centroid_bounds.max[axis_index] - centroid_bounds.min[axis_index]);
+                    ((BUCKET_COUNT as f32 * x) as usize).min(BUCKET_COUNT - 1)
+                };
+
+                item_indices.iter().for_each(|index| {
+                    let triangle = &triangles[*index];
+                    let center = triangle.bounds.center()[axis_index];
+                    let bucket = &mut buckets[bucket_index(center)];
+                    bucket.count += 1;
+                    bucket.bounds = bucket.bounds.union(triangle.bounds);
+                });
+
+                let mut costs = [0.0; BUCKET_COUNT - 1];
+
+                for i in 0..BUCKET_COUNT - 1 {
+                    let mut b0 = BoundingBox::new();
+                    let mut b1 = BoundingBox::new();
+
+                    let mut count0 = 0;
+                    let mut count1 = 0;
+
+                    for j in 0..=i {
+                        b0 = b0.union(buckets[j].bounds);
+                        count0 += buckets[j].count;
+                    }
+                    for j in i + 1..BUCKET_COUNT {
+                        b1 = b1.union(buckets[j].bounds);
+                        count1 += buckets[j].count;
                     }
 
-                    for item in item_indices.iter().skip(mid_item_index) {
-                        right_indices.push(*item);
-                    }
+                    const RELATIVE_TRAVERSAL_COST: f32 = 1.2;
+                    let approx_children_cost =
+                        (count0 as f32 * b0.surface_area() + count1 as f32 * b1.surface_area()) / bounds.surface_area();
+                    costs[i] = RELATIVE_TRAVERSAL_COST + approx_children_cost;
+                }
 
-                    left_bounds = compute_bounding_box_triangle_indexed(verts, triangles, &left_indices);
-                    right_bounds = compute_bounding_box_triangle_indexed(verts, triangles, &right_indices);
+                let mut min_cost = costs[0];
+                let mut min_index = 0;
 
-                    left_is_leaf = left_indices.len() < 2;
-                    right_is_leaf = right_indices.len() < 2;
-
-                    *left_child = new_left_index;
-                    *right_child = new_right_index;
-
-                    if !left_is_leaf {
-                        stack.push((new_left_index as usize, left_indices));
-                    } else if !left_indices.is_empty() {
-                        left_triangle_index = left_indices[0] as i32;
-                    }
-
-                    if !right_is_leaf {
-                        stack.push((new_right_index as usize, right_indices));
-                    } else if !right_indices.is_empty() {
-                        right_triangle_index = right_indices[0] as i32;
+                for i in 1..BUCKET_COUNT - 1 {
+                    if costs[i] < min_cost {
+                        min_cost = costs[i];
+                        min_index = i;
                     }
                 }
-                _ => unreachable!(),
+
+                const MAX_TRIS_IN_LEAF: usize = 255;
+
+                if item_indices.len() > MAX_TRIS_IN_LEAF || min_cost < item_indices.len() as f32 {
+                    (left_indices, right_indices) = item_indices
+                        .into_iter()
+                        .partition(|i| bucket_index(triangles[*i].bounds.center()[axis_index]) <= min_index);
+                    left_is_leaf = left_indices.len() < 2;
+                    right_is_leaf = right_indices.len() < 2;
+                } else {
+                    left_indices = item_indices.split_off(item_indices.len() / 2);
+                    right_indices = item_indices;
+
+                    left_is_leaf = true;
+                    right_is_leaf = true;
+                }
+
+                left_bounds = compute_bounding_box_triangle_indexed(triangles, &left_indices);
+                right_bounds = compute_bounding_box_triangle_indexed(triangles, &right_indices);
+
+                *left_child = new_left_index;
+                *right_child = new_right_index;
+            } else {
+                unreachable!();
             }
 
             if left_is_leaf {
-                nodes.push(Node::new_leaf(left_triangle_index, left_bounds));
+                stats.count_leaf_node();
+                nodes.push(Node::new_leaf(left_indices, left_bounds));
             } else {
+                stack.push((new_left_index as usize, left_indices, depth + 1));
+                stats.count_inner_node();
                 nodes.push(Node::new_inner(left_bounds));
             }
 
             if right_is_leaf {
-                nodes.push(Node::new_leaf(right_triangle_index, right_bounds));
+                stats.count_leaf_node();
+                nodes.push(Node::new_leaf(right_indices, right_bounds));
             } else {
+                stack.push((new_right_index as usize, right_indices, depth + 1));
+                stats.count_inner_node();
                 nodes.push(Node::new_inner(right_bounds));
             }
         }
 
-        BoundingVolumeHierarchy {
-            nodes,
-            stats: Statistics::new(),
-        }
+        BoundingVolumeHierarchy { nodes, stats }
     }
 }
 
@@ -176,28 +227,33 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                         stack.push(*right_child as usize);
                     }
                 }
-                Node::Leaf { triangle_index, bounds } => {
-                    if *triangle_index > -1 && bounds.intersects_ray(ray, &inv_dir) {
-                        let triangle = &triangles[*triangle_index as usize];
-                        let p1 = &verts[triangle.index1 as usize];
-                        let p2 = &verts[triangle.index2 as usize];
-                        let p3 = &verts[triangle.index3 as usize];
+                Node::Leaf {
+                    triangle_indices,
+                    bounds,
+                } => {
+                    if !triangle_indices.is_empty() && bounds.intersects_ray(ray, &inv_dir) {
+                        for i in triangle_indices {
+                            let triangle = &triangles[*i];
+                            let p1 = &verts[triangle.index1 as usize];
+                            let p2 = &verts[triangle.index2 as usize];
+                            let p3 = &verts[triangle.index3 as usize];
 
-                        self.stats.count_intersection_test();
+                            self.stats.count_intersection_test();
 
-                        if let IntersectionResult::Hit { t, u, v } =
-                            ray.intersect_triangle(p1.position, p2.position, p3.position)
-                        {
-                            self.stats.count_intersection_hit();
+                            if let IntersectionResult::Hit { t, u, v } =
+                                ray.intersect_triangle(p1.position, p2.position, p3.position)
+                            {
+                                self.stats.count_intersection_hit();
 
-                            if t < min_distance {
-                                min_distance = t;
-                                result = TraceResult::Hit {
-                                    triangle_index: *triangle_index as u32,
-                                    t,
-                                    u,
-                                    v,
-                                };
+                                if t < min_distance {
+                                    min_distance = t;
+                                    result = TraceResult::Hit {
+                                        triangle_index: *i as u32,
+                                        t,
+                                        u,
+                                        v,
+                                    };
+                                }
                             }
                         }
                     }
@@ -227,18 +283,11 @@ fn compute_bounding_box(vertices: &[Vertex]) -> BoundingBox {
     bounds
 }
 
-fn compute_bounding_box_triangle_indexed(
-    vertices: &[Vertex],
-    triangles: &[Triangle],
-    triangle_indices: &[usize],
-) -> BoundingBox {
+fn compute_bounding_box_triangle_indexed(triangles: &[Triangle], triangle_indices: &[usize]) -> BoundingBox {
     let mut bounds = BoundingBox::new();
 
     for i in triangle_indices {
-        let triangle = &triangles[*i];
-        bounds.add(vertices[triangle.index1 as usize].position);
-        bounds.add(vertices[triangle.index2 as usize].position);
-        bounds.add(vertices[triangle.index3 as usize].position);
+        bounds = bounds.union(triangles[*i].bounds);
     }
 
     bounds

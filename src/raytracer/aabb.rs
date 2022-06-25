@@ -1,6 +1,6 @@
 use super::{axis::Axis, Ray};
 use crate::util::*;
-use cgmath::{ElementWise, Point3, Vector3};
+use cgmath::{ElementWise, EuclideanSpace, Point3, Vector3};
 
 #[derive(Debug, Copy, Clone)]
 pub struct BoundingBox {
@@ -50,6 +50,19 @@ impl BoundingBox {
         }
     }
 
+    pub fn center(&self) -> Point3<f32> {
+        self.min.midpoint(self.max)
+    }
+
+    pub fn surface_area(&self) -> f32 {
+        if self.min.x > self.max.x || self.min.y > self.max.y || self.min.z > self.max.z {
+            return 0.0;
+        }
+
+        let e = self.max - self.min;
+        2.0 * (e.x * e.y + e.x * e.z + e.y * e.z)
+    }
+
     pub fn set_max(&mut self, axis: &Axis, value: f32) {
         match axis {
             Axis::X => self.max.x = value,
@@ -80,6 +93,24 @@ impl BoundingBox {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn center() {
+        let mut bb = BoundingBox::new();
+        bb.add(Point3::new(0.0, 0.0, 0.0));
+        bb.add(Point3::new(1.0, 1.0, 1.0));
+
+        assert_eq!(bb.center(), Point3::new(0.5, 0.5, 0.5));
+    }
+
+    #[test]
+    fn area() {
+        let mut bb = BoundingBox::new();
+        bb.add(Point3::new(0.0, -1.0, 0.0));
+        bb.add(Point3::new(1.0, 1.0, 1.0));
+
+        assert_eq!(bb.surface_area(), 10.0);
+    }
 
     #[test]
     fn intersect_ray_hit() {

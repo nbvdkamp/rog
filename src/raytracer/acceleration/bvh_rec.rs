@@ -221,7 +221,7 @@ fn create_node(
 
     stats.count_max_depth(depth);
 
-    let bounds = compute_bounding_box_triangle_indexed(verts, triangles, triangle_indices);
+    let bounds = compute_bounding_box_triangle_indexed(triangles, triangle_indices);
 
     if triangle_indices.len() == 1 {
         stats.count_leaf_node();
@@ -275,18 +275,11 @@ fn create_node(
     }))
 }
 
-fn compute_bounding_box_triangle_indexed(
-    vertices: &[Vertex],
-    triangles: &[Triangle],
-    triangle_indices: &[usize],
-) -> BoundingBox {
+fn compute_bounding_box_triangle_indexed(triangles: &[Triangle], triangle_indices: &[usize]) -> BoundingBox {
     let mut bounds = BoundingBox::new();
 
     for i in triangle_indices {
-        let triangle = &triangles[*i];
-        bounds.add(vertices[triangle.index1 as usize].position);
-        bounds.add(vertices[triangle.index2 as usize].position);
-        bounds.add(vertices[triangle.index3 as usize].position);
+        bounds = bounds.union(triangles[*i].bounds);
     }
 
     bounds
