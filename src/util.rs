@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use cgmath::{Matrix4, Vector2, Vector3};
+use cgmath::{Matrix4, Point3, Vector2, Vector3};
 use luminance_front::shader::types::Mat44;
 
 use rayon::prelude::*;
@@ -9,19 +9,44 @@ use crate::spectrum::Spectrumf32;
 
 use super::color::{RGBf32, RGBu8};
 
-pub fn elementwise_min(a: Vector3<f32>, b: Vector3<f32>) -> Vector3<f32> {
-    Vector3 {
-        x: f32::min(a.x, b.x),
-        y: f32::min(a.y, b.y),
-        z: f32::min(a.z, b.z),
+pub trait ElementWiseMinMax {
+    fn elementwise_min(self, other: Self) -> Self;
+    fn elementwise_max(self, other: Self) -> Self;
+}
+
+impl ElementWiseMinMax for Vector3<f32> {
+    fn elementwise_min(self, other: Self) -> Self {
+        Self {
+            x: self.x.min(other.x),
+            y: self.y.min(other.y),
+            z: self.z.min(other.z),
+        }
+    }
+
+    fn elementwise_max(self, other: Self) -> Self {
+        Self {
+            x: self.x.max(other.x),
+            y: self.y.max(other.y),
+            z: self.z.max(other.z),
+        }
     }
 }
 
-pub fn elementwise_max(a: Vector3<f32>, b: Vector3<f32>) -> Vector3<f32> {
-    Vector3 {
-        x: f32::max(a.x, b.x),
-        y: f32::max(a.y, b.y),
-        z: f32::max(a.z, b.z),
+impl ElementWiseMinMax for Point3<f32> {
+    fn elementwise_min(self, other: Self) -> Self {
+        Self {
+            x: self.x.min(other.x),
+            y: self.y.min(other.y),
+            z: self.z.min(other.z),
+        }
+    }
+
+    fn elementwise_max(self, other: Self) -> Self {
+        Self {
+            x: self.x.max(other.x),
+            y: self.y.max(other.y),
+            z: self.z.max(other.z),
+        }
     }
 }
 

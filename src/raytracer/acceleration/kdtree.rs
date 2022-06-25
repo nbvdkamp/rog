@@ -332,7 +332,7 @@ fn compute_bounding_box(vertices: &[Vertex]) -> BoundingBox {
     let mut bounds = BoundingBox::new();
 
     for vertex in vertices {
-        bounds.add(&vertex.position);
+        bounds.add(vertex.position);
     }
 
     bounds

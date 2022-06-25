@@ -88,9 +88,9 @@ impl Raytracer {
                 let index3 = mesh.indices[i + 2] + start_index;
 
                 let mut bounds = BoundingBox::new();
-                bounds.add(&verts[index1 as usize].position);
-                bounds.add(&verts[index2 as usize].position);
-                bounds.add(&verts[index3 as usize].position);
+                bounds.add(verts[index1 as usize].position);
+                bounds.add(verts[index2 as usize].position);
+                bounds.add(verts[index3 as usize].position);
 
                 triangles.push(Triangle {
                     index1,

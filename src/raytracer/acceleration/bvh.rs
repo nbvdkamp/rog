@@ -221,7 +221,7 @@ fn compute_bounding_box(vertices: &[Vertex]) -> BoundingBox {
     let mut bounds = BoundingBox::new();
 
     for vertex in vertices {
-        bounds.add(&vertex.position);
+        bounds.add(vertex.position);
     }
 
     bounds
@@ -236,9 +236,9 @@ fn compute_bounding_box_triangle_indexed(
 
     for i in triangle_indices {
         let triangle = &triangles[*i];
-        bounds.add(&vertices[triangle.index1 as usize].position);
-        bounds.add(&vertices[triangle.index2 as usize].position);
-        bounds.add(&vertices[triangle.index3 as usize].position);
+        bounds.add(vertices[triangle.index1 as usize].position);
+        bounds.add(vertices[triangle.index2 as usize].position);
+        bounds.add(vertices[triangle.index3 as usize].position);
     }
 
     bounds

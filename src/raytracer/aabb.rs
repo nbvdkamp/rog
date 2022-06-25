@@ -16,14 +16,16 @@ impl BoundingBox {
         }
     }
 
-    pub fn add(&mut self, p: &Point3<f32>) {
-        self.min.x = f32::min(self.min.x, p.x);
-        self.min.y = f32::min(self.min.y, p.y);
-        self.min.z = f32::min(self.min.z, p.z);
+    pub fn add(&mut self, p: Point3<f32>) {
+        self.min = self.min.elementwise_min(p);
+        self.max = self.max.elementwise_max(p);
+    }
 
-        self.max.x = f32::max(self.max.x, p.x);
-        self.max.y = f32::max(self.max.y, p.y);
-        self.max.z = f32::max(self.max.z, p.z);
+    pub fn union(&mut self, other: Self) -> Self {
+        Self {
+            min: self.min.elementwise_min(other.min),
+            max: self.max.elementwise_max(other.max),
+        }
     }
 
     pub fn find_split_plane(&self) -> (Axis, f32) {
@@ -59,8 +61,8 @@ impl BoundingBox {
     pub fn intersects_ray(&self, ray: &Ray, inv_dir: &Vector3<f32>) -> bool {
         let t0 = (self.min - ray.origin).mul_element_wise(*inv_dir);
         let t1 = (self.max - ray.origin).mul_element_wise(*inv_dir);
-        let tmin = elementwise_min(t0, t1);
-        let tmax = elementwise_max(t0, t1);
+        let tmin = t0.elementwise_min(t1);
+        let tmax = t0.elementwise_max(t1);
 
         max_element(tmin) <= min_element(tmax) && min_element(tmax) >= 0.0 // Ensure the object isn't behind the ray
     }
@@ -69,7 +71,7 @@ impl BoundingBox {
     pub fn t_distance_from_ray(&self, ray: &Ray, inv_dir: &Vector3<f32>) -> f32 {
         let t0 = (self.min - ray.origin).mul_element_wise(*inv_dir);
         let t1 = (self.max - ray.origin).mul_element_wise(*inv_dir);
-        let tmin = elementwise_min(t0, t1);
+        let tmin = t0.elementwise_min(t1);
 
         max_element(tmin)
     }
@@ -82,8 +84,8 @@ mod tests {
     #[test]
     fn intersect_ray_hit() {
         let mut bb = BoundingBox::new();
-        bb.add(&Point3::new(-1.0, -1.0, -1.0));
-        bb.add(&Point3::new(1.0, 1.0, 1.0));
+        bb.add(Point3::new(-1.0, -1.0, -1.0));
+        bb.add(Point3::new(1.0, 1.0, 1.0));
 
         let ray = Ray {
             origin: Point3::new(-2.0, 0.0, 0.0),
@@ -97,8 +99,8 @@ mod tests {
     #[test]
     fn intersect_ray_miss() {
         let mut bb = BoundingBox::new();
-        bb.add(&Point3::new(-1.0, -1.0, -1.0));
-        bb.add(&Point3::new(1.0, 1.0, 1.0));
+        bb.add(Point3::new(-1.0, -1.0, -1.0));
+        bb.add(Point3::new(1.0, 1.0, 1.0));
 
         let ray = Ray {
             origin: Point3::new(-2.0, 2.0, 0.0),
@@ -112,8 +114,8 @@ mod tests {
     #[test]
     fn intersect_ray_miss_behind_ray() {
         let mut bb = BoundingBox::new();
-        bb.add(&Point3::new(-1.0, -1.0, -1.0));
-        bb.add(&Point3::new(1.0, 1.0, 1.0));
+        bb.add(Point3::new(-1.0, -1.0, -1.0));
+        bb.add(Point3::new(1.0, 1.0, 1.0));
 
         let ray = Ray {
             origin: Point3::new(2.0, 0.0, 0.0),
@@ -127,8 +129,8 @@ mod tests {
     #[test]
     fn distance_from_ray() {
         let mut bb = BoundingBox::new();
-        bb.add(&Point3::new(-1.0, -1.0, -1.0));
-        bb.add(&Point3::new(1.0, 1.0, 1.0));
+        bb.add(Point3::new(-1.0, -1.0, -1.0));
+        bb.add(Point3::new(1.0, 1.0, 1.0));
 
         let direction = Vector3::new(1., 0., 0.);
         let inv_dir = 1. / direction;
@@ -143,8 +145,8 @@ mod tests {
     #[test]
     fn distance_from_ray_backwards() {
         let mut bb = BoundingBox::new();
-        bb.add(&Point3::new(-1.0, -1.0, -1.0));
-        bb.add(&Point3::new(1.0, 1.0, 1.0));
+        bb.add(Point3::new(-1.0, -1.0, -1.0));
+        bb.add(Point3::new(1.0, 1.0, 1.0));
 
         let direction = Vector3::new(-1., 0., 0.);
         let inv_dir = 1. / direction;
