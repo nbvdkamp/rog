@@ -23,7 +23,7 @@ use crate::{
     color::RGBf32,
     environment::Environment,
     light::Light,
-    material::Material,
+    material::{CauchyCoefficients, Material},
     mesh::{Mesh, Vertex},
     spectrum::Spectrumf32,
     texture::{Format, Texture},
@@ -176,6 +176,17 @@ impl Scene {
             let pbr = mat.pbr_metallic_roughness();
             let base = pbr.base_color_factor();
 
+            #[derive(Deserialize)]
+            struct MaterialExtras {
+                cauchy_a: Option<f32>,
+                cauchy_b: Option<f32>,
+            }
+
+            let extras: Option<MaterialExtras> = mat
+                .extras()
+                .as_ref()
+                .and_then(|extras| serde_json::from_str(&extras.as_ref().get()).ok());
+
             let base_color = RGBf32::new(base[0], base[1], base[2]);
             let base_color_coefficients = rgb2spec.fetch([base_color.r, base_color.g, base_color.b]);
 
@@ -193,6 +204,21 @@ impl Scene {
                 (0.0, None)
             };
 
+            let ior = mat.ior().unwrap_or(1.5);
+
+            let cauchy_coefficients = if let Some(extras) = extras {
+                if extras.cauchy_a.is_some() && extras.cauchy_b.is_some() {
+                    CauchyCoefficients {
+                        a: extras.cauchy_a.unwrap(),
+                        b: extras.cauchy_b.unwrap(),
+                    }
+                } else {
+                    CauchyCoefficients::approx_from_ior(ior)
+                }
+            } else {
+                CauchyCoefficients::approx_from_ior(ior)
+            };
+
             let material = Material {
                 base_color,
                 base_color_coefficients,
@@ -200,7 +226,8 @@ impl Scene {
                 roughness: pbr.roughness_factor(),
                 metallic: pbr.metallic_factor(),
                 metallic_roughness_texture: pbr.metallic_roughness_texture().map(get_index),
-                ior: mat.ior().unwrap_or(1.5),
+                ior,
+                cauchy_coefficients,
                 transmission_factor,
                 transmission_texture,
                 emissive: mat.emissive_factor().into(),
