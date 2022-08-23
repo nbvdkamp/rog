@@ -8,16 +8,16 @@ use crate::{
 
 pub type Spectrumf32 = ArrSpectrumf32;
 
-const SPECTRUM_RES: usize = 100;
+const RESOLUTION: usize = 100;
 
 impl Spectrumf32 {
     /// Converts to CIE 1931 XYZ color space
     pub fn to_xyz(self) -> XYZf32 {
         let mut xyz = XYZf32::from_grayscale(0.0);
 
-        let step_size = CIE::LAMBDA_RANGE / (SPECTRUM_RES - 1) as f32;
+        let step_size = CIE::LAMBDA_RANGE / (RESOLUTION - 1) as f32;
 
-        for i in 0..SPECTRUM_RES {
+        for i in 0..RESOLUTION {
             let wavelength = CIE::LAMBDA_MIN + i as f32 * step_size;
             let whitepoint_sample = CIE::illuminant_d65_interp(wavelength);
 
@@ -34,9 +34,9 @@ impl Spectrumf32 {
     /// Constructs discretized spectrum from rgb2spec coefficients
     pub fn from_coefficients(coeffs: [f32; 3]) -> Self {
         let mut spectrum = Self::zero();
-        let step_size = CIE::LAMBDA_RANGE / (SPECTRUM_RES - 1) as f32;
+        let step_size = CIE::LAMBDA_RANGE / (RESOLUTION - 1) as f32;
 
-        for i in 0..SPECTRUM_RES {
+        for i in 0..RESOLUTION {
             let wavelength = CIE::LAMBDA_MIN + i as f32 * step_size;
             spectrum.data[i] = rgb2spec::eval_precise(coeffs, wavelength);
         }
@@ -62,7 +62,7 @@ impl VecSpectrumf32 {
     pub fn constant(v: f32) -> Self {
         //TODO: const size for now
         VecSpectrumf32 {
-            data: vec![v; SPECTRUM_RES],
+            data: vec![v; RESOLUTION],
         }
     }
 
@@ -71,9 +71,9 @@ impl VecSpectrumf32 {
     }
 
     pub fn sqrt(&self) -> Self {
-        let mut data = vec![0.0; SPECTRUM_RES];
+        let mut data = vec![0.0; RESOLUTION];
 
-        for i in 0..SPECTRUM_RES {
+        for i in 0..RESOLUTION {
             data[i] = self.data[i].sqrt();
         }
 
@@ -143,18 +143,18 @@ impl DivAssign<f32> for VecSpectrumf32 {
 
 #[derive(Clone, Copy)]
 pub struct ArrSpectrumf32 {
-    pub data: [f32; SPECTRUM_RES],
+    pub data: [f32; RESOLUTION],
 }
 
 impl ArrSpectrumf32 {
-    pub fn new(data: [f32; SPECTRUM_RES]) -> Self {
+    pub const RESOLUTION: usize = RESOLUTION;
+
+    pub fn new(data: [f32; RESOLUTION]) -> Self {
         ArrSpectrumf32 { data }
     }
 
     pub fn constant(v: f32) -> Self {
-        ArrSpectrumf32 {
-            data: [v; SPECTRUM_RES],
-        }
+        ArrSpectrumf32 { data: [v; RESOLUTION] }
     }
 
     pub fn zero() -> Self {
@@ -162,9 +162,9 @@ impl ArrSpectrumf32 {
     }
 
     pub fn sqrt(&self) -> Self {
-        let mut data = [0.0; SPECTRUM_RES];
+        let mut data = [0.0; RESOLUTION];
 
-        for i in 0..SPECTRUM_RES {
+        for i in 0..RESOLUTION {
             data[i] = self.data[i].sqrt();
         }
 
@@ -173,9 +173,9 @@ impl ArrSpectrumf32 {
 }
 
 impl_op_ex!(+ |a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {
-    let mut data = [0.0; SPECTRUM_RES];
+    let mut data = [0.0; RESOLUTION];
 
-    for i in 0..SPECTRUM_RES {
+    for i in 0..RESOLUTION {
         data[i] = a.data[i] + b.data[i];
     }
 
@@ -183,9 +183,9 @@ impl_op_ex!(+ |a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {
 });
 
 impl_op_ex!(-|a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {
-    let mut data = [0.0; SPECTRUM_RES];
+    let mut data = [0.0; RESOLUTION];
 
-    for i in 0..SPECTRUM_RES {
+    for i in 0..RESOLUTION {
         data[i] = a.data[i] - b.data[i];
     }
 
@@ -193,9 +193,9 @@ impl_op_ex!(-|a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {
 });
 
 impl_op_ex!(*|a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {
-    let mut data = [0.0; SPECTRUM_RES];
+    let mut data = [0.0; RESOLUTION];
 
-    for i in 0..SPECTRUM_RES {
+    for i in 0..RESOLUTION {
         data[i] = a.data[i] * b.data[i];
     }
 
@@ -203,9 +203,9 @@ impl_op_ex!(*|a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {
 });
 
 impl_op_ex!(/ |a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {
-    let mut data = [0.0; SPECTRUM_RES];
+    let mut data = [0.0; RESOLUTION];
 
-    for i in 0..SPECTRUM_RES {
+    for i in 0..RESOLUTION {
         data[i] = a.data[i] / b.data[i];
     }
 
@@ -213,9 +213,9 @@ impl_op_ex!(/ |a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {
 });
 
 impl_op_ex_commutative!(*|a: &ArrSpectrumf32, b: f32| -> ArrSpectrumf32 {
-    let mut data = [0.0; SPECTRUM_RES];
+    let mut data = [0.0; RESOLUTION];
 
-    for i in 0..SPECTRUM_RES {
+    for i in 0..RESOLUTION {
         data[i] = a.data[i] * b;
     }
 
@@ -223,9 +223,9 @@ impl_op_ex_commutative!(*|a: &ArrSpectrumf32, b: f32| -> ArrSpectrumf32 {
 });
 
 impl_op_ex_commutative!(/ |a: &ArrSpectrumf32, b: f32| -> ArrSpectrumf32 {
-    let mut data = [0.0; SPECTRUM_RES];
+    let mut data = [0.0; RESOLUTION];
 
-    for i in 0..SPECTRUM_RES {
+    for i in 0..RESOLUTION {
         data[i] = a.data[i] / b;
     }
 
@@ -337,16 +337,16 @@ mod bench {
 
     #[bench]
     fn add(b: &mut Bencher) {
-        let p = VecSpectrumf32::new(vec![1.0; SPECTRUM_RES]);
-        let q = VecSpectrumf32::new(vec![10.0; SPECTRUM_RES]);
+        let p = VecSpectrumf32::new(vec![1.0; RESOLUTION]);
+        let q = VecSpectrumf32::new(vec![10.0; RESOLUTION]);
 
         b.iter(|| &p + &q);
     }
 
     #[bench]
     fn add2(b: &mut Bencher) {
-        let p = ArrSpectrumf32::new([1.0; SPECTRUM_RES]);
-        let q = ArrSpectrumf32::new([10.0; SPECTRUM_RES]);
+        let p = ArrSpectrumf32::new([1.0; RESOLUTION]);
+        let q = ArrSpectrumf32::new([10.0; RESOLUTION]);
 
         b.iter(|| &p + &q);
     }
