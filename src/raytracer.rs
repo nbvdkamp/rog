@@ -2,14 +2,11 @@ use rand::{thread_rng, Rng};
 use std::{
     sync::{Arc, Mutex},
     thread,
-    time::{self, Duration, Instant},
+    time::{Duration, Instant},
 };
 
 use cgmath::{point3, vec2, vec3, EuclideanSpace, InnerSpace, Point3, Vector2, Vector3, Vector4};
-use crossbeam::{
-    deque::{Injector, Steal},
-    scope,
-};
+use crossbeam::deque::{Injector, Steal};
 
 mod aabb;
 pub mod acceleration;
@@ -177,11 +174,11 @@ impl Raytracer {
 
         let total_tiles = tiles.len();
 
-        scope(|s| {
+        thread::scope(|s| {
             for _ in 0..thread_count {
                 let buffer = Arc::clone(&buffer);
 
-                s.spawn(move |_| {
+                s.spawn(move || {
                     'work: loop {
                         let tile = loop {
                             match tiles.steal() {
@@ -243,8 +240,7 @@ impl Raytracer {
                     }
                 }
             }
-        })
-        .unwrap();
+        });
 
         // Errors when the lock has multiple owners but the scope should guarantee that never happens
         let lock = Arc::try_unwrap(buffer).ok().unwrap();
