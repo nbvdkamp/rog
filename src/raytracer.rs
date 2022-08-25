@@ -6,7 +6,7 @@ use std::{
 };
 
 use cgmath::{point3, vec2, vec3, EuclideanSpace, InnerSpace, Point3, Vector2, Vector3, Vector4};
-use crossbeam::deque::{Injector, Steal};
+use crossbeam_deque::{Injector, Steal};
 
 mod aabb;
 pub mod acceleration;
