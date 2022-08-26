@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate impl_ops;
 
-use std::{time::Duration, vec};
+use std::{io::Write, time::Duration, vec};
 
 use cgmath::{vec2, Vector2};
 
@@ -103,16 +103,17 @@ fn headless_render(args: Args) {
 
     let report_progress = |completed, total, seconds_per_tile| {
         let time_remaining = (total - completed) as f32 * seconds_per_tile;
-        println!("Completed {completed}/{total} tiles. Approximately {time_remaining} seconds remaining");
+        print!("\r\x1b[2K Completed {completed}/{total} tiles. Approximately {time_remaining:.2} seconds remaining");
+        std::io::stdout().flush().unwrap();
     };
 
     let progress = Some(raytracer::RenderProgress {
-        report_interval: Duration::from_secs(5),
+        report_interval: Duration::from_secs(3),
         report: Box::new(report_progress),
     });
 
     let (buffer, time_elapsed) = raytracer.render(image_size, args.samples, ACCEL_INDEX, progress);
-    println!("Finished rendering in {time_elapsed} seconds");
+    println!("\r\x1b[2KFinished rendering in {time_elapsed} seconds");
 
     let buffer = convert_spectrum_buffer_to_rgb(buffer);
     save_image(&buffer, image_size, args.output_file);
