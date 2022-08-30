@@ -20,6 +20,7 @@ mod triangle;
 
 use crate::{
     camera::PerspectiveCamera,
+    cie_data as CIE,
     environment::Environment,
     light::Light,
     material::Material,
@@ -28,8 +29,6 @@ use crate::{
     spectrum::Spectrumf32,
     texture::{Format, Texture},
 };
-use ray::{IntersectionResult, Ray};
-use triangle::Triangle;
 
 use aabb::BoundingBox;
 use acceleration::{
@@ -39,10 +38,11 @@ use acceleration::{
     structure::{AccelerationStructure, TraceResult},
 };
 use bsdf::{mis2, Evaluation, Sample};
+use geometry::ensure_valid_reflection;
+use ray::{IntersectionResult, Ray};
 use sampling::tent_sample;
 use shadingframe::ShadingFrame;
-
-use geometry::ensure_valid_reflection;
+use triangle::Triangle;
 
 pub struct Raytracer {
     verts: Vec<Vertex>,
@@ -60,6 +60,15 @@ pub struct RenderProgress {
     pub report_interval: Duration,
     /// Completed count, total count, seconds per completed item so far
     pub report: Box<dyn Fn(usize, usize, f32)>,
+}
+
+enum RadianceResult {
+    Spectrum(Spectrumf32),
+    SingleValue { value: f32, wavelength: f32 },
+}
+pub enum Wavelength {
+    Undecided,
+    Sampled { value: f32 },
 }
 
 impl Raytracer {
@@ -191,6 +200,7 @@ impl Raytracer {
                         for y in tile.start.y..tile.end.y {
                             for x in tile.start.x..tile.end.x {
                                 let mut color = Spectrumf32::constant(0.0);
+                                let mut sample_count = Spectrumf32::constant(0.0);
 
                                 for sample in 0..samples {
                                     let mut offset = vec2(0.5, 0.5);
@@ -214,10 +224,24 @@ impl Raytracer {
                                         direction: dir4.truncate().normalize(),
                                     };
 
-                                    color += self.radiance(ray, accel_index);
+                                    match self.radiance(ray, accel_index) {
+                                        RadianceResult::Spectrum(spectrum) => {
+                                            color += spectrum;
+                                            sample_count += Spectrumf32::constant(1.0);
+                                        }
+                                        RadianceResult::SingleValue { value, wavelength } => {
+                                            // wavelength is sampled in range so no bounds checks necessary
+                                            color.add_at_wavelength_lerp(value, wavelength);
+                                            sample_count.add_at_wavelength_lerp(1.0, wavelength);
+                                        }
+                                    }
                                 }
 
-                                color /= samples as f32;
+                                for i in 0..Spectrumf32::RESOLUTION {
+                                    if sample_count.data[i] > 0.0 {
+                                        color.data[i] /= sample_count.data[i];
+                                    }
+                                }
 
                                 let mut buffer = buffer.lock().unwrap();
                                 buffer[image_size.x * y + x] = color;
@@ -268,10 +292,11 @@ impl Raytracer {
         self.triangles.len()
     }
 
-    fn radiance(&self, ray: Ray, accel_index: usize) -> Spectrumf32 {
+    fn radiance(&self, ray: Ray, accel_index: usize) -> RadianceResult {
         let mut result = Spectrumf32::constant(0.0);
         let mut path_weight = Spectrumf32::constant(1.0);
         let mut ray = ray;
+        let mut wavelength = Wavelength::Undecided;
 
         let num_lights = self.lights.len();
         let mut depth = 0;
@@ -309,6 +334,20 @@ impl Raytracer {
 
                     // Don't count alpha hits for max bounces
                     continue;
+                }
+
+                if mat_sample.transmission > 0.0 {
+                    let lambda;
+
+                    match wavelength {
+                        Wavelength::Undecided => {
+                            lambda = CIE::LAMBDA_MIN + CIE::LAMBDA_RANGE * thread_rng().gen::<f32>();
+                            wavelength = Wavelength::Sampled { value: lambda }
+                        }
+                        Wavelength::Sampled { value } => lambda = value,
+                    }
+
+                    mat_sample.ior = mat_sample.cauchy_coefficients.ior_for_wavelength(lambda);
                 }
 
                 let edge1 = verts[0].position - verts[1].position;
@@ -430,7 +469,13 @@ impl Raytracer {
             depth += 1;
         }
 
-        result
+        match wavelength {
+            Wavelength::Undecided => RadianceResult::Spectrum(result),
+            Wavelength::Sampled { value: wavelength } => RadianceResult::SingleValue {
+                value: result.at_wavelength_lerp(wavelength),
+                wavelength,
+            },
+        }
     }
 
     /// Checks if distance to the nearest obstructing triangle is less than the distance to the light

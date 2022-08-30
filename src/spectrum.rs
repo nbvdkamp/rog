@@ -47,6 +47,21 @@ impl Spectrumf32 {
     pub fn max_value(&self) -> f32 {
         self.data.iter().fold(f32::MIN, |old, v| old.max(*v))
     }
+
+    pub fn add_at_wavelength_lerp(&mut self, value: f32, wavelength: f32) {
+        let x = (wavelength - CIE::LAMBDA_MIN) / CIE::LAMBDA_RANGE * (RESOLUTION - 2) as f32;
+        let i = x.floor() as usize;
+        let factor = x - x.floor();
+        self.data[i] += (1.0 - factor) * value;
+        self.data[i + 1] += factor * value;
+    }
+
+    pub fn at_wavelength_lerp(&self, wavelength: f32) -> f32 {
+        let x = (wavelength - CIE::LAMBDA_MIN) / CIE::LAMBDA_RANGE * (RESOLUTION - 2) as f32;
+        let i = x.floor() as usize;
+        let factor = x - x.floor();
+        self.data[i] * (1.0 - factor) + self.data[i + 1] * factor
+    }
 }
 
 #[derive(Clone)]
