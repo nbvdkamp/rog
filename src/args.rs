@@ -1,14 +1,13 @@
-use cgmath::{vec2, Vector2};
+use super::render_settings::RenderSettings;
+use cgmath::vec2;
 use clap::{arg, Command};
 use image::ImageFormat;
 
 pub struct Args {
-    pub file: String,
+    pub scene_file: String,
     pub output_file: String,
+    pub render_settings: RenderSettings,
     pub headless: bool,
-    pub samples: usize,
-    pub image_size: Vector2<usize>,
-    pub thread_count: usize,
     pub benchmark: bool,
 }
 
@@ -78,13 +77,17 @@ impl Args {
             std::process::exit(-1);
         }
 
-        Args {
-            file: input_file,
-            headless: matches.is_present("headless"),
-            samples: read_usize("samples", 1),
+        let render_settings = RenderSettings {
+            samples_per_pixel: read_usize("samples", 1),
             image_size: vec2(read_usize("width", 1920), read_usize("height", 1080)),
-            output_file,
             thread_count: read_usize("threads", default_thread_count).clamp(1, 2048),
+        };
+
+        Args {
+            scene_file: input_file,
+            output_file,
+            render_settings,
+            headless: matches.is_present("headless"),
             benchmark: matches.is_present("benchmark"),
         }
     }

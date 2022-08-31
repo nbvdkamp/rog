@@ -17,6 +17,7 @@ mod material;
 mod mesh;
 mod preview;
 mod raytracer;
+mod render_settings;
 mod scene;
 mod spectrum;
 mod texture;
@@ -25,6 +26,7 @@ mod util;
 use args::Args;
 use preview::app::App;
 use raytracer::Raytracer;
+use render_settings::RenderSettings;
 use scene::Scene;
 use util::{convert_spectrum_buffer_to_rgb, save_image};
 
@@ -77,7 +79,13 @@ fn accel_benchmark() {
         println!("{: <25} | {: <10}", "Acceleration structure", "Time (s)");
 
         for i in 0..raytracer.accel_structures.len() {
-            let (_, time_elapsed) = raytracer.render(image_size, samples, thread_count, i, None);
+            let settings = RenderSettings {
+                samples_per_pixel: samples,
+                image_size,
+                thread_count,
+            };
+
+            let (_, time_elapsed) = raytracer.render(&settings, i, None);
             let name = raytracer.accel_structures[i].get_name();
 
             let _stats = raytracer.accel_structures[i].get_statistics();
@@ -91,7 +99,7 @@ fn accel_benchmark() {
 }
 
 fn headless_render(args: Args) {
-    let scene = match Scene::load(args.file) {
+    let scene = match Scene::load(args.scene_file) {
         Ok(scene) => scene,
         Err(message) => {
             eprintln!("{message}");
@@ -112,10 +120,9 @@ fn headless_render(args: Args) {
         report: Box::new(report_progress),
     });
 
-    let (buffer, time_elapsed) =
-        raytracer.render(args.image_size, args.samples, args.thread_count, ACCEL_INDEX, progress);
+    let (buffer, time_elapsed) = raytracer.render(&args.render_settings, ACCEL_INDEX, progress);
     println!("\r\x1b[2KFinished rendering in {time_elapsed} seconds");
 
     let buffer = convert_spectrum_buffer_to_rgb(buffer);
-    save_image(&buffer, args.image_size, args.output_file);
+    save_image(&buffer, args.render_settings.image_size, args.output_file);
 }

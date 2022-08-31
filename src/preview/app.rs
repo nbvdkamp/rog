@@ -23,6 +23,7 @@ use crate::{
     material::Material,
     mesh::{LuminanceVertex, VertexIndex, VertexSemantics},
     raytracer::Raytracer,
+    render_settings::RenderSettings,
     scene::Scene,
     util::{convert_spectrum_buffer_to_rgb, mat_to_shader_type, save_image},
 };
@@ -43,9 +44,7 @@ const FS_STR: &str = include_str!("fragment.fs");
 pub struct App {
     raytracer: Raytracer,
     scene: Scene,
-    image_size: Vector2<usize>,
-    samples_per_pixel: usize,
-    thread_count: usize,
+    render_settings: RenderSettings,
     output_file: String,
     movement: Movement,
 }
@@ -57,7 +56,7 @@ pub enum PlatformError {
 
 impl App {
     pub fn new(args: Args) -> Self {
-        let scene = match Scene::load(args.file) {
+        let scene = match Scene::load(args.scene_file) {
             Ok(scene) => scene,
             Err(message) => {
                 eprintln!("{}", message);
@@ -68,9 +67,7 @@ impl App {
         App {
             raytracer: Raytracer::new(&scene),
             scene,
-            image_size: args.image_size,
-            samples_per_pixel: args.samples,
-            thread_count: args.thread_count,
+            render_settings: args.render_settings,
             output_file: args.output_file,
             movement: Movement::new(),
         }
@@ -300,17 +297,11 @@ impl App {
             Action::Press => match key {
                 Key::Enter => {
                     self.raytracer.camera = self.scene.camera;
-                    let (buffer, time_elapsed) = self.raytracer.render(
-                        self.image_size,
-                        self.samples_per_pixel,
-                        self.thread_count,
-                        crate::ACCEL_INDEX,
-                        None,
-                    );
+                    let (buffer, time_elapsed) = self.raytracer.render(&self.render_settings, crate::ACCEL_INDEX, None);
                     println!("Finished rendering in {time_elapsed} seconds");
 
                     let buffer = convert_spectrum_buffer_to_rgb(buffer);
-                    save_image(&buffer, self.image_size, &self.output_file);
+                    save_image(&buffer, self.render_settings.image_size, &self.output_file);
                 }
                 Key::W => self.movement.forward_backward.set(1),
                 Key::S => self.movement.forward_backward.set(-1),

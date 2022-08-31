@@ -25,6 +25,7 @@ use crate::{
     light::Light,
     material::Material,
     mesh::Vertex,
+    render_settings::RenderSettings,
     scene::Scene,
     spectrum::Spectrumf32,
     texture::{Format, Texture},
@@ -137,12 +138,11 @@ impl Raytracer {
 
     pub fn render(
         &self,
-        image_size: Vector2<usize>,
-        samples: usize,
-        thread_count: usize,
+        settings: &RenderSettings,
         accel_index: usize,
         progress: Option<RenderProgress>,
     ) -> (Vec<Spectrumf32>, f32) {
+        let image_size = settings.image_size;
         let aspect_ratio = image_size.x as f32 / image_size.y as f32;
         let fov_factor = (self.camera.y_fov / 2.).tan();
 
@@ -184,7 +184,7 @@ impl Raytracer {
         let total_tiles = tiles.len();
 
         thread::scope(|s| {
-            for _ in 0..thread_count {
+            for _ in 0..settings.thread_count {
                 let buffer = Arc::clone(&buffer);
 
                 s.spawn(move || {
@@ -202,7 +202,7 @@ impl Raytracer {
                                 let mut color = Spectrumf32::constant(0.0);
                                 let mut sample_count = Spectrumf32::constant(0.0);
 
-                                for sample in 0..samples {
+                                for sample in 0..settings.samples_per_pixel {
                                     let mut offset = vec2(0.5, 0.5);
 
                                     if sample > 0 {
