@@ -1,3 +1,4 @@
+use cgmath::{vec2, Vector2};
 use clap::{arg, Command};
 use image::ImageFormat;
 
@@ -6,8 +7,7 @@ pub struct Args {
     pub output_file: String,
     pub headless: bool,
     pub samples: usize,
-    pub width: usize,
-    pub height: usize,
+    pub image_size: Vector2<usize>,
     pub benchmark: bool,
 }
 
@@ -75,8 +75,7 @@ impl Args {
             file: input_file,
             headless: matches.is_present("headless"),
             samples: read_usize("samples", 1),
-            width: read_usize("width", 1920),
-            height: read_usize("height", 1080),
+            image_size: vec2(read_usize("width", 1920), read_usize("height", 1080)),
             output_file,
             benchmark: matches.is_present("benchmark"),
         }

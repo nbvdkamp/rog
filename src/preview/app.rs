@@ -64,13 +64,10 @@ impl App {
             }
         };
 
-        let raytracer = Raytracer::new(&scene);
-        let image_size = vec2(args.width, args.height);
-
         App {
-            raytracer,
+            raytracer: Raytracer::new(&scene),
             scene,
-            image_size,
+            image_size: args.image_size,
             samples_per_pixel: args.samples,
             output_file: args.output_file,
             movement: Movement::new(),

@@ -5,7 +5,7 @@ extern crate impl_ops;
 
 use std::{io::Write, time::Duration, vec};
 
-use cgmath::{vec2, Vector2};
+use cgmath::Vector2;
 
 mod args;
 mod camera;
@@ -99,7 +99,6 @@ fn headless_render(args: Args) {
     };
 
     let raytracer = Raytracer::new(&scene);
-    let image_size = vec2(args.width, args.height);
 
     let report_progress = |completed, total, seconds_per_tile| {
         let time_remaining = (total - completed) as f32 * seconds_per_tile;
@@ -112,9 +111,9 @@ fn headless_render(args: Args) {
         report: Box::new(report_progress),
     });
 
-    let (buffer, time_elapsed) = raytracer.render(image_size, args.samples, ACCEL_INDEX, progress);
+    let (buffer, time_elapsed) = raytracer.render(args.image_size, args.samples, ACCEL_INDEX, progress);
     println!("\r\x1b[2KFinished rendering in {time_elapsed} seconds");
 
     let buffer = convert_spectrum_buffer_to_rgb(buffer);
-    save_image(&buffer, image_size, args.output_file);
+    save_image(&buffer, args.image_size, args.output_file);
 }
