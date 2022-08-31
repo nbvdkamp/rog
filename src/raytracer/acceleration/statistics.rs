@@ -84,6 +84,7 @@ impl Statistics {
         }
     }
 
+    #[cfg(feature = "stats")]
     pub fn format_header() -> String {
         format!(
             "{:<10} | {:<10} | {:<10} | {:<10} | {:<11} | {:<10}",
