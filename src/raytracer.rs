@@ -136,12 +136,7 @@ impl Raytracer {
         result
     }
 
-    pub fn render(
-        &self,
-        settings: &RenderSettings,
-        accel_index: usize,
-        progress: Option<RenderProgress>,
-    ) -> (Vec<Spectrumf32>, f32) {
+    pub fn render(&self, settings: &RenderSettings, progress: Option<RenderProgress>) -> (Vec<Spectrumf32>, f32) {
         let image_size = settings.image_size;
         let aspect_ratio = image_size.x as f32 / image_size.y as f32;
         let fov_factor = (self.camera.y_fov / 2.).tan();
@@ -224,7 +219,7 @@ impl Raytracer {
                                         direction: dir4.truncate().normalize(),
                                     };
 
-                                    match self.radiance(ray, accel_index) {
+                                    match self.radiance(ray, settings.accel_structure_index) {
                                         RadianceResult::Spectrum(spectrum) => {
                                             color += spectrum;
                                             sample_count += Spectrumf32::constant(1.0);

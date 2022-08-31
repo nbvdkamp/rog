@@ -30,8 +30,6 @@ use render_settings::RenderSettings;
 use scene::Scene;
 use util::{convert_spectrum_buffer_to_rgb, save_image};
 
-pub const ACCEL_INDEX: usize = 2;
-
 fn main() {
     let args = Args::parse();
     // FIXME: Verify scene aspect ratio with given image size
@@ -83,9 +81,10 @@ fn accel_benchmark() {
                 samples_per_pixel: samples,
                 image_size,
                 thread_count,
+                accel_structure_index: i,
             };
 
-            let (_, time_elapsed) = raytracer.render(&settings, i, None);
+            let (_, time_elapsed) = raytracer.render(&settings, None);
             let name = raytracer.accel_structures[i].get_name();
 
             #[cfg(feature = "stats")]
@@ -122,7 +121,7 @@ fn headless_render(args: Args) {
         report: Box::new(report_progress),
     });
 
-    let (buffer, time_elapsed) = raytracer.render(&args.render_settings, ACCEL_INDEX, progress);
+    let (buffer, time_elapsed) = raytracer.render(&args.render_settings, progress);
     println!("\r\x1b[2KFinished rendering in {time_elapsed} seconds");
 
     let buffer = convert_spectrum_buffer_to_rgb(buffer);

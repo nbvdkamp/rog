@@ -297,7 +297,7 @@ impl App {
             Action::Press => match key {
                 Key::Enter => {
                     self.raytracer.camera = self.scene.camera;
-                    let (buffer, time_elapsed) = self.raytracer.render(&self.render_settings, crate::ACCEL_INDEX, None);
+                    let (buffer, time_elapsed) = self.raytracer.render(&self.render_settings, None);
                     println!("Finished rendering in {time_elapsed} seconds");
 
                     let buffer = convert_spectrum_buffer_to_rgb(buffer);

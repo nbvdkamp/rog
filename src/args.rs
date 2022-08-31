@@ -45,6 +45,10 @@ impl Args {
                     .default_value(&format!("{}", default_thread_count))
                     .required(false)
                     .display_order(7),
+                arg!(-a --accel <NUM> "Index of acceleration structure to use")
+                    .default_value("2")
+                    .required(false)
+                    .display_order(8),
                 arg!(-b --benchmark "Benchmark acceleration structures"),
             ])
             .get_matches();
@@ -81,6 +85,7 @@ impl Args {
             samples_per_pixel: read_usize("samples", 1),
             image_size: vec2(read_usize("width", 1920), read_usize("height", 1080)),
             thread_count: read_usize("threads", default_thread_count).clamp(1, 2048),
+            accel_structure_index: read_usize("accel", 2).clamp(0, 2),
         };
 
         Args {
