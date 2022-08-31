@@ -59,6 +59,7 @@ fn accel_benchmark() {
     let resolution_factor = 15;
     let image_size = Vector2::new(16 * resolution_factor, 9 * resolution_factor);
     let samples = 1;
+    let thread_count = (num_cpus::get() - 2).max(1);
 
     for path in test_scene_filenames {
         let scene = Scene::load(format!("res/{path}.glb")).unwrap();
@@ -76,7 +77,7 @@ fn accel_benchmark() {
         println!("{: <25} | {: <10}", "Acceleration structure", "Time (s)");
 
         for i in 0..raytracer.accel_structures.len() {
-            let (_, time_elapsed) = raytracer.render(image_size, samples, i, None);
+            let (_, time_elapsed) = raytracer.render(image_size, samples, thread_count, i, None);
             let name = raytracer.accel_structures[i].get_name();
 
             let _stats = raytracer.accel_structures[i].get_statistics();
@@ -111,7 +112,8 @@ fn headless_render(args: Args) {
         report: Box::new(report_progress),
     });
 
-    let (buffer, time_elapsed) = raytracer.render(args.image_size, args.samples, ACCEL_INDEX, progress);
+    let (buffer, time_elapsed) =
+        raytracer.render(args.image_size, args.samples, args.thread_count, ACCEL_INDEX, progress);
     println!("\r\x1b[2KFinished rendering in {time_elapsed} seconds");
 
     let buffer = convert_spectrum_buffer_to_rgb(buffer);

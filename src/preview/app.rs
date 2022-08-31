@@ -45,6 +45,7 @@ pub struct App {
     scene: Scene,
     image_size: Vector2<usize>,
     samples_per_pixel: usize,
+    thread_count: usize,
     output_file: String,
     movement: Movement,
 }
@@ -69,6 +70,7 @@ impl App {
             scene,
             image_size: args.image_size,
             samples_per_pixel: args.samples,
+            thread_count: args.thread_count,
             output_file: args.output_file,
             movement: Movement::new(),
         }
@@ -298,9 +300,13 @@ impl App {
             Action::Press => match key {
                 Key::Enter => {
                     self.raytracer.camera = self.scene.camera;
-                    let (buffer, time_elapsed) =
-                        self.raytracer
-                            .render(self.image_size, self.samples_per_pixel, crate::ACCEL_INDEX, None);
+                    let (buffer, time_elapsed) = self.raytracer.render(
+                        self.image_size,
+                        self.samples_per_pixel,
+                        self.thread_count,
+                        crate::ACCEL_INDEX,
+                        None,
+                    );
                     println!("Finished rendering in {time_elapsed} seconds");
 
                     let buffer = convert_spectrum_buffer_to_rgb(buffer);

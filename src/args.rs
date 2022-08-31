@@ -8,11 +8,14 @@ pub struct Args {
     pub headless: bool,
     pub samples: usize,
     pub image_size: Vector2<usize>,
+    pub thread_count: usize,
     pub benchmark: bool,
 }
 
 impl Args {
     pub fn parse() -> Self {
+        let default_thread_count = (num_cpus::get() - 2).max(1);
+
         let matches = Command::new("RustRays")
             .version("0.1.0")
             .author("Nathan van der Kamp")
@@ -39,6 +42,10 @@ impl Args {
                     .default_value("output/result.png")
                     .required(false)
                     .display_order(6),
+                arg!(-t --threads <NUM> "Number of threads to use for rendering (default is based on available threads)")
+                    .default_value(&format!("{}", default_thread_count))
+                    .required(false)
+                    .display_order(7),
                 arg!(-b --benchmark "Benchmark acceleration structures"),
             ])
             .get_matches();
@@ -77,6 +84,7 @@ impl Args {
             samples: read_usize("samples", 1),
             image_size: vec2(read_usize("width", 1920), read_usize("height", 1080)),
             output_file,
+            thread_count: read_usize("threads", default_thread_count).clamp(1, 2048),
             benchmark: matches.is_present("benchmark"),
         }
     }

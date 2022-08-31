@@ -139,6 +139,7 @@ impl Raytracer {
         &self,
         image_size: Vector2<usize>,
         samples: usize,
+        thread_count: usize,
         accel_index: usize,
         progress: Option<RenderProgress>,
     ) -> (Vec<Spectrumf32>, f32) {
@@ -154,7 +155,6 @@ impl Raytracer {
         let buffer = vec![Spectrumf32::constant(0.0); image_size.x * image_size.y];
         let buffer = Arc::new(Mutex::new(buffer));
 
-        let thread_count = usize::max(num_cpus::get() - 2, 1);
         let tile_size = 100;
 
         struct Tile {
