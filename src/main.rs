@@ -88,9 +88,11 @@ fn accel_benchmark() {
             let (_, time_elapsed) = raytracer.render(&settings, i, None);
             let name = raytracer.accel_structures[i].get_name();
 
-            let _stats = raytracer.accel_structures[i].get_statistics();
             #[cfg(feature = "stats")]
-            println!("{name: <25} | {time_elapsed: <10} | {_stats}");
+            {
+                let stats = raytracer.accel_structures[i].get_statistics();
+                println!("{name: <25} | {time_elapsed: <10} | {stats}");
+            }
             #[cfg(not(feature = "stats"))]
             println!("{name: <25} | {time_elapsed: <10}");
         }
