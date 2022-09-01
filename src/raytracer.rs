@@ -291,7 +291,14 @@ impl Raytracer {
         let mut result = Spectrumf32::constant(0.0);
         let mut path_weight = Spectrumf32::constant(1.0);
         let mut ray = ray;
-        let mut wavelength = Wavelength::Undecided;
+
+        let mut wavelength = if settings.always_sample_single_wavelength {
+            Wavelength::Sampled {
+                value: CIE::LAMBDA_MIN + CIE::LAMBDA_RANGE * thread_rng().gen::<f32>(),
+            }
+        } else {
+            Wavelength::Undecided
+        };
 
         let num_lights = self.lights.len();
         let mut depth = 0;

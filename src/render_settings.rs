@@ -6,4 +6,5 @@ pub struct RenderSettings {
     pub thread_count: usize,
     pub accel_structure_index: usize,
     pub enable_dispersion: bool,
+    pub always_sample_single_wavelength: bool,
 }

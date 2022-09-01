@@ -47,6 +47,8 @@ impl Args {
                     .display_order(7),
                 arg!(--nodispersion "Disable dispersion")
                     .display_order(8),
+                arg!(--alwayssamplewavelength "Sample only one wavelength per path, even if it doesn't encounter any dispersive surfaces")
+                    .display_order(9),
                 arg!(-a --accel <NUM> "Index of acceleration structure to use")
                     .default_value("2")
                     .required(false),
@@ -88,6 +90,7 @@ impl Args {
             thread_count: read_usize("threads", default_thread_count).clamp(1, 2048),
             accel_structure_index: read_usize("accel", 2).clamp(0, 2),
             enable_dispersion: !matches.is_present("nodispersion"),
+            always_sample_single_wavelength: matches.is_present("alwayssamplewavelength"),
         };
 
         Args {
