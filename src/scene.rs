@@ -120,7 +120,19 @@ impl Scene {
 
                 Ok(result)
             }
-            Err(e) => Err(format!("An error occured while opening the glTF file:\n\t{}", e)),
+            Err(e) => {
+                let hint = if let gltf::Error::Io(_) = e {
+                    // TODO: Remove this when the gltf crate updates to include the fix
+                    "\n\tIf the path to the file is correct this issue may be caused by URL encoded characters in resources used by the file."
+                } else {
+                    ""
+                };
+
+                Err(format!(
+                    "An error occured while opening the glTF file:\n\t{}{}",
+                    e, hint
+                ))
+            }
         }
     }
 
