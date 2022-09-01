@@ -82,6 +82,7 @@ fn accel_benchmark() {
                 image_size,
                 thread_count,
                 accel_structure_index: i,
+                enable_dispersion: true,
             };
 
             let (_, time_elapsed) = raytracer.render(&settings, None);

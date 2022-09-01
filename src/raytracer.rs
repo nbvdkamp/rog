@@ -219,7 +219,7 @@ impl Raytracer {
                                         direction: dir4.truncate().normalize(),
                                     };
 
-                                    match self.radiance(ray, settings.accel_structure_index) {
+                                    match self.radiance(ray, settings) {
                                         RadianceResult::Spectrum(spectrum) => {
                                             color += spectrum;
                                             sample_count += Spectrumf32::constant(1.0);
@@ -287,7 +287,7 @@ impl Raytracer {
         self.triangles.len()
     }
 
-    fn radiance(&self, ray: Ray, accel_index: usize) -> RadianceResult {
+    fn radiance(&self, ray: Ray, settings: &RenderSettings) -> RadianceResult {
         let mut result = Spectrumf32::constant(0.0);
         let mut path_weight = Spectrumf32::constant(1.0);
         let mut ray = ray;
@@ -299,7 +299,7 @@ impl Raytracer {
         while depth < self.max_depth {
             if let TraceResult::Hit {
                 triangle_index, u, v, ..
-            } = self.trace(&ray, accel_index)
+            } = self.trace(&ray, settings.accel_structure_index)
             {
                 let triangle = &self.triangles[triangle_index as usize];
                 let material = &self.materials[triangle.material_index as usize];
@@ -331,7 +331,7 @@ impl Raytracer {
                     continue;
                 }
 
-                if mat_sample.transmission > 0.0 {
+                if settings.enable_dispersion && mat_sample.transmission > 0.0 {
                     let lambda;
 
                     match wavelength {
@@ -395,7 +395,8 @@ impl Raytracer {
                             direction: light_sample.direction,
                         };
 
-                        let shadowed = self.cast_shadow_ray(shadow_ray, light_sample.distance, accel_index);
+                        let shadowed =
+                            self.cast_shadow_ray(shadow_ray, light_sample.distance, settings.accel_structure_index);
 
                         if !shadowed {
                             let local_incident = frame.to_local(light_sample.direction);

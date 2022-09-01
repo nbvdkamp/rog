@@ -45,10 +45,11 @@ impl Args {
                     .default_value(&format!("{}", default_thread_count))
                     .required(false)
                     .display_order(7),
+                arg!(--nodispersion "Disable dispersion")
+                    .display_order(8),
                 arg!(-a --accel <NUM> "Index of acceleration structure to use")
                     .default_value("2")
-                    .required(false)
-                    .display_order(8),
+                    .required(false),
                 arg!(-b --benchmark "Benchmark acceleration structures"),
             ])
             .get_matches();
@@ -68,9 +69,9 @@ impl Args {
             }
         };
 
-        let input_file: String = matches.value_of("file").unwrap().into();
+        let scene_file: String = matches.value_of("file").unwrap().into();
 
-        if input_file.contains(' ') {
+        if scene_file.contains(' ') {
             println!("Warning: Spaces in filename might cause issues in opening the file.");
         }
 
@@ -86,10 +87,11 @@ impl Args {
             image_size: vec2(read_usize("width", 1920), read_usize("height", 1080)),
             thread_count: read_usize("threads", default_thread_count).clamp(1, 2048),
             accel_structure_index: read_usize("accel", 2).clamp(0, 2),
+            enable_dispersion: !matches.is_present("nodispersion"),
         };
 
         Args {
-            scene_file: input_file,
+            scene_file,
             output_file,
             render_settings,
             headless: matches.is_present("headless"),
