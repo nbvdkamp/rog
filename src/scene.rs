@@ -368,10 +368,10 @@ impl Scene {
                                 mesh.name().unwrap_or(&mesh.index().to_string())
                             );
                             notified_of_error = true;
+                        } else {
+                            let n = normals[i];
+                            vert_tangents[i] = (t - n * t.dot(n)).normalize();
                         }
-
-                        let n = normals[i];
-                        vert_tangents[i] = (t - n * t.dot(n)).normalize();
                     }
 
                     vert_tangents

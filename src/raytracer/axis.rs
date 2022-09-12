@@ -13,4 +13,12 @@ impl Axis {
             Axis::Z => 2,
         }
     }
+
+    pub fn next(&self) -> Self {
+        match self {
+            Axis::X => Axis::Y,
+            Axis::Y => Axis::Z,
+            Axis::Z => Axis::X,
+        }
+    }
 }
