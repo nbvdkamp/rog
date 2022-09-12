@@ -181,7 +181,7 @@ impl Scene {
         let m = Matrix3::from_cols(transform.x.truncate(), transform.y.truncate(), transform.z.truncate());
         let normal_transform = m.invert().unwrap().transpose();
 
-        'primitive: for primitive in mesh.primitives() {
+        for primitive in mesh.primitives() {
             let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
             let mat = primitive.material();
@@ -319,6 +319,8 @@ impl Scene {
                 None => {
                     let mut tri_tangents = Vec::with_capacity(indices.len() / 3);
 
+                    let mut notified_of_error = false;
+
                     indices.chunks_exact(3).for_each(|i| {
                         let p0 = positions[i[0] as usize];
                         let p1 = positions[i[1] as usize];
@@ -359,13 +361,13 @@ impl Scene {
                     for i in 0..vert_tangents.len() {
                         let t = vert_tangents[i];
 
-                        if t == Vector3::zero() {
+                        if t == Vector3::zero() && !notified_of_error {
                             println!(
-                                "Encountered an error in computing tangents for primitive {} of mesh {}, skipping the primitive.",
+                                "Encountered an error in computing tangents for primitive {} of mesh {}.",
                                 primitive.index(),
                                 mesh.name().unwrap_or(&mesh.index().to_string())
                             );
-                            continue 'primitive;
+                            notified_of_error = true;
                         }
 
                         let n = normals[i];
