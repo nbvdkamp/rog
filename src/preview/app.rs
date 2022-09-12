@@ -262,9 +262,9 @@ impl App {
             let rotation = if self.movement.turning {
                 Matrix4::from_angle_x(Rad(-self.movement.mouse_delta.y as f32) * delta_time)
                     * Matrix4::from_angle_y(Rad(-self.movement.mouse_delta.x as f32) * delta_time)
-                    * Matrix4::from_angle_z(Rad(self.movement.roll.value as f32) * delta_time)
+                    * Matrix4::from_angle_z(Rad(self.movement.roll.value() as f32) * delta_time)
             } else {
-                Matrix4::from_angle_z(Rad(self.movement.roll.value as f32) * delta_time)
+                Matrix4::from_angle_z(Rad(self.movement.roll.value() as f32) * delta_time)
             };
 
             let translation = Matrix4::from_translation(delta_time * self.movement.translation());
@@ -341,18 +341,24 @@ impl App {
 }
 
 struct MovementDirection {
-    pub value: i8,
+    stack: Vec<i8>,
 }
 
 impl MovementDirection {
+    pub fn new() -> Self {
+        MovementDirection { stack: Vec::new() }
+    }
+
     pub fn set(&mut self, value: i8) {
-        self.value = value;
+        self.stack.push(value);
     }
 
     pub fn reset(&mut self, released_value: i8) {
-        if self.value == released_value {
-            self.value = 0;
-        }
+        self.stack.retain(|x| *x != released_value);
+    }
+
+    pub fn value(&self) -> i8 {
+        *self.stack.last().unwrap_or(&0)
     }
 }
 
@@ -370,10 +376,10 @@ struct Movement {
 impl Movement {
     pub fn new() -> Self {
         Movement {
-            forward_backward: MovementDirection { value: 0 },
-            left_right: MovementDirection { value: 0 },
-            up_down: MovementDirection { value: 0 },
-            roll: MovementDirection { value: 0 },
+            forward_backward: MovementDirection::new(),
+            left_right: MovementDirection::new(),
+            up_down: MovementDirection::new(),
+            roll: MovementDirection::new(),
             speed: 2.0,
             turning: false,
             mouse_position: vec2(0.0, 0.0),
@@ -383,16 +389,16 @@ impl Movement {
 
     pub fn translation(&self) -> Vector3<f32> {
         self.speed
-            * (self.forward_backward.value as f32 * vec3(0.0, 0.0, -1.0)
-                + self.left_right.value as f32 * vec3(-1.0, 0.0, 0.0)
-                + self.up_down.value as f32 * vec3(0.0, 1.0, 0.0))
+            * (self.forward_backward.value() as f32 * vec3(0.0, 0.0, -1.0)
+                + self.left_right.value() as f32 * vec3(-1.0, 0.0, 0.0)
+                + self.up_down.value() as f32 * vec3(0.0, 1.0, 0.0))
     }
 
     pub fn moving(&self) -> bool {
         self.turning && self.mouse_delta != vec2(0.0, 0.0)
-            || self.forward_backward.value != 0
-            || self.left_right.value != 0
-            || self.up_down.value != 0
-            || self.roll.value != 0
+            || self.forward_backward.value() != 0
+            || self.left_right.value() != 0
+            || self.up_down.value() != 0
+            || self.roll.value() != 0
     }
 }
