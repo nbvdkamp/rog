@@ -28,7 +28,7 @@ use crate::{
     render_settings::RenderSettings,
     scene::Scene,
     spectrum::Spectrumf32,
-    texture::{Format, Texture},
+    texture::{CoefficientTexture, Texture},
 };
 
 use aabb::BoundingBox;
@@ -45,12 +45,20 @@ use sampling::tent_sample;
 use shadingframe::ShadingFrame;
 use triangle::Triangle;
 
+pub struct Textures {
+    pub base_color_coefficients: Vec<CoefficientTexture>,
+    pub metallic_roughness: Vec<Texture>,
+    pub transimission: Vec<Texture>,
+    pub emissive: Vec<Texture>,
+    pub normal: Vec<Texture>,
+}
+
 pub struct Raytracer {
     verts: Vec<Vertex>,
     triangles: Vec<Triangle>,
     materials: Vec<Material>,
     lights: Vec<Light>,
-    textures: Vec<Texture>,
+    textures: Textures,
     environment: Environment,
     pub camera: PerspectiveCamera,
     max_depth: usize,
@@ -73,7 +81,7 @@ pub enum Wavelength {
 }
 
 impl Raytracer {
-    pub fn new(scene: &Scene) -> Self {
+    pub fn new(scene: &Scene, textures: Textures) -> Self {
         let mut verts = Vec::new();
         let mut triangles = Vec::new();
         let mut materials = Vec::new();
@@ -114,7 +122,7 @@ impl Raytracer {
             triangles,
             materials,
             lights: scene.lights.clone(),
-            textures: scene.textures.clone(), // FIXME: This wastes a lot of memory
+            textures,
             environment: scene.environment.clone(),
             camera: scene.camera,
             max_depth: 10,
@@ -504,7 +512,7 @@ impl Raytracer {
             let material = &self.materials[triangle.material_index as usize];
 
             if let Some(i) = material.base_color_texture {
-                if self.textures[i].format == Format::Rgb {
+                if !self.textures.base_color_coefficients[i].has_alpha {
                     return true;
                 }
             } else {

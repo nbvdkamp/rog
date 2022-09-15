@@ -1,5 +1,6 @@
 #![feature(test)]
 #![feature(const_fn_floating_point_arithmetic)]
+#![feature(iter_partition_in_place)]
 #[macro_use]
 extern crate impl_ops;
 
@@ -62,8 +63,8 @@ fn accel_benchmark() {
     let thread_count = (num_cpus::get() - 2).max(1);
 
     for path in test_scene_filenames {
-        let scene = Scene::load(format!("res/{path}.glb")).unwrap();
-        let raytracer = Raytracer::new(&scene);
+        let (scene, textures) = Scene::load(format!("res/{path}.glb")).unwrap();
+        let raytracer = Raytracer::new(&scene, textures);
 
         println!("Filename: {}, tris: {}", path, raytracer.get_num_tris());
         #[cfg(feature = "stats")]
@@ -102,7 +103,7 @@ fn accel_benchmark() {
 }
 
 fn headless_render(args: Args) {
-    let scene = match Scene::load(args.scene_file) {
+    let (scene, textures) = match Scene::load(args.scene_file) {
         Ok(scene) => scene,
         Err(message) => {
             eprintln!("{message}");
@@ -110,7 +111,7 @@ fn headless_render(args: Args) {
         }
     };
 
-    let raytracer = Raytracer::new(&scene);
+    let raytracer = Raytracer::new(&scene, textures);
 
     let report_progress = |completed, total, seconds_per_tile| {
         let time_remaining = (total - completed) as f32 * seconds_per_tile;

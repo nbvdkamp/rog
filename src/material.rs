@@ -1,7 +1,7 @@
 use super::color::{RGBAf32, RGBf32};
 use cgmath::{vec3, InnerSpace, Vector2, Vector3};
 
-use crate::{spectrum::Spectrumf32, texture::Texture};
+use crate::{raytracer::Textures, spectrum::Spectrumf32, texture::Texture};
 
 #[derive(Clone)]
 pub struct Material {
@@ -36,17 +36,17 @@ pub struct MaterialSample {
 }
 
 impl Material {
-    pub fn sample(&self, texture_coordinates: Vector2<f32>, textures: &[Texture]) -> MaterialSample {
-        let sample = |tex: Option<usize>| match tex {
+    pub fn sample(&self, texture_coordinates: Vector2<f32>, textures: &Textures) -> MaterialSample {
+        let sample = |tex: Option<usize>, textures: &Vec<Texture>| match tex {
             Some(index) => textures[index].sample(texture_coordinates.x, texture_coordinates.y),
             None => RGBAf32::white(),
         };
 
         // B channel is metallic, G is roughness
-        let metallic_roughness = sample(self.metallic_roughness_texture);
+        let metallic_roughness = sample(self.metallic_roughness_texture, &textures.metallic_roughness);
 
         let shading_normal = self.normal_texture.map(|index| {
-            let sample = textures[index].sample(texture_coordinates.x, texture_coordinates.y);
+            let sample = textures.normal[index].sample(texture_coordinates.x, texture_coordinates.y);
             let x = 2.0 * sample.r - 1.0;
             let y = 2.0 * sample.g - 1.0;
             let z = 2.0 * sample.b - 1.0;
@@ -58,9 +58,8 @@ impl Material {
 
         let base_color_spectrum = match self.base_color_texture {
             Some(index) => {
-                let coeffs_sample = textures[index]
-                    .sample_coefficients(texture_coordinates.x, texture_coordinates.y)
-                    .unwrap();
+                let coeffs_sample =
+                    textures.base_color_coefficients[index].sample(texture_coordinates.x, texture_coordinates.y);
                 alpha = coeffs_sample.a;
                 base_color_spectrum * Spectrumf32::from_coefficients(coeffs_sample.rgb().into())
             }
@@ -75,17 +74,19 @@ impl Material {
             medium_ior: 1.0,
             ior: self.ior,
             cauchy_coefficients: self.cauchy_coefficients,
-            transmission: self.transmission_factor * sample(self.transmission_texture).r,
-            emissive: self.emissive * sample(self.emissive_texture).rgb().srgb_to_linear(),
+            transmission: self.transmission_factor * sample(self.transmission_texture, &textures.transimission).r,
+            emissive: self.emissive * sample(self.emissive_texture, &textures.emissive).rgb().srgb_to_linear(),
             specular: 0.5,
             shading_normal,
             sub_surface_scattering: 0.0,
         }
     }
 
-    pub fn sample_alpha(&self, texture_coordinates: Vector2<f32>, textures: &[Texture]) -> f32 {
+    pub fn sample_alpha(&self, texture_coordinates: Vector2<f32>, textures: &Textures) -> f32 {
         match self.base_color_texture {
-            Some(index) => textures[index].sample_alpha(texture_coordinates.x, texture_coordinates.y),
+            Some(index) => {
+                textures.base_color_coefficients[index].sample_alpha(texture_coordinates.x, texture_coordinates.y)
+            }
             None => 1.0,
         }
     }

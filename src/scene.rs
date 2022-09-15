@@ -25,6 +25,7 @@ use crate::{
     light::Light,
     material::{CauchyCoefficients, Material},
     mesh::{Mesh, Vertex},
+    raytracer::Textures,
     spectrum::Spectrumf32,
     texture::{Format, Texture},
 };
@@ -56,7 +57,7 @@ fn transform_to_mat(t: Transform) -> Matrix4<f32> {
 }
 
 impl Scene {
-    pub fn load<P>(path: P) -> Result<Self, String>
+    pub fn load<P>(path: P) -> Result<(Self, Textures), String>
     where
         P: AsRef<Path>,
     {
@@ -74,19 +75,21 @@ impl Scene {
                 let textures = images
                     .into_iter()
                     .map(|i| {
+                        use gltf::image::Format as ImageFormat;
+
                         let (format, pixels) = match i.format {
-                            gltf::image::Format::R8G8B8 => (Format::Rgb, i.pixels),
-                            gltf::image::Format::R8G8B8A8 => (Format::Rgba, i.pixels),
-                            gltf::image::Format::R16G16B16 => (Format::Rgb, drop_every_other_byte(i.pixels)),
-                            gltf::image::Format::R16G16B16A16 => (Format::Rgba, drop_every_other_byte(i.pixels)),
-                            gltf::image::Format::R8 => (Format::Rgb, repeat_every_byte_thrice(i.pixels)),
-                            gltf::image::Format::R8G8 => (Format::Rgb, insert_zero_byte_every_two(i.pixels)),
+                            ImageFormat::R8G8B8 => (Format::Rgb, i.pixels),
+                            ImageFormat::R8G8B8A8 => (Format::Rgba, i.pixels),
+                            ImageFormat::R16G16B16 => (Format::Rgb, drop_every_other_byte(i.pixels)),
+                            ImageFormat::R16G16B16A16 => (Format::Rgba, drop_every_other_byte(i.pixels)),
+                            ImageFormat::R8 => (Format::Rgb, repeat_every_byte_thrice(i.pixels)),
+                            ImageFormat::R8G8 => (Format::Rgb, insert_zero_byte_every_two(i.pixels)),
                             other => panic!("Texture format {:?} is not implemented", other),
                         };
 
                         Texture::new(pixels, i.width, i.height, format)
                     })
-                    .collect();
+                    .collect::<Vec<Texture>>();
 
                 let environment = {
                     let color = RGBf32::from_hex("#404040").srgb_to_linear();
@@ -98,16 +101,16 @@ impl Scene {
                     }
                 };
 
-                let mut result = Scene {
+                let mut result_scene = Scene {
                     meshes: Vec::new(),
                     lights: Vec::new(),
-                    textures,
+                    textures: Vec::new(),
                     camera: PerspectiveCamera::default(),
                     environment,
                 };
 
                 for scene in document.scenes() {
-                    result.parse_nodes(scene.nodes().collect(), &buffers, Matrix4::identity(), &rgb2spec);
+                    result_scene.parse_nodes(scene.nodes().collect(), &buffers, Matrix4::identity(), &rgb2spec);
                 }
 
                 let total_time = start.elapsed().as_secs_f32();
@@ -118,7 +121,98 @@ impl Scene {
                     total_time - lib_time
                 );
 
-                Ok(result)
+                let mut texture_types = Vec::new();
+                texture_types.resize_with(textures.len(), || Vec::new());
+
+                #[derive(Debug, PartialEq, Clone, Copy)]
+                enum TextureType {
+                    BaseColor,
+                    MetallicRoughness,
+                    Transmission,
+                    Emissive,
+                    Normal,
+                }
+
+                for mesh in &mut result_scene.meshes {
+                    macro_rules! set_type {
+                        ( $tex:expr, $tex_type:expr ) => {
+                            match $tex {
+                                Some(index) => {
+                                    texture_types[index].push((&mut $tex, $tex_type));
+                                }
+                                None => (),
+                            }
+                        };
+                    }
+
+                    set_type!(mesh.material.base_color_texture, TextureType::BaseColor);
+                    set_type!(mesh.material.metallic_roughness_texture, TextureType::MetallicRoughness);
+                    set_type!(mesh.material.transmission_texture, TextureType::Transmission);
+                    set_type!(mesh.material.emissive_texture, TextureType::Emissive);
+                    set_type!(mesh.material.normal_texture, TextureType::Normal);
+                }
+
+                let mut sorted_textures = Textures {
+                    base_color_coefficients: Vec::new(),
+                    metallic_roughness: Vec::new(),
+                    transimission: Vec::new(),
+                    emissive: Vec::new(),
+                    normal: Vec::new(),
+                };
+
+                textures
+                    .into_iter()
+                    .zip(texture_types.into_iter())
+                    .for_each(|(texture, types)| {
+                        if !types.is_empty() {
+                            let texture_type = types[0].1.clone();
+
+                            for (_, other_type) in &types {
+                                if other_type != &texture_type {
+                                    panic!("Texture is being used for multiple purposes: {texture_type:?} and {other_type:?}");
+                                }
+                            }
+
+                            match texture_type {
+                                TextureType::BaseColor => {
+                                    sorted_textures
+                                        .base_color_coefficients
+                                        .push(texture.create_spectrum_coefficients(&rgb2spec));
+
+                                    result_scene.textures.push(texture);
+                                }
+                                TextureType::MetallicRoughness => sorted_textures.metallic_roughness.push(texture),
+                                TextureType::Transmission => sorted_textures.emissive.push(texture),
+                                TextureType::Emissive => sorted_textures.emissive.push(texture),
+                                TextureType::Normal => sorted_textures.normal.push(texture),
+                            };
+
+                            for (tex_opt, _) in types {
+                                match tex_opt {
+                                    Some(index) => {
+                                        *index = match texture_type {
+                                            // The index for the result scene texture is the same as for the coefficient texture because they are inserted together
+                                            TextureType::BaseColor => &result_scene.textures,
+                                            TextureType::MetallicRoughness => &sorted_textures.metallic_roughness,
+                                            TextureType::Transmission => &sorted_textures.emissive,
+                                            TextureType::Emissive => &sorted_textures.emissive,
+                                            TextureType::Normal => &sorted_textures.normal,
+                                        }.len() - 1;
+                                    }
+                                    None => unreachable!(),
+                                }
+                            }
+                        }
+                    });
+
+                // To draw meshes with alpha textures last
+                result_scene.meshes.iter_mut().partition_in_place(|mesh| {
+                    mesh.material
+                        .base_color_texture
+                        .map_or(true, |index| result_scene.textures[index].format == Format::Rgb)
+                });
+
+                Ok((result_scene, sorted_textures))
             }
             Err(e) => {
                 let hint = if let gltf::Error::Io(_) = e {
@@ -204,10 +298,6 @@ impl Scene {
 
             let get_index = |t: gltf::texture::Info| t.texture().source().index();
             let base_color_texture = pbr.base_color_texture().map(get_index);
-
-            if let Some(i) = base_color_texture {
-                self.textures[i].create_spectrum_coefficients(rgb2spec)
-            }
 
             let (transmission_factor, transmission_texture) = if let Some(transmission) = mat.transmission() {
                 let texture = transmission.transmission_texture().map(get_index);
@@ -390,19 +480,7 @@ impl Scene {
                 })
                 .collect();
 
-            let mesh = Mesh::new(vertices, indices, material);
-
-            // Put meshes with RGBA textures at the end of the list so alpha blending works correctly
-            if mesh
-                .material
-                .base_color_texture
-                .map(|i| self.textures[i].format == Format::Rgba)
-                .unwrap_or(false)
-            {
-                self.meshes.push(mesh);
-            } else {
-                self.meshes.insert(0, mesh);
-            }
+            self.meshes.push(Mesh::new(vertices, indices, material));
         }
     }
 }

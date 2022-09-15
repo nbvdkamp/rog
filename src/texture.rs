@@ -19,6 +19,13 @@ impl Format {
             Format::Rgba => 4,
         }
     }
+
+    fn has_alpha(&self) -> bool {
+        match self {
+            Format::Rgb => false,
+            Format::Rgba => true,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -30,10 +37,16 @@ struct CoefficientPixel {
 #[derive(Clone)]
 pub struct Texture {
     pub image: Vec<u8>,
-    coefficients_image: Option<Vec<CoefficientPixel>>,
     width: u32,
     height: u32,
     pub format: Format,
+}
+
+pub struct CoefficientTexture {
+    image: Vec<CoefficientPixel>,
+    width: u32,
+    height: u32,
+    pub has_alpha: bool,
 }
 
 impl Texture {
@@ -42,24 +55,10 @@ impl Texture {
 
         Texture {
             image: pixels,
-            coefficients_image: None,
             width,
             height,
             format,
         }
-    }
-
-    /// Note that the data returned is rgb2spec coefficients not actually in any RGB color space
-    pub fn sample_coefficients(&self, u: f32, v: f32) -> Option<RGBAf32> {
-        self.coefficients_image.as_ref().map(|image| {
-            let get_pixel = |x: u32, y: u32| {
-                let pixel = &image[(y * self.width + x) as usize];
-                let c = pixel.coeffs;
-                RGBAf32::new(c[0], c[1], c[2], pixel.alpha)
-            };
-
-            wrapping_linear_interp(u, v, self.width, self.height, get_pixel)
-        })
     }
 
     pub fn sample(&self, u: f32, v: f32) -> RGBAf32 {
@@ -84,22 +83,8 @@ impl Texture {
         wrapping_linear_interp(u, v, self.width, self.height, get_pixel)
     }
 
-    pub fn sample_alpha(&self, u: f32, v: f32) -> f32 {
-        if self.format == Format::Rgb {
-            return 1.0;
-        }
-
-        let get_pixel = |x: u32, y: u32| {
-            let pixel_index = y * self.width + x;
-            let i = (pixel_index * self.format.bytes()) as usize;
-            self.image[i + 3] as f32 / 255.0
-        };
-
-        wrapping_linear_interp(u, v, self.width, self.height, get_pixel)
-    }
-
-    pub fn create_spectrum_coefficients(&mut self, rgb2spec: &RGB2Spec) {
-        let result = match self.format {
+    pub fn create_spectrum_coefficients(&self, rgb2spec: &RGB2Spec) -> CoefficientTexture {
+        let pixels = match self.format {
             Format::Rgb => self
                 .image
                 .par_chunks(3)
@@ -126,11 +111,45 @@ impl Texture {
                 .collect::<Vec<CoefficientPixel>>(),
         };
 
-        self.coefficients_image = Some(result);
+        CoefficientTexture {
+            image: pixels,
+            width: self.width,
+            height: self.height,
+            has_alpha: self.format.has_alpha(),
+        }
     }
 
     pub fn size(&self) -> Vector2<u32> {
         vec2(self.width, self.height)
+    }
+}
+
+impl CoefficientTexture {
+    /// Note that the data returned is rgb2spec coefficients not actually in any RGB color space
+    pub fn sample(&self, u: f32, v: f32) -> RGBAf32 {
+        let get_pixel = |x: u32, y: u32| {
+            let pixel = &self.image[(y * self.width + x) as usize];
+            let c = pixel.coeffs;
+            RGBAf32::new(c[0], c[1], c[2], pixel.alpha)
+        };
+
+        wrapping_linear_interp(u, v, self.width, self.height, get_pixel)
+    }
+
+    pub fn sample_alpha(&self, u: f32, v: f32) -> f32 {
+        if !self.has_alpha {
+            return 1.0;
+        }
+
+        let get_pixel = |x: u32, y: u32| {
+            let pixel_index = y * self.width + x;
+            // let i = (pixel_index * if self.has_alpha { 3 } else { 4 }) as usize;
+            // self.image[i + 3]
+
+            self.image[pixel_index as usize].alpha
+        };
+
+        wrapping_linear_interp(u, v, self.width, self.height, get_pixel)
     }
 }
 

@@ -56,7 +56,7 @@ pub enum PlatformError {
 
 impl App {
     pub fn new(args: Args) -> Self {
-        let scene = match Scene::load(args.scene_file) {
+        let (scene, textures) = match Scene::load(args.scene_file) {
             Ok(scene) => scene,
             Err(message) => {
                 eprintln!("{}", message);
@@ -65,7 +65,7 @@ impl App {
         };
 
         App {
-            raytracer: Raytracer::new(&scene),
+            raytracer: Raytracer::new(&scene, textures),
             scene,
             render_settings: args.render_settings,
             output_file: args.output_file,
@@ -155,6 +155,9 @@ impl App {
                 }
             })
             .collect();
+
+        // The textures are now in GPU memory so no longer needed
+        self.scene.textures.clear();
 
         let blending = Blending {
             equation: Equation::Additive,
