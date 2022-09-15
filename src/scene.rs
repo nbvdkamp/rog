@@ -71,6 +71,7 @@ impl Scene {
         match gltf::import(path) {
             Ok((document, buffers, images)) => {
                 let lib_time = start.elapsed().as_secs_f32();
+                let start = Instant::now();
 
                 let textures = images
                     .into_iter()
@@ -113,13 +114,8 @@ impl Scene {
                     result_scene.parse_nodes(scene.nodes().collect(), &buffers, Matrix4::identity(), &rgb2spec);
                 }
 
-                let total_time = start.elapsed().as_secs_f32();
-                println!(
-                    "Parsed scene in {} seconds ({} in library, {} in own code)",
-                    total_time,
-                    lib_time,
-                    total_time - lib_time
-                );
+                let parse_time = start.elapsed().as_secs_f32();
+                let start = Instant::now();
 
                 let mut texture_types = Vec::new();
                 texture_types.resize_with(textures.len(), || Vec::new());
@@ -211,6 +207,13 @@ impl Scene {
                         .base_color_texture
                         .map_or(true, |index| result_scene.textures[index].format == Format::Rgb)
                 });
+
+                let textures_time = start.elapsed().as_secs_f32();
+                let total_time = lib_time + parse_time + textures_time;
+                println!(
+                    "Loaded scene in {} seconds ({} in library, {} converting scene, {} converting textures)",
+                    total_time, lib_time, parse_time, textures_time,
+                );
 
                 Ok((result_scene, sorted_textures))
             }
