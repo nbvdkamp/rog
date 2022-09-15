@@ -135,17 +135,18 @@ impl App {
             .iter()
             .map(|texture| {
                 let size = texture.size();
+                let size = [size.x as u32, size.y as u32];
                 let upload = TexelUpload::base_level(texture.image.as_slice(), 2);
 
                 match texture.format {
-                    crate::texture::Format::Rgb => match context.new_texture_raw([size.x, size.y], sampler, upload) {
+                    crate::texture::Format::Rgb => match context.new_texture_raw(size, sampler, upload) {
                         Ok(texture) => Tex::Rgb(texture),
                         Err(e) => {
                             println!("An error occured while uploading textures: {e}");
                             Tex::None
                         }
                     },
-                    crate::texture::Format::Rgba => match context.new_texture_raw([size.x, size.y], sampler, upload) {
+                    crate::texture::Format::Rgba => match context.new_texture_raw(size, sampler, upload) {
                         Ok(texture) => Tex::Rgba(texture),
                         Err(e) => {
                             println!("An error occured while uploading textures: {e}");

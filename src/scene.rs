@@ -88,7 +88,7 @@ impl Scene {
                             other => panic!("Texture format {:?} is not implemented", other),
                         };
 
-                        Texture::new(pixels, i.width, i.height, format)
+                        Texture::new(pixels, i.width as usize, i.height as usize, format)
                     })
                     .collect::<Vec<Texture>>();
 
