@@ -187,10 +187,10 @@ impl Raytracer {
         let total_tiles = tiles.len();
 
         thread::scope(|s| {
-            for _ in 0..settings.thread_count {
+            for i in 0..settings.thread_count {
                 let buffer = Arc::clone(&buffer);
 
-                s.spawn(move || {
+                let work = move || {
                     'work: loop {
                         let tile = loop {
                             match tiles.steal() {
@@ -251,7 +251,18 @@ impl Raytracer {
                             }
                         }
                     }
-                });
+                };
+
+                match thread::Builder::new()
+                    .name(format!("Render thread {i}"))
+                    .spawn_scoped(s, work)
+                {
+                    Ok(_) => (),
+                    Err(error) => {
+                        eprintln!("Unable to spawn thread {i}, error: {error}");
+                        std::process::exit(-1);
+                    }
+                };
             }
 
             if let Some(progress) = progress {
