@@ -25,6 +25,7 @@ use crate::{
     raytracer::Raytracer,
     render_settings::RenderSettings,
     scene::Scene,
+    texture::Format,
     util::{convert_spectrum_buffer_to_rgb, mat_to_shader_type, save_image},
 };
 
@@ -139,14 +140,14 @@ impl App {
                 let upload = TexelUpload::base_level(texture.image.as_slice(), 2);
 
                 match texture.format {
-                    crate::texture::Format::Rgb => match context.new_texture_raw(size, sampler, upload) {
+                    Format::Rgb => match context.new_texture_raw(size, sampler, upload) {
                         Ok(texture) => Tex::Rgb(texture),
                         Err(e) => {
                             println!("An error occured while uploading textures: {e}");
                             Tex::None
                         }
                     },
-                    crate::texture::Format::Rgba => match context.new_texture_raw(size, sampler, upload) {
+                    Format::Rgba => match context.new_texture_raw(size, sampler, upload) {
                         Ok(texture) => Tex::Rgba(texture),
                         Err(e) => {
                             println!("An error occured while uploading textures: {e}");
