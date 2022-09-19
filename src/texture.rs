@@ -193,16 +193,23 @@ struct CoefficientPixel {
     coeffs: [f32; 3],
 }
 
-fn coefficient_pixel_buffer_to_f32_buffer(buffer: Vec<CoefficientPixel>) -> Vec<f32> {
-    let (ptr, length, capacity, alloc) = buffer.into_raw_parts_with_alloc();
-    unsafe { Vec::from_raw_parts_in(ptr as *mut f32, 3 * length, 3 * capacity, alloc) }
-}
-
 #[derive(Clone)]
 #[repr(C, align(4))]
 struct CoefficientPixelAlpha {
     coeffs: [f32; 3],
     alpha: f32,
+}
+
+// Ensure required precondition for Vec::from_raw_parts holds
+const fn assert_aligns_equal() {
+    use std::mem::align_of;
+    let _: [(); align_of::<CoefficientPixel>()] = [(); align_of::<f32>()];
+    let _: [(); align_of::<CoefficientPixelAlpha>()] = [(); align_of::<f32>()];
+}
+
+fn coefficient_pixel_buffer_to_f32_buffer(buffer: Vec<CoefficientPixel>) -> Vec<f32> {
+    let (ptr, length, capacity, alloc) = buffer.into_raw_parts_with_alloc();
+    unsafe { Vec::from_raw_parts_in(ptr as *mut f32, 3 * length, 3 * capacity, alloc) }
 }
 
 fn coefficient_pixel_alpha_buffer_to_f32_buffer(buffer: Vec<CoefficientPixelAlpha>) -> Vec<f32> {
