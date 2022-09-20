@@ -1,4 +1,4 @@
-use std::{path::Path, time::Instant};
+use std::{collections::HashMap, path::Path, time::Instant};
 
 use cgmath::{
     vec3,
@@ -118,9 +118,9 @@ impl Scene {
                 let start = Instant::now();
 
                 let mut texture_types = Vec::new();
-                texture_types.resize_with(textures.len(), || Vec::new());
+                texture_types.resize_with(textures.len(), || HashMap::new());
 
-                #[derive(Debug, PartialEq, Clone, Copy)]
+                #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
                 enum TextureType {
                     BaseColor,
                     MetallicRoughness,
@@ -134,7 +134,14 @@ impl Scene {
                         ( $tex:expr, $tex_type:expr ) => {
                             match $tex {
                                 Some(index) => {
-                                    texture_types[index].push((&mut $tex, $tex_type));
+                                    if !texture_types[index].contains_key(&$tex_type) {
+                                        texture_types[index].insert($tex_type, vec![&mut $tex]);
+                                    } else {
+                                        texture_types[index]
+                                            .get_mut(&$tex_type)
+                                            .unwrap()
+                                            .push(&mut $tex);
+                                    }
                                 }
                                 None => (),
                             }
@@ -159,16 +166,16 @@ impl Scene {
                 textures
                     .into_iter()
                     .zip(texture_types.into_iter())
-                    .for_each(|(texture, types)| {
-                        if !types.is_empty() {
-                            let texture_type = types[0].1.clone();
+                    .for_each(|(texture, types_map)| {
+                        let mut types = types_map.into_iter();
 
-                            for (_, other_type) in &types {
-                                if other_type != &texture_type {
-                                    panic!("Texture is being used for multiple purposes: {texture_type:?} and {other_type:?}");
-                                }
-                            }
+                        let num_types = types.len();
 
+                        if num_types == 0 {
+                            return;
+                        }
+
+                        let mut insert = |texture: Texture, texture_type, opts: Vec<&mut Option<usize>>| {
                             match texture_type {
                                 TextureType::BaseColor => {
                                     sorted_textures
@@ -178,27 +185,35 @@ impl Scene {
                                     result_scene.textures.push(texture);
                                 }
                                 TextureType::MetallicRoughness => sorted_textures.metallic_roughness.push(texture),
-                                TextureType::Transmission => sorted_textures.emissive.push(texture),
+                                TextureType::Transmission => sorted_textures.transimission.push(texture),
                                 TextureType::Emissive => sorted_textures.emissive.push(texture),
                                 TextureType::Normal => sorted_textures.normal.push(texture),
                             };
 
-                            for (tex_opt, _) in types {
-                                match tex_opt {
-                                    Some(index) => {
-                                        *index = match texture_type {
-                                            // The index for the result scene texture is the same as for the coefficient texture because they are inserted together
-                                            TextureType::BaseColor => &result_scene.textures,
-                                            TextureType::MetallicRoughness => &sorted_textures.metallic_roughness,
-                                            TextureType::Transmission => &sorted_textures.emissive,
-                                            TextureType::Emissive => &sorted_textures.emissive,
-                                            TextureType::Normal => &sorted_textures.normal,
-                                        }.len() - 1;
-                                    }
-                                    None => unreachable!(),
-                                }
+                            let last_index = match texture_type {
+                                // The index for the result scene texture is the same as for the coefficient texture because they are inserted together
+                                TextureType::BaseColor => &result_scene.textures,
+                                TextureType::MetallicRoughness => &sorted_textures.metallic_roughness,
+                                TextureType::Transmission => &sorted_textures.transimission,
+                                TextureType::Emissive => &sorted_textures.emissive,
+                                TextureType::Normal => &sorted_textures.normal,
                             }
+                            .len()
+                                - 1;
+
+                            for tex_opt in opts {
+                                assert!(tex_opt.is_some());
+                                let _ = tex_opt.insert(last_index);
+                            }
+                        };
+
+                        for _ in 0..num_types - 1 {
+                            let (texture_type, opts) = types.next().unwrap();
+                            insert(texture.clone(), texture_type, opts);
                         }
+
+                        let (texture_type, opts) = types.last().unwrap();
+                        insert(texture, texture_type, opts);
                     });
 
                 // To draw meshes with alpha textures last
