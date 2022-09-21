@@ -469,13 +469,15 @@ impl Scene {
                     for i in 0..vert_tangents.len() {
                         let t = vert_tangents[i];
 
-                        if t == Vector3::zero() && !notified_of_error {
-                            println!(
-                                "Encountered an error in computing tangents for primitive {} of mesh {}.",
-                                primitive.index(),
-                                mesh.name().unwrap_or(&mesh.index().to_string())
-                            );
-                            notified_of_error = true;
+                        if t == Vector3::zero() {
+                            if !notified_of_error {
+                                println!(
+                                    "Encountered an error in computing tangents for primitive {} of mesh {}.",
+                                    primitive.index(),
+                                    mesh.name().unwrap_or(&mesh.index().to_string())
+                                );
+                                notified_of_error = true;
+                            }
                         } else {
                             let n = normals[i];
                             vert_tangents[i] = (t - n * t.dot(n)).normalize();
