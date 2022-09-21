@@ -39,7 +39,7 @@ use acceleration::{
     structure::{AccelerationStructure, TraceResult},
 };
 use bsdf::{mis2, Evaluation, Sample};
-use geometry::ensure_valid_reflection;
+use geometry::{ensure_valid_reflection, orthogonal_vector};
 use ray::{IntersectionResult, Ray};
 use sampling::tent_sample;
 use shadingframe::ShadingFrame;
@@ -377,7 +377,12 @@ impl Raytracer {
 
                 // Interpolate the vertex normals
                 let mut normal = (w * verts[0].normal + u * verts[1].normal + v * verts[2].normal).normalize();
-                let tangent = (w * verts[0].tangent + u * verts[1].tangent + v * verts[2].tangent).normalize();
+                let mut tangent = (w * verts[0].tangent + u * verts[1].tangent + v * verts[2].tangent).normalize();
+
+                // Handle the rare case where a bad tangent (linearly dependent with the normal) causes NaNs
+                if normal == tangent || -normal == tangent {
+                    tangent = orthogonal_vector(normal);
+                }
 
                 // Flip the computed geometric normal to the same side as the interpolated vertex normal.
                 if geom_normal.dot(normal) < 0.0 {
