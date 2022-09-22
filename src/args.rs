@@ -1,3 +1,7 @@
+use std::str::FromStr;
+
+use crate::raytracer::acceleration::Accel;
+
 use super::render_settings::RenderSettings;
 use cgmath::vec2;
 use clap::{arg, Command};
@@ -49,25 +53,20 @@ impl Args {
                     .display_order(8),
                 arg!(--alwayssamplewavelength "Sample only one wavelength per path, even if it doesn't encounter any dispersive surfaces")
                     .display_order(9),
-                arg!(-a --accel <NUM> "Index of acceleration structure to use")
-                    .default_value("2")
+                arg!(-a --accel <NUM> "Name of acceleration structure to use (in snake_case)")
                     .required(false),
                 arg!(-b --benchmark "Benchmark acceleration structures"),
             ])
             .get_matches();
 
-        let read_usize = |name, default| {
-            let opt = matches.value_of(name).unwrap().parse::<usize>();
-
-            match opt {
-                Ok(v) => v,
-                Err(_) => {
-                    println!(
-                        "Unable to parse argument {} as an integer, using value {} instead",
-                        name, default
-                    );
-                    default
-                }
+        let read_usize = |name, default| match matches.value_of(name).unwrap().parse::<usize>() {
+            Ok(v) => v,
+            Err(_) => {
+                println!(
+                    "Unable to parse argument {} as an integer, using value {} instead",
+                    name, default
+                );
+                default
             }
         };
 
@@ -84,11 +83,22 @@ impl Args {
             std::process::exit(-1);
         }
 
+        let accel_structure = match matches.value_of("accel") {
+            Some(name) => match Accel::from_str(name) {
+                Ok(accel) => accel,
+                Err(_) => {
+                    eprintln!("Wrong acceleration structure name provided, using KD tree instead");
+                    Accel::KdTree
+                }
+            },
+            None => Accel::KdTree,
+        };
+
         let render_settings = RenderSettings {
             samples_per_pixel: read_usize("samples", 1),
             image_size: vec2(read_usize("width", 1920), read_usize("height", 1080)),
             thread_count: read_usize("threads", default_thread_count).clamp(1, 2048),
-            accel_structure_index: read_usize("accel", 2).clamp(0, 2),
+            accel_structure,
             enable_dispersion: !matches.is_present("nodispersion"),
             always_sample_single_wavelength: matches.is_present("alwayssamplewavelength"),
         };

@@ -32,12 +32,7 @@ use crate::{
 };
 
 use aabb::BoundingBox;
-use acceleration::{
-    bvh::BoundingVolumeHierarchy,
-    bvh_rec::BoundingVolumeHierarchyRec,
-    kdtree::KdTree,
-    structure::{AccelerationStructure, TraceResult},
-};
+use acceleration::{structure::TraceResult, Accel, AccelerationStructures};
 use bsdf::{mis2, Evaluation, Sample};
 use geometry::{ensure_valid_reflection, orthogonal_vector};
 use ray::{IntersectionResult, Ray};
@@ -62,7 +57,7 @@ pub struct Raytracer {
     environment: Environment,
     pub camera: PerspectiveCamera,
     max_depth: usize,
-    pub accel_structures: Vec<Box<dyn AccelerationStructure + Sync>>,
+    pub accel_structures: AccelerationStructures,
 }
 
 pub struct RenderProgress {
@@ -81,7 +76,7 @@ pub enum Wavelength {
 }
 
 impl Raytracer {
-    pub fn new(scene: &Scene, textures: Textures) -> Self {
+    pub fn new(scene: &Scene, textures: Textures, accel_structures_to_construct: &[Accel]) -> Self {
         let mut verts = Vec::new();
         let mut triangles = Vec::new();
         let mut materials = Vec::new();
@@ -126,20 +121,15 @@ impl Raytracer {
             environment: scene.environment.clone(),
             camera: scene.camera,
             max_depth: 10,
-            accel_structures: Vec::new(),
+            accel_structures: AccelerationStructures::default(),
         };
 
-        // result.accel_structures.push(Box::new(BoundingIntervalHierarchy::new(&result.verts, &result.triangles)));
-        result
-            .accel_structures
-            .push(Box::new(BoundingVolumeHierarchy::new(&result.verts, &result.triangles)));
-        result.accel_structures.push(Box::new(BoundingVolumeHierarchyRec::new(
-            &result.verts,
-            &result.triangles,
-        )));
-        result
-            .accel_structures
-            .push(Box::new(KdTree::new(&result.verts, &result.triangles)));
+        for accel in accel_structures_to_construct {
+            result
+                .accel_structures
+                .construct(*accel, &result.verts, &result.triangles)
+                .unwrap();
+        }
 
         result
     }
@@ -325,7 +315,7 @@ impl Raytracer {
         while depth < self.max_depth {
             if let TraceResult::Hit {
                 triangle_index, u, v, ..
-            } = self.trace(&ray, settings.accel_structure_index)
+            } = self.trace(&ray, settings.accel_structure)
             {
                 let triangle = &self.triangles[triangle_index as usize];
                 let material = &self.materials[triangle.material_index as usize];
@@ -427,7 +417,7 @@ impl Raytracer {
                         };
 
                         let shadowed =
-                            self.cast_shadow_ray(shadow_ray, light_sample.distance, settings.accel_structure_index);
+                            self.cast_shadow_ray(shadow_ray, light_sample.distance, settings.accel_structure);
 
                         if !shadowed {
                             let local_incident = frame.to_local(light_sample.direction);
@@ -508,7 +498,7 @@ impl Raytracer {
     /// Checks if distance to the nearest obstructing triangle is less than the distance to the light
     /// Handles alpha by checking if R ~ U(0, 1) is greater than the texture's alpha and ignoring
     /// the triangle if it is.
-    fn cast_shadow_ray(&self, ray: Ray, light_distance: f32, accel_index: usize) -> bool {
+    fn cast_shadow_ray(&self, ray: Ray, light_distance: f32, accel: Accel) -> bool {
         let mut distance = light_distance;
         let mut ray = ray;
 
@@ -517,7 +507,7 @@ impl Raytracer {
             u,
             v,
             triangle_index,
-        } = self.trace(&ray, accel_index)
+        } = self.trace(&ray, accel)
         {
             // Never shadowed
             if t > distance {
@@ -565,8 +555,10 @@ impl Raytracer {
         false
     }
 
-    fn trace(&self, ray: &Ray, accel_index: usize) -> TraceResult {
-        self.accel_structures[accel_index].intersect(ray, &self.verts, &self.triangles)
+    fn trace(&self, ray: &Ray, accel: Accel) -> TraceResult {
+        self.accel_structures
+            .get(accel)
+            .intersect(ray, &self.verts, &self.triangles)
     }
 
     /// From Ray Tracing Gems chapter 6: "A Fast and Robust Method for Avoiding Self-Intersection"

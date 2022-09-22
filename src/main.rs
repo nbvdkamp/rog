@@ -32,6 +32,8 @@ use render_settings::RenderSettings;
 use scene::Scene;
 use util::{convert_spectrum_buffer_to_rgb, save_image};
 
+use crate::raytracer::acceleration::Accel;
+
 fn main() {
     let args = Args::parse();
     // FIXME: Verify scene aspect ratio with given image size
@@ -62,10 +64,11 @@ fn accel_benchmark() {
     let image_size = Vector2::new(16 * resolution_factor, 9 * resolution_factor);
     let samples = 1;
     let thread_count = (num_cpus::get() - 2).max(1);
+    let accel_structures_to_construct = vec![Accel::Bvh, Accel::BvhRecursive, Accel::KdTree];
 
     for path in test_scene_filenames {
         let (scene, textures) = Scene::load(format!("res/{path}.glb")).unwrap();
-        let raytracer = Raytracer::new(&scene, textures);
+        let raytracer = Raytracer::new(&scene, textures, &accel_structures_to_construct);
 
         println!("Filename: {}, tris: {}", path, raytracer.get_num_tris());
         #[cfg(feature = "stats")]
@@ -78,22 +81,22 @@ fn accel_benchmark() {
         #[cfg(not(feature = "stats"))]
         println!("{: <25} | {: <10}", "Acceleration structure", "Time (s)");
 
-        for i in 0..raytracer.accel_structures.len() {
+        for &structure in &accel_structures_to_construct {
             let settings = RenderSettings {
                 samples_per_pixel: samples,
                 image_size,
                 thread_count,
-                accel_structure_index: i,
+                accel_structure: structure,
                 enable_dispersion: true,
                 always_sample_single_wavelength: false,
             };
 
             let (_, time_elapsed) = raytracer.render(&settings, None);
-            let name = raytracer.accel_structures[i].get_name();
+            let name = raytracer.accel_structures.get(structure).get_name();
 
             #[cfg(feature = "stats")]
             {
-                let stats = raytracer.accel_structures[i].get_statistics();
+                let stats = raytracer.accel_structures.get(structure).get_statistics();
                 println!("{name: <25} | {time_elapsed: <10} | {stats}");
             }
             #[cfg(not(feature = "stats"))]
@@ -112,7 +115,7 @@ fn headless_render(args: Args) {
         }
     };
 
-    let raytracer = Raytracer::new(&scene, textures);
+    let raytracer = Raytracer::new(&scene, textures, &[args.render_settings.accel_structure]);
 
     let report_progress = |completed, total, seconds_per_tile| {
         let time_remaining = (total - completed) as f32 * seconds_per_tile;
