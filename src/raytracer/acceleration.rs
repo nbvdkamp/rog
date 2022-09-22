@@ -14,7 +14,7 @@ use self::{
     structure::AccelerationStructure,
 };
 
-use super::triangle::Triangle;
+use super::{aabb::BoundingBox, triangle::Triangle};
 
 #[derive(Default)]
 pub struct AccelerationStructures {
@@ -35,25 +35,35 @@ impl std::fmt::Display for ConstructError {
 }
 
 impl AccelerationStructures {
-    pub fn construct(&mut self, accel: Accel, verts: &[Vertex], triangles: &[Triangle]) -> Result<(), ConstructError> {
+    pub fn construct(
+        &mut self,
+        accel: Accel,
+        verts: &[Vertex],
+        triangles: &[Triangle],
+        triangle_bounds: &[BoundingBox],
+    ) -> Result<(), ConstructError> {
         match accel {
             Accel::Bvh => {
                 if self.bvh.is_some() {
                     return Err(ConstructError::default());
                 }
-                let _ = self.bvh.insert(BoundingVolumeHierarchy::new(verts, triangles));
+                let _ = self
+                    .bvh
+                    .insert(BoundingVolumeHierarchy::new(verts, triangles, triangle_bounds));
             }
             Accel::BvhRecursive => {
                 if self.bvh_rec.is_some() {
                     return Err(ConstructError::default());
                 }
-                let _ = self.bvh_rec.insert(BoundingVolumeHierarchyRec::new(verts, triangles));
+                let _ = self
+                    .bvh_rec
+                    .insert(BoundingVolumeHierarchyRec::new(verts, triangles, triangle_bounds));
             }
             Accel::KdTree => {
                 if self.kdtree.is_some() {
                     return Err(ConstructError::default());
                 }
-                let _ = self.kdtree.insert(KdTree::new(verts, triangles));
+                let _ = self.kdtree.insert(KdTree::new(verts, triangles, triangle_bounds));
             }
         }
         Ok(())

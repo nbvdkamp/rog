@@ -52,7 +52,7 @@ impl AccelerationStructure for BoundingVolumeHierarchyRec {
 }
 
 impl BoundingVolumeHierarchyRec {
-    pub fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
+    pub fn new(verts: &[Vertex], triangles: &[Triangle], triangle_bounds: &[BoundingBox]) -> Self {
         let mut item_indices = Vec::new();
         let mut stats = Statistics::new();
 
@@ -61,7 +61,7 @@ impl BoundingVolumeHierarchyRec {
         }
 
         BoundingVolumeHierarchyRec {
-            root: create_node(verts, triangles, &mut item_indices, 0, &mut stats),
+            root: create_node(verts, triangles, triangle_bounds, &mut item_indices, 0, &mut stats),
             stats,
         }
     }
@@ -211,6 +211,7 @@ fn intersects_bounds_distance(node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: 
 fn create_node(
     verts: &[Vertex],
     triangles: &[Triangle],
+    triangle_bounds: &[BoundingBox],
     triangle_indices: &mut [usize],
     depth: usize,
     stats: &mut Statistics,
@@ -221,7 +222,7 @@ fn create_node(
 
     stats.count_max_depth(depth);
 
-    let bounds = compute_bounding_box_triangle_indexed(triangles, triangle_indices);
+    let bounds = compute_bounding_box_triangle_indexed(triangle_bounds, triangle_indices);
 
     if triangle_indices.len() == 1 {
         stats.count_leaf_node();
@@ -263,8 +264,8 @@ fn create_node(
         right_indices.push(*item);
     }
 
-    let left = create_node(verts, triangles, &mut left_indices, depth + 1, stats);
-    let right = create_node(verts, triangles, &mut right_indices, depth + 1, stats);
+    let left = create_node(verts, triangles, triangle_bounds, &mut left_indices, depth + 1, stats);
+    let right = create_node(verts, triangles, triangle_bounds, &mut right_indices, depth + 1, stats);
 
     stats.count_inner_node();
 
@@ -275,11 +276,11 @@ fn create_node(
     }))
 }
 
-fn compute_bounding_box_triangle_indexed(triangles: &[Triangle], triangle_indices: &[usize]) -> BoundingBox {
+fn compute_bounding_box_triangle_indexed(triangle_bounds: &[BoundingBox], triangle_indices: &[usize]) -> BoundingBox {
     let mut bounds = BoundingBox::new();
 
     for i in triangle_indices {
-        bounds = bounds.union(triangles[*i].bounds);
+        bounds = bounds.union(triangle_bounds[*i]);
     }
 
     bounds

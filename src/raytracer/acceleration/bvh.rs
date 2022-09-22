@@ -44,7 +44,7 @@ impl Node {
 }
 
 impl BoundingVolumeHierarchy {
-    pub fn new(verts: &[Vertex], triangles: &[Triangle]) -> Self {
+    pub fn new(verts: &[Vertex], triangles: &[Triangle], triangle_bounds: &[BoundingBox]) -> Self {
         let mut nodes = Vec::new();
         let stats = Statistics::new();
 
@@ -86,9 +86,7 @@ impl BoundingVolumeHierarchy {
                 let mut centroid_bounds = BoundingBox::new();
 
                 item_indices.iter().for_each(|index| {
-                    let triangle = &triangles[*index];
-
-                    centroid_bounds.add(triangle.bounds.center());
+                    centroid_bounds.add(triangle_bounds[*index].center());
                 });
 
                 const BUCKET_COUNT: usize = 12;
@@ -111,11 +109,12 @@ impl BoundingVolumeHierarchy {
                 };
 
                 item_indices.iter().for_each(|index| {
-                    let triangle = &triangles[*index];
-                    let center = triangle.bounds.center()[axis_index];
+                    let bounds = triangle_bounds[*index];
+
+                    let center = bounds.center()[axis_index];
                     let bucket = &mut buckets[bucket_index(center)];
                     bucket.count += 1;
-                    bucket.bounds = bucket.bounds.union(triangle.bounds);
+                    bucket.bounds = bucket.bounds.union(bounds);
                 });
 
                 let mut costs = [0.0; BUCKET_COUNT - 1];
@@ -157,7 +156,7 @@ impl BoundingVolumeHierarchy {
                 if item_indices.len() > MAX_TRIS_IN_LEAF || min_cost < item_indices.len() as f32 {
                     (left_indices, right_indices) = item_indices
                         .into_iter()
-                        .partition(|i| bucket_index(triangles[*i].bounds.center()[axis_index]) <= min_index);
+                        .partition(|i| bucket_index(triangle_bounds[*i].center()[axis_index]) <= min_index);
                     left_is_leaf = left_indices.len() < 2;
                     right_is_leaf = right_indices.len() < 2;
                 } else {
@@ -168,8 +167,8 @@ impl BoundingVolumeHierarchy {
                     right_is_leaf = true;
                 }
 
-                left_bounds = compute_bounding_box_triangle_indexed(triangles, &left_indices);
-                right_bounds = compute_bounding_box_triangle_indexed(triangles, &right_indices);
+                left_bounds = compute_bounding_box_triangle_indexed(triangle_bounds, &left_indices);
+                right_bounds = compute_bounding_box_triangle_indexed(triangle_bounds, &right_indices);
 
                 *left_child = new_left_index;
                 *right_child = new_right_index;
@@ -282,11 +281,11 @@ fn compute_bounding_box(vertices: &[Vertex]) -> BoundingBox {
     bounds
 }
 
-fn compute_bounding_box_triangle_indexed(triangles: &[Triangle], triangle_indices: &[usize]) -> BoundingBox {
+fn compute_bounding_box_triangle_indexed(triangle_bounds: &[BoundingBox], triangle_indices: &[usize]) -> BoundingBox {
     let mut bounds = BoundingBox::new();
 
     for i in triangle_indices {
-        bounds = bounds.union(triangles[*i].bounds);
+        bounds = bounds.union(triangle_bounds[*i]);
     }
 
     bounds

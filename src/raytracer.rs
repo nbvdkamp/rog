@@ -79,6 +79,7 @@ impl Raytracer {
     pub fn new(scene: &Scene, textures: Textures, accel_structures_to_construct: &[Accel]) -> Self {
         let mut verts = Vec::new();
         let mut triangles = Vec::new();
+        let mut triangle_bounds = Vec::new();
         let mut materials = Vec::new();
 
         // TODO: Fix borrowing to prevent having to clone everything
@@ -107,8 +108,9 @@ impl Raytracer {
                     index2,
                     index3,
                     material_index,
-                    bounds,
                 });
+
+                triangle_bounds.push(bounds);
             }
         }
 
@@ -127,7 +129,7 @@ impl Raytracer {
         for accel in accel_structures_to_construct {
             result
                 .accel_structures
-                .construct(*accel, &result.verts, &result.triangles)
+                .construct(*accel, &result.verts, &result.triangles, &triangle_bounds)
                 .unwrap();
         }
 
