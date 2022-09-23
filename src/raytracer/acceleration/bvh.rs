@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use crate::{
     mesh::Vertex,
     raytracer::{axis::Axis, triangle::Triangle, IntersectionResult, Ray},
@@ -20,8 +22,8 @@ enum Node {
         bounds: BoundingBox,
     },
     Inner {
-        left_child: i32,
-        right_child: i32,
+        left_child: Option<NonZeroU32>,
+        right_child: Option<NonZeroU32>,
         bounds: BoundingBox,
     },
 }
@@ -36,8 +38,8 @@ impl Node {
 
     fn new_inner(bounds: BoundingBox) -> Node {
         Node::Inner {
-            left_child: -1,
-            right_child: -1,
+            left_child: None,
+            right_child: None,
             bounds,
         }
     }
@@ -61,8 +63,10 @@ impl BoundingVolumeHierarchy {
         let mut stack = vec![(0, item_indices, 1, Axis::X)];
 
         while let Some((index, mut item_indices, depth, split_axis)) = stack.pop() {
-            let new_left_index = nodes.len() as i32;
+            let new_left_index = nodes.len();
             let new_right_index = new_left_index + 1;
+            assert!(new_left_index > 0 && new_right_index <= u32::MAX as usize);
+
             let left_is_leaf;
             let right_is_leaf;
             stats.count_max_depth(depth);
@@ -170,8 +174,8 @@ impl BoundingVolumeHierarchy {
                 left_bounds = compute_bounding_box_triangle_indexed(triangle_bounds, &left_indices);
                 right_bounds = compute_bounding_box_triangle_indexed(triangle_bounds, &right_indices);
 
-                *left_child = new_left_index;
-                *right_child = new_right_index;
+                *left_child = NonZeroU32::new(new_left_index as u32);
+                *right_child = NonZeroU32::new(new_right_index as u32);
             } else {
                 unreachable!();
             }
@@ -221,8 +225,8 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                 } => {
                     if bounds.intersects_ray(ray, &inv_dir) {
                         self.stats.count_inner_node_traversal();
-                        stack.push(*left_child as usize);
-                        stack.push(*right_child as usize);
+                        stack.push(left_child.unwrap().get() as usize);
+                        stack.push(right_child.unwrap().get() as usize);
                     }
                 }
                 Node::Leaf {
