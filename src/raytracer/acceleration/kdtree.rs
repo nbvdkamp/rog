@@ -2,11 +2,12 @@ use cgmath::Vector3;
 
 use crate::{
     mesh::Vertex,
-    raytracer::{triangle::Triangle, IntersectionResult, Ray},
+    raytracer::{triangle::Triangle, Ray},
 };
 
 use super::{
     super::{aabb::BoundingBox, axis::Axis},
+    helpers::{compute_bounding_box, intersect_triangles_indexed},
     statistics::{Statistics, StatisticsStore},
     structure::{AccelerationStructure, TraceResult},
 };
@@ -107,7 +108,7 @@ impl KdTree {
                         verts,
                         triangles,
                     ),
-                    Node::Leaf { items } => self.leaf_intersect(items, ray, verts, triangles),
+                    Node::Leaf { items } => intersect_triangles_indexed(items, ray, verts, triangles, &self.stats),
                 }
             }
             None => TraceResult::Miss,
@@ -210,42 +211,6 @@ impl KdTree {
         } else {
             self.intersect(second_hit_child, ray, inv_dir, verts, triangles, second_bounds)
         }
-    }
-
-    fn leaf_intersect(
-        &self,
-        triangle_indices: &[usize],
-        ray: &Ray,
-        verts: &[Vertex],
-        triangles: &[Triangle],
-    ) -> TraceResult {
-        let mut result = TraceResult::Miss;
-        let mut min_dist = f32::MAX;
-
-        for triangle_index in triangle_indices {
-            let triangle = &triangles[*triangle_index as usize];
-            let p1 = &verts[triangle.index1 as usize];
-            let p2 = &verts[triangle.index2 as usize];
-            let p3 = &verts[triangle.index3 as usize];
-
-            self.stats.count_intersection_test();
-
-            if let IntersectionResult::Hit { t, u, v } = ray.intersect_triangle(p1.position, p2.position, p3.position) {
-                self.stats.count_intersection_hit();
-
-                if t < min_dist {
-                    result = TraceResult::Hit {
-                        triangle_index: *triangle_index as u32,
-                        t,
-                        u,
-                        v,
-                    };
-                    min_dist = t;
-                }
-            }
-        }
-
-        result
     }
 }
 
@@ -351,14 +316,4 @@ fn create_node(
         plane: split_plane,
         axis,
     }))
-}
-
-fn compute_bounding_box(vertices: &[Vertex]) -> BoundingBox {
-    let mut bounds = BoundingBox::new();
-
-    for vertex in vertices {
-        bounds.add(vertex.position);
-    }
-
-    bounds
 }

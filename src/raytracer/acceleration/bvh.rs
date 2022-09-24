@@ -7,6 +7,7 @@ use crate::{
 
 use super::{
     super::aabb::BoundingBox,
+    helpers::compute_bounding_box_triangle_indexed,
     statistics::{Statistics, StatisticsStore},
     structure::{AccelerationStructure, TraceResult},
 };
@@ -280,16 +281,6 @@ fn compute_bounding_box(vertices: &[Vertex]) -> BoundingBox {
 
     for vertex in vertices {
         bounds.add(vertex.position);
-    }
-
-    bounds
-}
-
-fn compute_bounding_box_triangle_indexed(triangle_bounds: &[BoundingBox], triangle_indices: &[usize]) -> BoundingBox {
-    let mut bounds = BoundingBox::new();
-
-    for i in triangle_indices {
-        bounds = bounds.union(triangle_bounds[*i]);
     }
 
     bounds

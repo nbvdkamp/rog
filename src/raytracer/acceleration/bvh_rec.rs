@@ -1,12 +1,13 @@
 use crate::{
     mesh::Vertex,
-    raytracer::{axis::Axis, triangle::Triangle, IntersectionResult, Ray},
+    raytracer::{axis::Axis, triangle::Triangle, Ray},
 };
 
 use cgmath::Vector3;
 
 use super::{
     super::aabb::BoundingBox,
+    helpers::{compute_bounding_box_triangle_indexed, intersect_triangles_indexed},
     statistics::{Statistics, StatisticsStore},
     structure::{AccelerationStructure, TraceResult},
 };
@@ -83,7 +84,9 @@ impl BoundingVolumeHierarchyRec {
                         right_child,
                         ..
                     } => self.inner_intersect(left_child, right_child, ray, inv_dir, verts, triangles),
-                    Node::Leaf { triangle_indices, .. } => self.leaf_intersect(triangle_indices, ray, verts, triangles),
+                    Node::Leaf { triangle_indices, .. } => {
+                        intersect_triangles_indexed(triangle_indices, ray, verts, triangles, &self.stats)
+                    }
                 }
             }
             None => TraceResult::Miss,
@@ -155,42 +158,6 @@ impl BoundingVolumeHierarchyRec {
         } else {
             self.intersect(second_hit_child, ray, inv_dir, verts, triangles)
         }
-    }
-
-    fn leaf_intersect(
-        &self,
-        triangle_indices: &[usize],
-        ray: &Ray,
-        verts: &[Vertex],
-        triangles: &[Triangle],
-    ) -> TraceResult {
-        let mut result = TraceResult::Miss;
-        let mut min_dist = f32::MAX;
-
-        for triangle_index in triangle_indices {
-            let triangle = &triangles[*triangle_index as usize];
-            let p1 = &verts[triangle.index1 as usize];
-            let p2 = &verts[triangle.index2 as usize];
-            let p3 = &verts[triangle.index3 as usize];
-
-            self.stats.count_intersection_test();
-
-            if let IntersectionResult::Hit { t, u, v } = ray.intersect_triangle(p1.position, p2.position, p3.position) {
-                self.stats.count_intersection_hit();
-
-                if t < min_dist {
-                    result = TraceResult::Hit {
-                        triangle_index: *triangle_index as u32,
-                        t,
-                        u,
-                        v,
-                    };
-                    min_dist = t;
-                }
-            }
-        }
-
-        result
     }
 }
 
@@ -352,14 +319,4 @@ fn create_node(
         right_child: right,
         bounds,
     }))
-}
-
-fn compute_bounding_box_triangle_indexed(triangle_bounds: &[BoundingBox], triangle_indices: &[usize]) -> BoundingBox {
-    let mut bounds = BoundingBox::new();
-
-    for i in triangle_indices {
-        bounds = bounds.union(triangle_bounds[*i]);
-    }
-
-    bounds
 }
