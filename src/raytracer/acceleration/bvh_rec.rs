@@ -8,6 +8,7 @@ use cgmath::Vector3;
 use super::{
     super::aabb::BoundingBox,
     helpers::{compute_bounding_box_triangle_indexed, intersect_triangles_indexed},
+    sah::{surface_area_heuristic, SurfaceAreaHeuristicResult},
     statistics::{Statistics, StatisticsStore},
     structure::{AccelerationStructure, TraceResult},
 };
@@ -206,117 +207,45 @@ fn create_node(
 
     let bounds = compute_bounding_box_triangle_indexed(triangle_bounds, &triangle_indices);
 
-    let axis_index = split_axis.index();
+    match surface_area_heuristic(triangle_bounds, triangle_indices, split_axis, bounds) {
+        SurfaceAreaHeuristicResult::MakeLeaf { indices } => {
+            stats.count_leaf_node();
 
-    let mut centroid_bounds = BoundingBox::new();
-
-    triangle_indices.iter().for_each(|index| {
-        centroid_bounds.add(triangle_bounds[*index].center());
-    });
-
-    const BUCKET_COUNT: usize = 12;
-
-    #[derive(Clone, Copy)]
-    struct Bucket {
-        count: u32,
-        bounds: BoundingBox,
-    }
-
-    let mut buckets = [Bucket {
-        count: 0,
-        bounds: BoundingBox::new(),
-    }; BUCKET_COUNT];
-
-    let bucket_index = |center| {
-        let x = (center - centroid_bounds.min[axis_index])
-            / (centroid_bounds.max[axis_index] - centroid_bounds.min[axis_index]);
-        ((BUCKET_COUNT as f32 * x) as usize).min(BUCKET_COUNT - 1)
-    };
-
-    triangle_indices.iter().for_each(|index| {
-        let bounds = triangle_bounds[*index];
-
-        let center = bounds.center()[axis_index];
-        let bucket = &mut buckets[bucket_index(center)];
-        bucket.count += 1;
-        bucket.bounds = bucket.bounds.union(bounds);
-    });
-
-    let mut costs = [0.0; BUCKET_COUNT - 1];
-
-    for i in 0..BUCKET_COUNT - 1 {
-        let mut b0 = BoundingBox::new();
-        let mut b1 = BoundingBox::new();
-
-        let mut count0 = 0;
-        let mut count1 = 0;
-
-        for j in 0..=i {
-            b0 = b0.union(buckets[j].bounds);
-            count0 += buckets[j].count;
+            return Some(Box::new(Node::Leaf {
+                triangle_indices: indices,
+                bounds,
+            }));
         }
-        for j in i + 1..BUCKET_COUNT {
-            b1 = b1.union(buckets[j].bounds);
-            count1 += buckets[j].count;
-        }
+        SurfaceAreaHeuristicResult::MakeInner {
+            left_indices,
+            right_indices,
+        } => {
+            let left = create_node(
+                verts,
+                triangles,
+                triangle_bounds,
+                left_indices,
+                depth + 1,
+                split_axis.next(),
+                stats,
+            );
+            let right = create_node(
+                verts,
+                triangles,
+                triangle_bounds,
+                right_indices,
+                depth + 1,
+                split_axis.next(),
+                stats,
+            );
 
-        const RELATIVE_TRAVERSAL_COST: f32 = 1.2;
-        let approx_children_cost =
-            (count0 as f32 * b0.surface_area() + count1 as f32 * b1.surface_area()) / bounds.surface_area();
-        costs[i] = RELATIVE_TRAVERSAL_COST + approx_children_cost;
-    }
+            stats.count_inner_node();
 
-    let mut min_cost = costs[0];
-    let mut min_index = 0;
-
-    for i in 1..BUCKET_COUNT - 1 {
-        if costs[i] < min_cost {
-            min_cost = costs[i];
-            min_index = i;
+            Some(Box::new(Node::Inner {
+                left_child: left,
+                right_child: right,
+                bounds,
+            }))
         }
     }
-
-    const MAX_TRIS_IN_LEAF: usize = 255;
-
-    let should_make_inner = triangle_indices.len() > MAX_TRIS_IN_LEAF || min_cost < triangle_indices.len() as f32;
-
-    if !should_make_inner {
-        stats.count_leaf_node();
-
-        return Some(Box::new(Node::Leaf {
-            triangle_indices,
-            bounds,
-        }));
-    };
-
-    let (left_indices, right_indices) = triangle_indices
-        .into_iter()
-        .partition(|i| bucket_index(triangle_bounds[*i].center()[axis_index]) <= min_index);
-
-    let left = create_node(
-        verts,
-        triangles,
-        triangle_bounds,
-        left_indices,
-        depth + 1,
-        split_axis.next(),
-        stats,
-    );
-    let right = create_node(
-        verts,
-        triangles,
-        triangle_bounds,
-        right_indices,
-        depth + 1,
-        split_axis.next(),
-        stats,
-    );
-
-    stats.count_inner_node();
-
-    Some(Box::new(Node::Inner {
-        left_child: left,
-        right_child: right,
-        bounds,
-    }))
 }

@@ -1,6 +1,7 @@
 pub mod helpers;
 pub mod statistics;
 pub mod structure;
+pub mod sah;
 
 // pub mod bih;
 pub mod bvh;
