@@ -1,6 +1,6 @@
 use crate::{
     mesh::Vertex,
-    raytracer::{triangle::Triangle, IntersectionResult, Ray},
+    raytracer::{axis::Axis, triangle::Triangle, IntersectionResult, Ray},
 };
 
 use cgmath::Vector3;
@@ -18,7 +18,7 @@ pub struct BoundingVolumeHierarchyRec {
 
 enum Node {
     Leaf {
-        triangle_index: u32,
+        triangle_indices: Vec<usize>,
         bounds: BoundingBox,
     },
     Inner {
@@ -61,7 +61,7 @@ impl BoundingVolumeHierarchyRec {
         }
 
         BoundingVolumeHierarchyRec {
-            root: create_node(verts, triangles, triangle_bounds, &mut item_indices, 0, &mut stats),
+            root: create_node(verts, triangles, triangle_bounds, item_indices, 0, Axis::X, &mut stats),
             stats,
         }
     }
@@ -83,7 +83,7 @@ impl BoundingVolumeHierarchyRec {
                         right_child,
                         ..
                     } => self.inner_intersect(left_child, right_child, ray, inv_dir, verts, triangles),
-                    Node::Leaf { triangle_index, .. } => self.leaf_intersect(*triangle_index, ray, verts, triangles),
+                    Node::Leaf { triangle_indices, .. } => self.leaf_intersect(triangle_indices, ray, verts, triangles),
                 }
             }
             None => TraceResult::Miss,
@@ -157,26 +157,40 @@ impl BoundingVolumeHierarchyRec {
         }
     }
 
-    fn leaf_intersect(&self, triangle_index: u32, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
-        let triangle = &triangles[triangle_index as usize];
-        let p1 = &verts[triangle.index1 as usize];
-        let p2 = &verts[triangle.index2 as usize];
-        let p3 = &verts[triangle.index3 as usize];
+    fn leaf_intersect(
+        &self,
+        triangle_indices: &[usize],
+        ray: &Ray,
+        verts: &[Vertex],
+        triangles: &[Triangle],
+    ) -> TraceResult {
+        let mut result = TraceResult::Miss;
+        let mut min_dist = f32::MAX;
 
-        self.stats.count_intersection_test();
+        for triangle_index in triangle_indices {
+            let triangle = &triangles[*triangle_index as usize];
+            let p1 = &verts[triangle.index1 as usize];
+            let p2 = &verts[triangle.index2 as usize];
+            let p3 = &verts[triangle.index3 as usize];
 
-        if let IntersectionResult::Hit { t, u, v } = ray.intersect_triangle(p1.position, p2.position, p3.position) {
-            self.stats.count_intersection_hit();
+            self.stats.count_intersection_test();
 
-            TraceResult::Hit {
-                triangle_index,
-                t,
-                u,
-                v,
+            if let IntersectionResult::Hit { t, u, v } = ray.intersect_triangle(p1.position, p2.position, p3.position) {
+                self.stats.count_intersection_hit();
+
+                if t < min_dist {
+                    result = TraceResult::Hit {
+                        triangle_index: *triangle_index as u32,
+                        t,
+                        u,
+                        v,
+                    };
+                    min_dist = t;
+                }
             }
-        } else {
-            TraceResult::Miss
         }
+
+        result
     }
 }
 
@@ -212,8 +226,9 @@ fn create_node(
     verts: &[Vertex],
     triangles: &[Triangle],
     triangle_bounds: &[BoundingBox],
-    triangle_indices: &mut [usize],
+    triangle_indices: Vec<usize>,
     depth: usize,
+    split_axis: Axis,
     stats: &mut Statistics,
 ) -> Option<Box<Node>> {
     if triangle_indices.is_empty() {
@@ -222,50 +237,113 @@ fn create_node(
 
     stats.count_max_depth(depth);
 
-    let bounds = compute_bounding_box_triangle_indexed(triangle_bounds, triangle_indices);
+    let bounds = compute_bounding_box_triangle_indexed(triangle_bounds, &triangle_indices);
 
-    if triangle_indices.len() == 1 {
+    let axis_index = split_axis.index();
+
+    let mut centroid_bounds = BoundingBox::new();
+
+    triangle_indices.iter().for_each(|index| {
+        centroid_bounds.add(triangle_bounds[*index].center());
+    });
+
+    const BUCKET_COUNT: usize = 12;
+
+    #[derive(Clone, Copy)]
+    struct Bucket {
+        count: u32,
+        bounds: BoundingBox,
+    }
+
+    let mut buckets = [Bucket {
+        count: 0,
+        bounds: BoundingBox::new(),
+    }; BUCKET_COUNT];
+
+    let bucket_index = |center| {
+        let x = (center - centroid_bounds.min[axis_index])
+            / (centroid_bounds.max[axis_index] - centroid_bounds.min[axis_index]);
+        ((BUCKET_COUNT as f32 * x) as usize).min(BUCKET_COUNT - 1)
+    };
+
+    triangle_indices.iter().for_each(|index| {
+        let bounds = triangle_bounds[*index];
+
+        let center = bounds.center()[axis_index];
+        let bucket = &mut buckets[bucket_index(center)];
+        bucket.count += 1;
+        bucket.bounds = bucket.bounds.union(bounds);
+    });
+
+    let mut costs = [0.0; BUCKET_COUNT - 1];
+
+    for i in 0..BUCKET_COUNT - 1 {
+        let mut b0 = BoundingBox::new();
+        let mut b1 = BoundingBox::new();
+
+        let mut count0 = 0;
+        let mut count1 = 0;
+
+        for j in 0..=i {
+            b0 = b0.union(buckets[j].bounds);
+            count0 += buckets[j].count;
+        }
+        for j in i + 1..BUCKET_COUNT {
+            b1 = b1.union(buckets[j].bounds);
+            count1 += buckets[j].count;
+        }
+
+        const RELATIVE_TRAVERSAL_COST: f32 = 1.2;
+        let approx_children_cost =
+            (count0 as f32 * b0.surface_area() + count1 as f32 * b1.surface_area()) / bounds.surface_area();
+        costs[i] = RELATIVE_TRAVERSAL_COST + approx_children_cost;
+    }
+
+    let mut min_cost = costs[0];
+    let mut min_index = 0;
+
+    for i in 1..BUCKET_COUNT - 1 {
+        if costs[i] < min_cost {
+            min_cost = costs[i];
+            min_index = i;
+        }
+    }
+
+    const MAX_TRIS_IN_LEAF: usize = 255;
+
+    let should_make_inner = triangle_indices.len() > MAX_TRIS_IN_LEAF || min_cost < triangle_indices.len() as f32;
+
+    if !should_make_inner {
         stats.count_leaf_node();
 
         return Some(Box::new(Node::Leaf {
-            triangle_index: triangle_indices[0] as u32,
+            triangle_indices,
             bounds,
         }));
-    }
+    };
 
-    let mut left_indices = Vec::new();
-    let mut right_indices = Vec::new();
+    let (left_indices, right_indices) = triangle_indices
+        .into_iter()
+        .partition(|i| bucket_index(triangle_bounds[*i].center()[axis_index]) <= min_index);
 
-    let (split_axis, _) = bounds.find_split_plane();
-    let axis_index = split_axis.index();
-
-    triangle_indices.sort_by(|index_a, index_b| {
-        let triangle_a = &triangles[*index_a];
-        let triangle_b = &triangles[*index_b];
-        let mid_a = (verts[triangle_a.index1 as usize].position[axis_index]
-            + verts[triangle_a.index2 as usize].position[axis_index]
-            + verts[triangle_a.index3 as usize].position[axis_index])
-            / 3.0;
-        let mid_b = (verts[triangle_b.index1 as usize].position[axis_index]
-            + verts[triangle_b.index2 as usize].position[axis_index]
-            + verts[triangle_b.index3 as usize].position[axis_index])
-            / 3.0;
-
-        mid_a.partial_cmp(&mid_b).unwrap()
-    });
-
-    let mid_item_index = triangle_indices.len() / 2;
-
-    for item in triangle_indices.iter().take(mid_item_index) {
-        left_indices.push(*item);
-    }
-
-    for item in triangle_indices.iter().skip(mid_item_index) {
-        right_indices.push(*item);
-    }
-
-    let left = create_node(verts, triangles, triangle_bounds, &mut left_indices, depth + 1, stats);
-    let right = create_node(verts, triangles, triangle_bounds, &mut right_indices, depth + 1, stats);
+    let left = create_node(
+        verts,
+        triangles,
+        triangle_bounds,
+        left_indices,
+        depth + 1,
+        split_axis.next(),
+        stats,
+    );
+    let right = create_node(
+        verts,
+        triangles,
+        triangle_bounds,
+        right_indices,
+        depth + 1,
+        split_axis.next(),
+        stats,
+    );
 
     stats.count_inner_node();
 
