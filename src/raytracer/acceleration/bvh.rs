@@ -2,12 +2,12 @@ use std::num::NonZeroU32;
 
 use crate::{
     mesh::Vertex,
-    raytracer::{axis::Axis, triangle::Triangle, IntersectionResult, Ray},
+    raytracer::{axis::Axis, triangle::Triangle, Ray},
 };
 
 use super::{
     super::aabb::BoundingBox,
-    helpers::compute_bounding_box_triangle_indexed,
+    helpers::{compute_bounding_box_triangle_indexed, intersect_triangles_indexed},
     statistics::{Statistics, StatisticsStore},
     structure::{AccelerationStructure, TraceResult},
 };
@@ -209,7 +209,6 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
         self.stats.count_ray();
 
         let mut result = TraceResult::Miss;
-        let mut min_distance = f32::MAX;
         let inv_dir = 1.0 / ray.direction;
 
         // Replacing this with a vec! macro degrades performance somehow??
@@ -235,29 +234,10 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                     bounds,
                 } => {
                     if !triangle_indices.is_empty() && bounds.intersects_ray(ray, &inv_dir) {
-                        for i in triangle_indices {
-                            let triangle = &triangles[*i];
-                            let p1 = &verts[triangle.index1 as usize];
-                            let p2 = &verts[triangle.index2 as usize];
-                            let p3 = &verts[triangle.index3 as usize];
+                        let r = intersect_triangles_indexed(triangle_indices, ray, verts, triangles, &self.stats);
 
-                            self.stats.count_intersection_test();
-
-                            if let IntersectionResult::Hit { t, u, v } =
-                                ray.intersect_triangle(p1.position, p2.position, p3.position)
-                            {
-                                self.stats.count_intersection_hit();
-
-                                if t < min_distance {
-                                    min_distance = t;
-                                    result = TraceResult::Hit {
-                                        triangle_index: *i as u32,
-                                        t,
-                                        u,
-                                        v,
-                                    };
-                                }
-                            }
+                        if r.is_closer_than(&result) {
+                            result = r;
                         }
                     }
                 }

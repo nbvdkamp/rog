@@ -14,6 +14,25 @@ pub enum TraceResult {
     },
 }
 
+impl TraceResult {
+    pub fn is_farther_than(&self, other_t: f32) -> bool {
+        match self {
+            TraceResult::Miss => true,
+            TraceResult::Hit { t, .. } => *t > other_t,
+        }
+    }
+
+    pub fn is_closer_than(&self, other: &Self) -> bool {
+        match self {
+            TraceResult::Miss => false,
+            TraceResult::Hit { t, .. } => match other {
+                TraceResult::Miss => true,
+                TraceResult::Hit { t: other_t, .. } => t < other_t,
+            },
+        }
+    }
+}
+
 pub trait AccelerationStructure {
     fn intersect(&self, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult;
 

@@ -40,7 +40,6 @@ pub fn intersect_triangles_indexed(
     stats: &Statistics,
 ) -> TraceResult {
     let mut result = TraceResult::Miss;
-    let mut min_dist = f32::MAX;
 
     for triangle_index in triangle_indices {
         let triangle = &triangles[*triangle_index as usize];
@@ -53,14 +52,13 @@ pub fn intersect_triangles_indexed(
         if let IntersectionResult::Hit { t, u, v } = ray.intersect_triangle(p1.position, p2.position, p3.position) {
             stats.count_intersection_hit();
 
-            if t < min_dist {
+            if result.is_farther_than(t) {
                 result = TraceResult::Hit {
                     triangle_index: *triangle_index as u32,
                     t,
                     u,
                     v,
                 };
-                min_dist = t;
             }
         }
     }
