@@ -7,7 +7,7 @@ use crate::{
 
 use super::{
     super::aabb::BoundingBox,
-    helpers::{compute_bounding_box_triangle_indexed, intersect_triangles_indexed},
+    helpers::{compute_bounding_box, compute_bounding_box_triangle_indexed, intersect_triangles_indexed},
     statistics::{Statistics, StatisticsStore},
     structure::{AccelerationStructure, TraceResult},
 };
@@ -254,14 +254,4 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
     fn get_statistics(&self) -> StatisticsStore {
         self.stats.get_copy()
     }
-}
-
-fn compute_bounding_box(vertices: &[Vertex]) -> BoundingBox {
-    let mut bounds = BoundingBox::new();
-
-    for vertex in vertices {
-        bounds.add(vertex.position);
-    }
-
-    bounds
 }
