@@ -35,7 +35,7 @@ use aabb::BoundingBox;
 use acceleration::{structure::TraceResult, Accel, AccelerationStructures};
 use bsdf::{mis2, Evaluation, Sample};
 use geometry::{ensure_valid_reflection, orthogonal_vector};
-use ray::{IntersectionResult, Ray};
+use ray::Ray;
 use sampling::tent_sample;
 use shadingframe::ShadingFrame;
 use triangle::Triangle;
