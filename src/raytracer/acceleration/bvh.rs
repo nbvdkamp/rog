@@ -61,9 +61,10 @@ impl BoundingVolumeHierarchy {
         stats.count_inner_node();
         nodes.push(Node::new_inner(bounds));
 
-        let mut stack = vec![(0, item_indices, 1, Axis::X)];
+        let mut stack = vec![(0, item_indices, 1)];
 
-        while let Some((index, item_indices, depth, split_axis)) = stack.pop() {
+        while let Some((index, item_indices, depth)) = stack.pop() {
+            let split_axis = Axis::from_index(depth);
             let new_left_index = nodes.len();
             let new_right_index = new_left_index + 1;
             assert!(new_left_index > 0 && new_right_index <= u32::MAX as usize);
@@ -117,7 +118,7 @@ impl BoundingVolumeHierarchy {
                 stats.count_leaf_node();
                 nodes.push(Node::new_leaf(left_indices, left_bounds));
             } else {
-                stack.push((new_left_index as usize, left_indices, depth + 1, split_axis.next()));
+                stack.push((new_left_index as usize, left_indices, depth + 1));
                 stats.count_inner_node();
                 nodes.push(Node::new_inner(left_bounds));
             }
@@ -126,7 +127,7 @@ impl BoundingVolumeHierarchy {
                 stats.count_leaf_node();
                 nodes.push(Node::new_leaf(right_indices, right_bounds));
             } else {
-                stack.push((new_right_index as usize, right_indices, depth + 1, split_axis.next()));
+                stack.push((new_right_index as usize, right_indices, depth + 1));
                 stats.count_inner_node();
                 nodes.push(Node::new_inner(right_bounds));
             }

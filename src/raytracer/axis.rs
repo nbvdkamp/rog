@@ -14,11 +14,12 @@ impl Axis {
         }
     }
 
-    pub fn next(&self) -> Self {
-        match self {
-            Axis::X => Axis::Y,
-            Axis::Y => Axis::Z,
-            Axis::Z => Axis::X,
+    pub fn from_index(index: usize) -> Self {
+        match index % 3 {
+            0 => Axis::X,
+            1 => Axis::Y,
+            2 => Axis::Z,
+            _ => unreachable!(),
         }
     }
 }

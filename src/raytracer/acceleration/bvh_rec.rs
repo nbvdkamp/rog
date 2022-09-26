@@ -63,7 +63,7 @@ impl BoundingVolumeHierarchyRec {
         }
 
         BoundingVolumeHierarchyRec {
-            root: create_node(verts, triangles, triangle_bounds, item_indices, 0, Axis::X, &mut stats),
+            root: create_node(verts, triangles, triangle_bounds, item_indices, 0, &mut stats),
             stats,
         }
     }
@@ -196,12 +196,13 @@ fn create_node(
     triangle_bounds: &[BoundingBox],
     triangle_indices: Vec<usize>,
     depth: usize,
-    split_axis: Axis,
     stats: &mut Statistics,
 ) -> Option<Box<Node>> {
     if triangle_indices.is_empty() {
         return None;
     }
+
+    let split_axis = Axis::from_index(depth);
 
     stats.count_max_depth(depth);
 
@@ -220,24 +221,8 @@ fn create_node(
             left_indices,
             right_indices,
         } => {
-            let left = create_node(
-                verts,
-                triangles,
-                triangle_bounds,
-                left_indices,
-                depth + 1,
-                split_axis.next(),
-                stats,
-            );
-            let right = create_node(
-                verts,
-                triangles,
-                triangle_bounds,
-                right_indices,
-                depth + 1,
-                split_axis.next(),
-                stats,
-            );
+            let left = create_node(verts, triangles, triangle_bounds, left_indices, depth + 1, stats);
+            let right = create_node(verts, triangles, triangle_bounds, right_indices, depth + 1, stats);
 
             stats.count_inner_node();
 
