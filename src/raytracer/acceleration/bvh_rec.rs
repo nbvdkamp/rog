@@ -202,13 +202,12 @@ fn create_node(
         return None;
     }
 
-    let split_axis = Axis::from_index(depth);
-
     stats.count_max_depth(depth);
 
     let bounds = compute_bounding_box_triangle_indexed(triangle_bounds, &triangle_indices);
+    let axes_to_search = [Axis::X, Axis::Y, Axis::Z];
 
-    match surface_area_heuristic(triangle_bounds, triangle_indices, split_axis, bounds) {
+    match surface_area_heuristic(triangle_bounds, triangle_indices, bounds, &axes_to_search) {
         SurfaceAreaHeuristicResult::MakeLeaf { indices } => {
             stats.count_leaf_node();
 

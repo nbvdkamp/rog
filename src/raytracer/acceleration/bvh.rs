@@ -64,7 +64,6 @@ impl BoundingVolumeHierarchy {
         let mut stack = vec![(0, item_indices, 1)];
 
         while let Some((index, item_indices, depth)) = stack.pop() {
-            let split_axis = Axis::from_index(depth);
             let new_left_index = nodes.len();
             let new_right_index = new_left_index + 1;
             assert!(new_left_index > 0 && new_right_index <= u32::MAX as usize);
@@ -87,7 +86,8 @@ impl BoundingVolumeHierarchy {
                 bounds,
             } = node
             {
-                match surface_area_heuristic(triangle_bounds, item_indices, split_axis, *bounds) {
+                let axes_to_search = [Axis::from_index(depth)];
+                match surface_area_heuristic(triangle_bounds, item_indices, *bounds, &axes_to_search) {
                     SurfaceAreaHeuristicResult::MakeLeaf { mut indices } => {
                         left_indices = indices.split_off(indices.len() / 2);
                         right_indices = indices;

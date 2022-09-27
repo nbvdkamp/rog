@@ -24,11 +24,9 @@ struct Bucket {
 pub fn surface_area_heuristic(
     triangle_bounds: &[BoundingBox],
     triangle_indices: Vec<usize>,
-    split_axis: Axis,
     bounds: BoundingBox,
+    axes_to_search: &[Axis],
 ) -> SurfaceAreaHeuristicResult {
-    let axis_index = split_axis.index();
-
     let mut centroid_bounds = BoundingBox::new();
 
     for index in &triangle_indices {
@@ -37,56 +35,62 @@ pub fn surface_area_heuristic(
 
     let centroid_bounds_extent = centroid_bounds.max - centroid_bounds.min;
 
-    let mut buckets = [Bucket {
-        count: 0,
-        bounds: BoundingBox::new(),
-    }; BUCKET_COUNT];
-
-    let bucket_index = |center| {
+    let bucket_index = |center, axis_index: usize| {
         let x = (center - centroid_bounds.min[axis_index]) / centroid_bounds_extent[axis_index];
 
         ((BUCKET_COUNT as f32 * x) as usize).min(BUCKET_COUNT - 1)
     };
 
-    for index in &triangle_indices {
-        let bounds = triangle_bounds[*index];
-
-        let center = bounds.center()[axis_index];
-        let bucket = &mut buckets[bucket_index(center)];
-        bucket.count += 1;
-        bucket.bounds = bucket.bounds.union(bounds);
-    }
-
-    let mut costs = [0.0; POTENTIAL_SPLIT_COUNT];
-
-    for i in 0..POTENTIAL_SPLIT_COUNT {
-        let mut b0 = BoundingBox::new();
-        let mut b1 = BoundingBox::new();
-
-        let mut count0 = 0;
-        let mut count1 = 0;
-
-        for j in 0..=i {
-            b0 = b0.union(buckets[j].bounds);
-            count0 += buckets[j].count;
-        }
-        for j in i + 1..BUCKET_COUNT {
-            b1 = b1.union(buckets[j].bounds);
-            count1 += buckets[j].count;
-        }
-
-        let approx_children_cost =
-            (count0 as f32 * b0.surface_area() + count1 as f32 * b1.surface_area()) / bounds.surface_area();
-        costs[i] = RELATIVE_TRAVERSAL_COST + approx_children_cost;
-    }
-
-    let mut min_cost = costs[0];
+    let mut min_cost = f32::MAX;
     let mut min_index = 0;
+    let mut min_axis = Axis::X;
 
-    for i in 1..BUCKET_COUNT - 1 {
-        if costs[i] < min_cost {
-            min_cost = costs[i];
-            min_index = i;
+    for &split_axis in axes_to_search {
+        let axis_index = split_axis.index();
+
+        let mut buckets = [Bucket {
+            count: 0,
+            bounds: BoundingBox::new(),
+        }; BUCKET_COUNT];
+
+        for index in &triangle_indices {
+            let bounds = triangle_bounds[*index];
+
+            let center = bounds.center()[axis_index];
+            let bucket = &mut buckets[bucket_index(center, axis_index)];
+            bucket.count += 1;
+            bucket.bounds = bucket.bounds.union(bounds);
+        }
+
+        let mut costs = [0.0; POTENTIAL_SPLIT_COUNT];
+
+        for i in 0..POTENTIAL_SPLIT_COUNT {
+            let mut b0 = BoundingBox::new();
+            let mut b1 = BoundingBox::new();
+
+            let mut count0 = 0;
+            let mut count1 = 0;
+
+            for j in 0..=i {
+                b0 = b0.union(buckets[j].bounds);
+                count0 += buckets[j].count;
+            }
+            for j in i + 1..BUCKET_COUNT {
+                b1 = b1.union(buckets[j].bounds);
+                count1 += buckets[j].count;
+            }
+
+            let approx_children_cost =
+                (count0 as f32 * b0.surface_area() + count1 as f32 * b1.surface_area()) / bounds.surface_area();
+            costs[i] = RELATIVE_TRAVERSAL_COST + approx_children_cost;
+        }
+
+        for i in 1..BUCKET_COUNT - 1 {
+            if costs[i] < min_cost {
+                min_cost = costs[i];
+                min_index = i;
+                min_axis = split_axis;
+            }
         }
     }
 
@@ -98,9 +102,11 @@ pub fn surface_area_heuristic(
         };
     }
 
+    let axis_index = min_axis.index();
+
     let (left_indices, right_indices) = triangle_indices
         .into_iter()
-        .partition(|i| bucket_index(triangle_bounds[*i].center()[axis_index]) <= min_index);
+        .partition(|i| bucket_index(triangle_bounds[*i].center()[axis_index], axis_index) <= min_index);
 
     SurfaceAreaHeuristicResult::MakeInner {
         left_indices,

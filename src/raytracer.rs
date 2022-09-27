@@ -126,12 +126,22 @@ impl Raytracer {
             accel_structures: AccelerationStructures::default(),
         };
 
+        let start = Instant::now();
+
         for accel in accel_structures_to_construct {
             result
                 .accel_structures
                 .construct(*accel, &result.verts, &result.triangles, &triangle_bounds)
                 .unwrap();
         }
+
+        let l = accel_structures_to_construct.len();
+        println!(
+            "Constructed {} acceleration structure{} in {} seconds",
+            l,
+            if l == 1 { "" } else { "s" },
+            start.elapsed().as_secs_f32()
+        );
 
         result
     }
