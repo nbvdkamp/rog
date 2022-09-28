@@ -7,7 +7,7 @@ use crate::{
 
 use super::{
     helpers::{compute_bounding_box, compute_bounding_box_triangle_indexed, intersect_triangles_indexed},
-    sah::{surface_area_heuristic, SurfaceAreaHeuristicResult},
+    sah::{surface_area_heuristic_bvh, SurfaceAreaHeuristicResultBvh},
     statistics::{Statistics, StatisticsStore},
     structure::{AccelerationStructure, TraceResult},
 };
@@ -52,18 +52,18 @@ impl BoundingVolumeHierarchy {
         let stats = Statistics::new();
 
         let bounds = compute_bounding_box(verts);
-        let mut item_indices = Vec::new();
+        let mut triangle_indices = Vec::new();
 
         for i in 0..triangles.len() {
-            item_indices.push(i);
+            triangle_indices.push(i);
         }
 
         stats.count_inner_node();
         nodes.push(Node::new_inner(bounds));
 
-        let mut stack = vec![(0, item_indices, 1)];
+        let mut stack = vec![(0, triangle_indices, 1)];
 
-        while let Some((index, item_indices, depth)) = stack.pop() {
+        while let Some((index, triangle_indices, depth)) = stack.pop() {
             let new_left_index = nodes.len();
             let new_right_index = new_left_index + 1;
             assert!(new_left_index > 0 && new_right_index <= u32::MAX as usize);
@@ -87,14 +87,14 @@ impl BoundingVolumeHierarchy {
             } = node
             {
                 let axes_to_search = [Axis::from_index(depth)];
-                match surface_area_heuristic(triangle_bounds, item_indices, *bounds, &axes_to_search) {
-                    SurfaceAreaHeuristicResult::MakeLeaf { mut indices } => {
+                match surface_area_heuristic_bvh(triangle_bounds, triangle_indices, *bounds, &axes_to_search) {
+                    SurfaceAreaHeuristicResultBvh::MakeLeaf { mut indices } => {
                         left_indices = indices.split_off(indices.len() / 2);
                         right_indices = indices;
                         left_is_leaf = true;
                         right_is_leaf = true;
                     }
-                    SurfaceAreaHeuristicResult::MakeInner {
+                    SurfaceAreaHeuristicResultBvh::MakeInner {
                         left_indices: left,
                         right_indices: right,
                     } => {

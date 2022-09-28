@@ -8,6 +8,7 @@ use crate::{
 use super::{
     super::{aabb::BoundingBox, axis::Axis},
     helpers::{compute_bounding_box, intersect_triangles_indexed},
+    sah::{surface_area_heuristic_kd_tree, SurfaceAreaHeuristicResultKdTree},
     statistics::{Statistics, StatisticsStore},
     structure::{AccelerationStructure, TraceResult},
 };
@@ -229,91 +230,49 @@ fn create_node(
 
     stats.count_max_depth(depth);
 
-    let early_term_leaf_size = 10;
-    let max_depth = (f32::log2(triangles.len() as f32) * 1.2) as usize;
-
-    if triangle_indices.len() <= early_term_leaf_size || depth > max_depth {
-        stats.count_leaf_node();
-
-        return Some(Box::new(Node::Leaf {
-            items: triangle_indices,
-        }));
-    }
-
-    let mut left_indices = Vec::new();
-    let mut right_indices = Vec::new();
-
-    let (axis, mid_plane) = bounds.find_split_plane();
-    let axis_index = axis.index();
-
-    let mut split_plane = f32::MAX;
-    let mut least_dist = f32::MAX;
-
-    // Perfect vertex split
-    for index in &triangle_indices {
-        let bounds = &triangle_bounds[*index];
-
-        let p = bounds.max[axis_index];
-        let dist = f32::abs(p - mid_plane);
-
-        if dist < least_dist {
-            split_plane = p;
-            least_dist = dist;
+    match surface_area_heuristic_kd_tree(triangle_bounds, triangle_indices, *bounds) {
+        SurfaceAreaHeuristicResultKdTree::MakeLeaf { indices } => {
+            stats.count_leaf_node();
+            Some(Box::new(Node::Leaf { items: indices }))
         }
+        SurfaceAreaHeuristicResultKdTree::MakeInner {
+            split_axis,
+            split_position,
+            left_indices,
+            right_indices,
+        } => {
+            let mut left_bounds = *bounds;
+            left_bounds.set_max(&split_axis, split_position);
+            let mut right_bounds = *bounds;
+            right_bounds.set_min(&split_axis, split_position);
 
-        let p = bounds.min[axis_index];
-        let dist = f32::abs(p - mid_plane);
+            let left = create_node(
+                verts,
+                triangles,
+                triangle_bounds,
+                left_indices,
+                depth + 1,
+                &left_bounds,
+                stats,
+            );
+            let right = create_node(
+                verts,
+                triangles,
+                triangle_bounds,
+                right_indices,
+                depth + 1,
+                &right_bounds,
+                stats,
+            );
 
-        if dist < least_dist {
-            split_plane = p;
-            least_dist = dist;
-        }
-    }
+            stats.count_inner_node();
 
-    let mut left_bounds = *bounds;
-    left_bounds.set_max(&axis, split_plane);
-    let mut right_bounds = *bounds;
-    right_bounds.set_min(&axis, split_plane);
-
-    for index in triangle_indices {
-        let triangle = &triangles[index];
-        let v1 = verts[triangle.index1 as usize].position[axis_index];
-        let v2 = verts[triangle.index2 as usize].position[axis_index];
-        let v3 = verts[triangle.index3 as usize].position[axis_index];
-
-        if v1 <= split_plane || v2 <= split_plane || v3 <= split_plane {
-            left_indices.push(index);
-        }
-        if v1 > split_plane || v2 > split_plane || v3 > split_plane {
-            right_indices.push(index);
+            Some(Box::new(Node::Inner {
+                left_child: left,
+                right_child: right,
+                plane: split_position,
+                axis: split_axis,
+            }))
         }
     }
-
-    let left = create_node(
-        verts,
-        triangles,
-        triangle_bounds,
-        left_indices,
-        depth + 1,
-        &left_bounds,
-        stats,
-    );
-    let right = create_node(
-        verts,
-        triangles,
-        triangle_bounds,
-        right_indices,
-        depth + 1,
-        &right_bounds,
-        stats,
-    );
-
-    stats.count_inner_node();
-
-    Some(Box::new(Node::Inner {
-        left_child: left,
-        right_child: right,
-        plane: split_plane,
-        axis,
-    }))
 }

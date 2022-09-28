@@ -8,7 +8,7 @@ use cgmath::Vector3;
 use super::{
     super::aabb::BoundingBox,
     helpers::{compute_bounding_box_triangle_indexed, intersect_triangles_indexed},
-    sah::{surface_area_heuristic, SurfaceAreaHeuristicResult},
+    sah::{surface_area_heuristic_bvh, SurfaceAreaHeuristicResultBvh},
     statistics::{Statistics, StatisticsStore},
     structure::{AccelerationStructure, TraceResult},
 };
@@ -207,8 +207,8 @@ fn create_node(
     let bounds = compute_bounding_box_triangle_indexed(triangle_bounds, &triangle_indices);
     let axes_to_search = [Axis::X, Axis::Y, Axis::Z];
 
-    match surface_area_heuristic(triangle_bounds, triangle_indices, bounds, &axes_to_search) {
-        SurfaceAreaHeuristicResult::MakeLeaf { indices } => {
+    match surface_area_heuristic_bvh(triangle_bounds, triangle_indices, bounds, &axes_to_search) {
+        SurfaceAreaHeuristicResultBvh::MakeLeaf { indices } => {
             stats.count_leaf_node();
 
             return Some(Box::new(Node::Leaf {
@@ -216,7 +216,7 @@ fn create_node(
                 bounds,
             }));
         }
-        SurfaceAreaHeuristicResult::MakeInner {
+        SurfaceAreaHeuristicResultBvh::MakeInner {
             left_indices,
             right_indices,
         } => {
