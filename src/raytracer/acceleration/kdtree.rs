@@ -131,9 +131,9 @@ impl KdTree {
         self.stats.count_inner_node_traversal();
 
         let mut left_bounds = bounds;
-        left_bounds.set_max(&axis, plane);
+        left_bounds.set_max(axis, plane);
         let mut right_bounds = bounds;
-        right_bounds.set_min(&axis, plane);
+        right_bounds.set_min(axis, plane);
 
         let hit_l_box = left_bounds.intersects_ray(ray, &inv_dir);
         let hit_r_box = right_bounds.intersects_ray(ray, &inv_dir);
@@ -242,9 +242,9 @@ fn create_node(
             right_indices,
         } => {
             let mut left_bounds = *bounds;
-            left_bounds.set_max(&split_axis, split_position);
+            left_bounds.set_max(split_axis, split_position);
             let mut right_bounds = *bounds;
-            right_bounds.set_min(&split_axis, split_position);
+            right_bounds.set_min(split_axis, split_position);
 
             let left = create_node(
                 verts,

@@ -147,9 +147,9 @@ pub fn surface_area_heuristic_kd_tree(
         for i in 0..POTENTIAL_SPLIT_COUNT {
             let split_pos = split_pos(i, axis_index);
             let mut b0 = bounds;
-            b0.set_max(&split_axis, split_pos);
+            b0.set_max(split_axis, split_pos);
             let mut b1 = bounds;
-            b1.set_min(&split_axis, split_pos);
+            b1.set_min(split_axis, split_pos);
 
             let mut count0 = 0;
             let mut count1 = 0;

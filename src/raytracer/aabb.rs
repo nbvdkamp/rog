@@ -28,12 +28,19 @@ impl BoundingBox {
         }
     }
 
-
-    pub fn set_min(&mut self, axis: &Axis, value: f32) {
+    pub fn set_min(&mut self, axis: Axis, value: f32) {
         match axis {
             Axis::X => self.min.x = value,
             Axis::Y => self.min.y = value,
             Axis::Z => self.min.z = value,
+        }
+    }
+
+    pub fn set_max(&mut self, axis: Axis, value: f32) {
+        match axis {
+            Axis::X => self.max.x = value,
+            Axis::Y => self.max.y = value,
+            Axis::Z => self.max.z = value,
         }
     }
 
@@ -48,14 +55,6 @@ impl BoundingBox {
 
         let e = self.max - self.min;
         2.0 * (e.x * e.y + e.x * e.z + e.y * e.z)
-    }
-
-    pub fn set_max(&mut self, axis: &Axis, value: f32) {
-        match axis {
-            Axis::X => self.max.x = value,
-            Axis::Y => self.max.y = value,
-            Axis::Z => self.max.z = value,
-        }
     }
 
     pub fn intersects_ray(&self, ray: &Ray, inv_dir: &Vector3<f32>) -> bool {
