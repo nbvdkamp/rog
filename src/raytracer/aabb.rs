@@ -28,19 +28,6 @@ impl BoundingBox {
         }
     }
 
-    pub fn find_split_plane(&self) -> (Axis, f32) {
-        let x_size = self.max.x - self.min.x;
-        let y_size = self.max.y - self.min.y;
-        let z_size = self.max.z - self.min.z;
-
-        if x_size >= y_size && x_size >= z_size {
-            (Axis::X, self.min.x + x_size / 2.0)
-        } else if y_size >= z_size {
-            (Axis::Y, self.min.y + y_size / 2.0)
-        } else {
-            (Axis::Z, self.min.z + z_size / 2.0)
-        }
-    }
 
     pub fn set_min(&mut self, axis: &Axis, value: f32) {
         match axis {
