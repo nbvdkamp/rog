@@ -437,16 +437,14 @@ pub fn sample(mat: &MaterialSample, outgoing: Vector3<f32>) -> Sample {
         } else {
             Sample::Null
         }
-    } else {
-        if let Sample::Sample { incident, weight, pdf } = bsdf_sample_diffuse_reflection(mat, outgoing) {
-            Sample::Sample {
-                incident,
-                weight,
-                pdf: pdf * pdfs.diffuse,
-            }
-        } else {
-            Sample::Null
+    } else if let Sample::Sample { incident, weight, pdf } = bsdf_sample_diffuse_reflection(mat, outgoing) {
+        Sample::Sample {
+            incident,
+            weight,
+            pdf: pdf * pdfs.diffuse,
         }
+    } else {
+        Sample::Null
     }
     // TODO: Clearcoat sampling
 }

@@ -82,28 +82,25 @@ impl KdTree {
         bounds: BoundingBox,
     ) -> TraceResult {
         match node_opt {
-            Some(node) => {
-                let node = node.as_ref();
-                match node {
-                    Node::Inner {
-                        left_child,
-                        right_child,
-                        plane,
-                        axis,
-                    } => self.inner_intersect(
-                        left_child,
-                        right_child,
-                        bounds,
-                        *plane,
-                        *axis,
-                        ray,
-                        inv_dir,
-                        verts,
-                        triangles,
-                    ),
-                    Node::Leaf { items } => intersect_triangles_indexed(items, ray, verts, triangles, &self.stats),
-                }
-            }
+            Some(node) => match node.as_ref() {
+                Node::Inner {
+                    left_child,
+                    right_child,
+                    plane,
+                    axis,
+                } => self.inner_intersect(
+                    left_child,
+                    right_child,
+                    bounds,
+                    *plane,
+                    *axis,
+                    ray,
+                    inv_dir,
+                    verts,
+                    triangles,
+                ),
+                Node::Leaf { items } => intersect_triangles_indexed(items, ray, verts, triangles, &self.stats),
+            },
             None => TraceResult::Miss,
         }
     }

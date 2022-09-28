@@ -1,4 +1,8 @@
-use std::{collections::HashMap, path::Path, time::Instant};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    path::Path,
+    time::Instant,
+};
 
 use cgmath::{
     vec3,
@@ -118,7 +122,7 @@ impl Scene {
                 let start = Instant::now();
 
                 let mut texture_types = Vec::new();
-                texture_types.resize_with(textures.len(), || HashMap::new());
+                texture_types.resize_with(textures.len(), HashMap::new);
 
                 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
                 enum TextureType {
@@ -133,16 +137,14 @@ impl Scene {
                     macro_rules! set_type {
                         ( $tex:expr, $tex_type:expr ) => {
                             match $tex {
-                                Some(index) => {
-                                    if !texture_types[index].contains_key(&$tex_type) {
-                                        texture_types[index].insert($tex_type, vec![&mut $tex]);
-                                    } else {
-                                        texture_types[index]
-                                            .get_mut(&$tex_type)
-                                            .unwrap()
-                                            .push(&mut $tex);
+                                Some(index) => match texture_types[index].entry($tex_type) {
+                                    Entry::Vacant(e) => {
+                                        e.insert(vec![&mut $tex]);
                                     }
-                                }
+                                    Entry::Occupied(mut l) => {
+                                        l.get_mut().push(&mut $tex);
+                                    }
+                                },
                                 None => (),
                             }
                         };
@@ -309,7 +311,7 @@ impl Scene {
             let extras: Option<MaterialExtras> = mat
                 .extras()
                 .as_ref()
-                .and_then(|extras| serde_json::from_str(&extras.as_ref().get()).ok());
+                .and_then(|extras| serde_json::from_str(extras.as_ref().get()).ok());
 
             let base_color = RGBf32::new(base[0], base[1], base[2]);
             let base_color_coefficients = rgb2spec.fetch([base_color.r, base_color.g, base_color.b]);
@@ -515,7 +517,7 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>,
     let extras: Option<LightExtras> = light
         .extras()
         .as_ref()
-        .and_then(|extras| serde_json::from_str(&extras.as_ref().get()).ok());
+        .and_then(|extras| serde_json::from_str(extras.as_ref().get()).ok());
 
     let kind = match light.kind() {
         gltf::khr_lights_punctual::Kind::Point => {

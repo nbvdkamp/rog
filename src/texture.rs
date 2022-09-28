@@ -201,7 +201,7 @@ struct CoefficientPixelAlpha {
 }
 
 // Ensure required precondition for Vec::from_raw_parts holds
-const fn assert_aligns_equal() {
+const fn _assert_aligns_equal() {
     use std::mem::align_of;
     let _: [(); align_of::<CoefficientPixel>()] = [(); align_of::<f32>()];
     let _: [(); align_of::<CoefficientPixelAlpha>()] = [(); align_of::<f32>()];

@@ -115,10 +115,10 @@ pub fn convert_spectrum_buffer_to_rgb(buffer: Vec<Spectrumf32>) -> Vec<RGBf32> {
 
 pub mod bit_hacks {
     pub fn i32_as_f32(x: i32) -> f32 {
-        unsafe { std::mem::transmute(x) }
+        f32::from_bits(x as u32)
     }
 
     pub fn f32_as_i32(x: f32) -> i32 {
-        unsafe { std::mem::transmute(x) }
+        x.to_bits() as i32
     }
 }

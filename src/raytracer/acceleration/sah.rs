@@ -64,6 +64,7 @@ pub fn surface_area_heuristic_bvh(
 
         let mut costs = [0.0; POTENTIAL_SPLIT_COUNT];
 
+        #[allow(clippy::needless_range_loop)]
         for i in 0..POTENTIAL_SPLIT_COUNT {
             let mut b0 = BoundingBox::new();
             let mut b1 = BoundingBox::new();
@@ -85,9 +86,9 @@ pub fn surface_area_heuristic_bvh(
             costs[i] = RELATIVE_TRAVERSAL_COST + approx_children_cost;
         }
 
-        for i in 1..BUCKET_COUNT - 1 {
-            if costs[i] < min_cost {
-                min_cost = costs[i];
+        for (i, cost) in costs.into_iter().enumerate() {
+            if cost < min_cost {
+                min_cost = cost;
                 min_index = i;
                 min_axis = split_axis;
             }
@@ -144,6 +145,7 @@ pub fn surface_area_heuristic_kd_tree(
         let axis_index = split_axis.index();
         let mut costs = [0.0; POTENTIAL_SPLIT_COUNT];
 
+        #[allow(clippy::needless_range_loop)]
         for i in 0..POTENTIAL_SPLIT_COUNT {
             let split_pos = split_pos(i, axis_index);
             let mut b0 = bounds;
@@ -170,9 +172,9 @@ pub fn surface_area_heuristic_kd_tree(
             costs[i] = RELATIVE_TRAVERSAL_COST + approx_children_cost;
         }
 
-        for i in 1..BUCKET_COUNT - 1 {
-            if costs[i] < min_cost {
-                min_cost = costs[i];
+        for (i, cost) in costs.into_iter().enumerate() {
+            if cost < min_cost {
+                min_cost = cost;
                 min_index = i;
                 min_axis = split_axis;
             }
@@ -193,7 +195,7 @@ pub fn surface_area_heuristic_kd_tree(
     let left_indices = triangle_indices
         .iter()
         .filter(|&&i| triangle_bounds[i].min[axis_index] <= split_position)
-        .map(|&i| i)
+        .copied()
         .collect();
 
     let right_indices = triangle_indices

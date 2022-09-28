@@ -1,7 +1,7 @@
 pub mod helpers;
+pub mod sah;
 pub mod statistics;
 pub mod structure;
-pub mod sah;
 
 // pub mod bih;
 pub mod bvh;
@@ -60,7 +60,7 @@ impl AccelerationStructures {
                 }
                 let _ = self
                     .bvh_rec
-                    .insert(BoundingVolumeHierarchyRec::new(verts, triangles, triangle_bounds));
+                    .insert(BoundingVolumeHierarchyRec::new(triangles.len(), triangle_bounds));
             }
             Accel::KdTree => {
                 if self.kdtree.is_some() {

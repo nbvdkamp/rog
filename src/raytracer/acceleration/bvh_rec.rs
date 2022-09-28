@@ -54,16 +54,11 @@ impl AccelerationStructure for BoundingVolumeHierarchyRec {
 }
 
 impl BoundingVolumeHierarchyRec {
-    pub fn new(verts: &[Vertex], triangles: &[Triangle], triangle_bounds: &[BoundingBox]) -> Self {
-        let mut item_indices = Vec::new();
+    pub fn new(triangle_count: usize, triangle_bounds: &[BoundingBox]) -> Self {
         let mut stats = Statistics::new();
 
-        for i in 0..triangles.len() {
-            item_indices.push(i);
-        }
-
         BoundingVolumeHierarchyRec {
-            root: create_node(verts, triangles, triangle_bounds, item_indices, 0, &mut stats),
+            root: create_node(triangle_bounds, (0..triangle_count).collect(), 0, &mut stats),
             stats,
         }
     }
@@ -77,19 +72,16 @@ impl BoundingVolumeHierarchyRec {
         triangles: &[Triangle],
     ) -> TraceResult {
         match node_opt {
-            Some(node) => {
-                let node = node.as_ref();
-                match node {
-                    Node::Inner {
-                        left_child,
-                        right_child,
-                        ..
-                    } => self.inner_intersect(left_child, right_child, ray, inv_dir, verts, triangles),
-                    Node::Leaf { triangle_indices, .. } => {
-                        intersect_triangles_indexed(triangle_indices, ray, verts, triangles, &self.stats)
-                    }
+            Some(node) => match node.as_ref() {
+                Node::Inner {
+                    left_child,
+                    right_child,
+                    ..
+                } => self.inner_intersect(left_child, right_child, ray, inv_dir, verts, triangles),
+                Node::Leaf { triangle_indices, .. } => {
+                    intersect_triangles_indexed(triangle_indices, ray, verts, triangles, &self.stats)
                 }
-            }
+            },
             None => TraceResult::Miss,
         }
     }
@@ -191,8 +183,6 @@ fn intersects_bounds_distance(node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: 
 }
 
 fn create_node(
-    verts: &[Vertex],
-    triangles: &[Triangle],
     triangle_bounds: &[BoundingBox],
     triangle_indices: Vec<usize>,
     depth: usize,
@@ -211,17 +201,17 @@ fn create_node(
         SurfaceAreaHeuristicResultBvh::MakeLeaf { indices } => {
             stats.count_leaf_node();
 
-            return Some(Box::new(Node::Leaf {
+            Some(Box::new(Node::Leaf {
                 triangle_indices: indices,
                 bounds,
-            }));
+            }))
         }
         SurfaceAreaHeuristicResultBvh::MakeInner {
             left_indices,
             right_indices,
         } => {
-            let left = create_node(verts, triangles, triangle_bounds, left_indices, depth + 1, stats);
-            let right = create_node(verts, triangles, triangle_bounds, right_indices, depth + 1, stats);
+            let left = create_node(triangle_bounds, left_indices, depth + 1, stats);
+            let right = create_node(triangle_bounds, right_indices, depth + 1, stats);
 
             stats.count_inner_node();
 
