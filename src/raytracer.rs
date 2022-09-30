@@ -87,10 +87,7 @@ impl Raytracer {
             let start_index = verts.len() as u32;
             let material_index = materials.len() as u32;
 
-            for v in &mesh.vertices {
-                verts.push(v.clone());
-            }
-
+            verts.append(&mut mesh.vertices.clone());
             materials.push(mesh.material.clone());
 
             for i in (0..mesh.indices.len()).step_by(3) {
@@ -205,7 +202,7 @@ impl Raytracer {
                         for y in tile.start.y..tile.end.y {
                             for x in tile.start.x..tile.end.x {
                                 let mut color = Spectrumf32::constant(0.0);
-                                let mut sample_count = Spectrumf32::constant(0.0);
+                                let mut samples = 0;
 
                                 for sample in 0..settings.samples_per_pixel {
                                     let mut offset = vec2(0.5, 0.5);
@@ -232,21 +229,17 @@ impl Raytracer {
                                     match self.radiance(ray, settings) {
                                         RadianceResult::Spectrum(spectrum) => {
                                             color += spectrum;
-                                            sample_count += Spectrumf32::constant(1.0);
+                                            samples += Spectrumf32::RESOLUTION;
                                         }
                                         RadianceResult::SingleValue { value, wavelength } => {
                                             // wavelength is sampled in range so no bounds checks necessary
                                             color.add_at_wavelength_lerp(value, wavelength);
-                                            sample_count.add_at_wavelength_lerp(1.0, wavelength);
+                                            samples += 1;
                                         }
                                     }
                                 }
 
-                                for i in 0..Spectrumf32::RESOLUTION {
-                                    if sample_count.data[i] > 0.0 {
-                                        color.data[i] /= sample_count.data[i];
-                                    }
-                                }
+                                color /= samples as f32 / Spectrumf32::RESOLUTION as f32;
 
                                 let mut buffer = buffer.lock().unwrap();
                                 buffer[image_size.x * y + x] = color;
