@@ -4,6 +4,7 @@
 #![feature(allocator_api)]
 #[macro_use]
 extern crate impl_ops;
+extern crate static_assertions;
 
 use std::{io::Write, time::Duration, vec};
 

@@ -2,6 +2,7 @@ use cgmath::{vec2, Vector2};
 use lerp::Lerp;
 use rayon::prelude::*;
 use rgb2spec::RGB2Spec;
+use static_assertions::assert_eq_align;
 
 use crate::color::{RGBAf32, RGBf32};
 
@@ -201,11 +202,7 @@ struct CoefficientPixelAlpha {
 }
 
 // Ensure required precondition for Vec::from_raw_parts holds
-const fn _assert_aligns_equal() {
-    use std::mem::align_of;
-    let _: [(); align_of::<CoefficientPixel>()] = [(); align_of::<f32>()];
-    let _: [(); align_of::<CoefficientPixelAlpha>()] = [(); align_of::<f32>()];
-}
+assert_eq_align!(f32, CoefficientPixel, CoefficientPixelAlpha);
 
 fn coefficient_pixel_buffer_to_f32_buffer(buffer: Vec<CoefficientPixel>) -> Vec<f32> {
     let (ptr, length, capacity, alloc) = buffer.into_raw_parts_with_alloc();

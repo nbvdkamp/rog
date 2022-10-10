@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use rayon::iter::ParallelIterator;
+use static_assertions::const_assert;
 
 use cgmath::{vec2, vec3, ElementWise, Point3, Vector3};
 use rand::Rng;
@@ -21,6 +22,8 @@ const TABLE_SIZE: usize = (CELL_COUNT * (CELL_COUNT + 1)) / 2;
 const VISIBILITY_SAMPLES: usize = 16;
 
 type Visibility = u8;
+
+const_assert!(Visibility::MAX as usize >= VISIBILITY_SAMPLES);
 
 pub struct SceneStatistics {
     scene_bounds: BoundingBox,
