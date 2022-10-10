@@ -66,7 +66,12 @@ impl App {
         };
 
         App {
-            raytracer: Raytracer::new(&scene, textures, &[args.render_settings.accel_structure]),
+            raytracer: Raytracer::new(
+                &scene,
+                textures,
+                &[args.render_settings.accel_structure],
+                args.render_settings.use_visibility,
+            ),
             scene,
             render_settings: args.render_settings,
             output_file: args.output_file,

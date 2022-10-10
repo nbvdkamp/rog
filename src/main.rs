@@ -68,7 +68,7 @@ fn accel_benchmark() {
 
     for path in test_scene_filenames {
         let (scene, textures) = Scene::load(format!("res/{path}.glb")).unwrap();
-        let raytracer = Raytracer::new(&scene, textures, &accel_structures_to_construct);
+        let raytracer = Raytracer::new(&scene, textures, &accel_structures_to_construct, false);
 
         println!("Filename: {}, tris: {}", path, raytracer.get_num_tris());
         #[cfg(feature = "stats")]
@@ -89,6 +89,7 @@ fn accel_benchmark() {
                 accel_structure: structure,
                 enable_dispersion: true,
                 always_sample_single_wavelength: false,
+                use_visibility: false,
             };
 
             let (_, time_elapsed) = raytracer.render(&settings, None);
@@ -115,7 +116,12 @@ fn headless_render(args: Args) {
         }
     };
 
-    let raytracer = Raytracer::new(&scene, textures, &[args.render_settings.accel_structure]);
+    let raytracer = Raytracer::new(
+        &scene,
+        textures,
+        &[args.render_settings.accel_structure],
+        args.render_settings.use_visibility,
+    );
 
     let report_progress = |completed, total, seconds_per_tile| {
         let time_remaining = (total - completed) as f32 * seconds_per_tile;

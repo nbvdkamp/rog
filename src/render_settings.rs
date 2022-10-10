@@ -9,4 +9,5 @@ pub struct RenderSettings {
     pub accel_structure: Accel,
     pub enable_dispersion: bool,
     pub always_sample_single_wavelength: bool,
+    pub use_visibility: bool,
 }

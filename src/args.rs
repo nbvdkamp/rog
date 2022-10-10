@@ -26,35 +26,28 @@ impl Args {
             .args(&[
                 arg!(-f --file <FILE> "Path to .gltf or .glb file to render")
                     .default_value("res/simple_raytracer_test.glb")
-                    .required(false)
-                    .display_order(1),
-                arg!(-h --headless "Run without a window").display_order(2),
+                    .required(false),
+                arg!(-h --headless "Run without a window"),
                 arg!(--samples --spp <NUM> "Number of samples per pixel")
                     .default_value("1")
-                    .required(false)
-                    .display_order(3),
+                    .required(false),
                 arg!(--width <NUM> "Image width")
                     .default_value("1920")
-                    .required(false)
-                    .display_order(4),
+                    .required(false),
                 arg!(--height <NUM> "Image height")
                     .default_value("1080")
-                    .required(false)
-                    .display_order(5),
+                    .required(false),
                 arg!(-o --output <FILE> "Path/filename where image should be saved")
                     .default_value("output/result.png")
-                    .required(false)
-                    .display_order(6),
+                    .required(false),
                 arg!(-t --threads <NUM> "Number of threads to use for rendering (default is based on available threads)")
                     .default_value(&format!("{}", default_thread_count))
-                    .required(false)
-                    .display_order(7),
-                arg!(--nodispersion "Disable dispersion")
-                    .display_order(8),
-                arg!(--alwayssamplewavelength "Sample only one wavelength per path, even if it doesn't encounter any dispersive surfaces")
-                    .display_order(9),
-                arg!(-a --accel <NUM> "Name of acceleration structure to use (in snake_case)")
                     .required(false),
+                arg!(--nodispersion "Disable dispersion"),
+                arg!(--alwayssamplewavelength "Sample only one wavelength per path, even if it doesn't encounter any dispersive surfaces"),
+                arg!(-a --accel <NAME> "Name of acceleration structure to use (in snake_case)")
+                    .required(false),
+                arg!(-v --visibility "Sample visibility data for the scene and use it for importance sampling"),
                 arg!(-b --benchmark "Benchmark acceleration structures"),
             ])
             .get_matches();
@@ -101,6 +94,7 @@ impl Args {
             accel_structure,
             enable_dispersion: !matches.is_present("nodispersion"),
             always_sample_single_wavelength: matches.is_present("alwayssamplewavelength"),
+            use_visibility: matches.is_present("visibility"),
         };
 
         Args {

@@ -15,6 +15,7 @@ mod bsdf;
 pub mod geometry;
 mod ray;
 mod sampling;
+mod scene_statistics;
 mod shadingframe;
 mod triangle;
 
@@ -37,6 +38,7 @@ use bsdf::{mis2, Evaluation, Sample};
 use geometry::{ensure_valid_reflection, orthogonal_vector};
 use ray::Ray;
 use sampling::tent_sample;
+use scene_statistics::SceneStatistics;
 use shadingframe::ShadingFrame;
 use triangle::Triangle;
 
@@ -55,6 +57,7 @@ pub struct Raytracer {
     lights: Vec<Light>,
     textures: Textures,
     environment: Environment,
+    stats: Option<SceneStatistics>,
     pub camera: PerspectiveCamera,
     max_depth: usize,
     pub accel_structures: AccelerationStructures,
@@ -76,7 +79,12 @@ pub enum Wavelength {
 }
 
 impl Raytracer {
-    pub fn new(scene: &Scene, textures: Textures, accel_structures_to_construct: &[Accel]) -> Self {
+    pub fn new(
+        scene: &Scene,
+        textures: Textures,
+        accel_structures_to_construct: &[Accel],
+        use_visibility: bool,
+    ) -> Self {
         let mut verts = Vec::new();
         let mut triangles = Vec::new();
         let mut triangle_bounds = Vec::new();
@@ -111,6 +119,8 @@ impl Raytracer {
             }
         }
 
+        let scene_bounds = acceleration::helpers::compute_bounding_box(&verts);
+
         let mut result = Raytracer {
             verts,
             triangles,
@@ -118,6 +128,7 @@ impl Raytracer {
             lights: scene.lights.clone(),
             textures,
             environment: scene.environment.clone(),
+            stats: None,
             camera: scene.camera,
             max_depth: 10,
             accel_structures: AccelerationStructures::default(),
@@ -140,7 +151,31 @@ impl Raytracer {
             start.elapsed().as_secs_f32()
         );
 
+        if use_visibility {
+            let mut stats = SceneStatistics::new(scene_bounds);
+            let start = Instant::now();
+
+            stats.sample_visibility(
+                &result.accel_structures,
+                accel_structures_to_construct[0],
+                &result.verts,
+                &result.triangles,
+            );
+
+            println!("Computed visibility map in {} seconds", start.elapsed().as_secs_f32());
+
+            result.stats = Some(stats);
+            result.dump_visibility_image();
+            std::process::exit(0);
+        }
+
         result
+    }
+
+    pub fn dump_visibility_image(&self) {
+        if let Some(stats) = self.stats.as_ref() {
+            stats.dump_visibility_image("output/vis.png");
+        }
     }
 
     pub fn render(&self, settings: &RenderSettings, progress: Option<RenderProgress>) -> (Vec<Spectrumf32>, f32) {
