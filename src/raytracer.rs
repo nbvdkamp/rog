@@ -164,6 +164,13 @@ impl Raytracer {
 
             println!("Computed visibility map in {} seconds", start.elapsed().as_secs_f32());
 
+            let start = Instant::now();
+            stats.sample_materials(&result.verts, &result.triangles, &triangle_bounds);
+            println!(
+                "Computed material averages in {} seconds",
+                start.elapsed().as_secs_f32()
+            );
+
             result.stats = Some(stats);
             result.dump_visibility_image();
             std::process::exit(0);

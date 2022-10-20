@@ -1,4 +1,6 @@
-use cgmath::{vec2, InnerSpace, Vector3};
+use cgmath::{vec2, InnerSpace, Point3, Vector3};
+
+use super::axis::Axis;
 
 pub fn orthogonal_vector(v: Vector3<f32>) -> Vector3<f32> {
     if v.x == 0.0 {
@@ -18,6 +20,13 @@ pub fn reflect(v: Vector3<f32>, normal: Vector3<f32>) -> Vector3<f32> {
 /// normal must be a unit vector
 pub fn refract(v: Vector3<f32>, normal: Vector3<f32>, relative_ior: f32, cos_theta_t: f32) -> Vector3<f32> {
     (relative_ior * normal.dot(v) - cos_theta_t) * normal - relative_ior * v
+}
+
+pub fn line_axis_plane_intersect(a: Point3<f32>, b: Point3<f32>, axis: Axis, position: f32) -> (f32, Point3<f32>) {
+    let i = axis.index();
+
+    let t = (position - a[i]) / (b[i] - a[i]);
+    (t, a + t * (b - a))
 }
 
 /*
@@ -162,7 +171,7 @@ pub fn ensure_valid_reflection(Ng: Vector3<f32>, I: Vector3<f32>, N: Vector3<f32
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cgmath::{assert_abs_diff_eq, vec3};
+    use cgmath::{assert_abs_diff_eq, point3, vec3};
 
     #[test]
     fn basic_reflect() {
@@ -183,5 +192,23 @@ mod tests {
         let v = vec3(1.0, 2.0, 3.0);
         let t = orthogonal_vector(v);
         assert_abs_diff_eq!(v.dot(t), 0.0);
+    }
+
+    #[test]
+    fn simple_line_plane_intersect() {
+        let a = point3(-1.0, 0.0, 0.0);
+        let b = point3(1.0, 0.0, 0.0);
+        let (t, p) = line_axis_plane_intersect(a, b, Axis::X, 0.0);
+        assert_abs_diff_eq!(t, 0.5);
+        assert_abs_diff_eq!(p, point3(0.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn diagonal_line_plane_intersect() {
+        let a = point3(-1.0, -1.0, 0.0);
+        let b = point3(1.0, 1.0, 0.0);
+        let (t, p) = line_axis_plane_intersect(a, b, Axis::X, 0.0);
+        assert_abs_diff_eq!(t, 0.5);
+        assert_abs_diff_eq!(p, point3(0.0, 0.0, 0.0));
     }
 }

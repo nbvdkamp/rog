@@ -74,6 +74,16 @@ impl BoundingBox {
 
         max_element(tmin)
     }
+
+    pub fn within_min_bound_with_epsilon(&self, point: Point3<f32>, epsilon: f32) -> (bool, Vector3<bool>) {
+        let min = (point - self.min).map(|x| x > -epsilon);
+        (min.x && min.y && min.z, min)
+    }
+
+    pub fn within_max_bound_with_epsilon(&self, point: Point3<f32>, epsilon: f32) -> (bool, Vector3<bool>) {
+        let max = (point - self.max).map(|x| x < epsilon);
+        (max.x && max.y && max.z, max)
+    }
 }
 
 #[cfg(test)]
