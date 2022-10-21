@@ -1,5 +1,5 @@
 use super::color::{RGBAf32, RGBf32};
-use cgmath::{vec3, InnerSpace, Vector2, Vector3};
+use cgmath::{vec3, InnerSpace, Point2, Vector3};
 
 use crate::{raytracer::Textures, spectrum::Spectrumf32, texture::Texture};
 
@@ -36,7 +36,7 @@ pub struct MaterialSample {
 }
 
 impl Material {
-    pub fn sample(&self, texture_coordinates: Vector2<f32>, textures: &Textures) -> MaterialSample {
+    pub fn sample(&self, texture_coordinates: Point2<f32>, textures: &Textures) -> MaterialSample {
         let sample = |tex: Option<usize>, textures: &Vec<Texture>| match tex {
             Some(index) => textures[index].sample(texture_coordinates.x, texture_coordinates.y),
             None => RGBAf32::white(),
@@ -82,7 +82,7 @@ impl Material {
         }
     }
 
-    pub fn sample_alpha(&self, texture_coordinates: Vector2<f32>, textures: &Textures) -> f32 {
+    pub fn sample_alpha(&self, texture_coordinates: Point2<f32>, textures: &Textures) -> f32 {
         match self.base_color_texture {
             Some(index) => {
                 textures.base_color_coefficients[index].sample_alpha(texture_coordinates.x, texture_coordinates.y)

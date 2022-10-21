@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use cgmath::{point3, vec2, vec3, EuclideanSpace, InnerSpace, Point3, Vector2, Vector3, Vector4};
+use cgmath::{point2, point3, vec2, vec3, EuclideanSpace, InnerSpace, Point3, Vector2, Vector3, Vector4};
 use crossbeam_deque::{Injector, Steal};
 
 mod aabb;
@@ -389,13 +389,15 @@ impl Raytracer {
 
                 let has_texture_coords = verts[0].tex_coord.is_some();
 
-                let texture_coords = if has_texture_coords {
-                    w * verts[0].tex_coord.unwrap() + u * verts[1].tex_coord.unwrap() + v * verts[2].tex_coord.unwrap()
+                let texture_coordinates = if has_texture_coords {
+                    w * verts[0].tex_coord.unwrap()
+                        + u * verts[1].tex_coord.unwrap().to_vec()
+                        + v * verts[2].tex_coord.unwrap().to_vec()
                 } else {
-                    vec2(0.0, 0.0)
+                    point2(0.0, 0.0)
                 };
 
-                let mut mat_sample = material.sample(texture_coords, &self.textures);
+                let mut mat_sample = material.sample(texture_coordinates, &self.textures);
 
                 if thread_rng().gen::<f32>() > mat_sample.alpha {
                     // Offset to the back of the triangle
@@ -594,9 +596,11 @@ impl Raytracer {
             let w = 1.0 - u - v;
 
             let texture_coordinates = if has_texture_coords {
-                w * verts[0].tex_coord.unwrap() + u * verts[1].tex_coord.unwrap() + v * verts[2].tex_coord.unwrap()
+                w * verts[0].tex_coord.unwrap()
+                    + u * verts[1].tex_coord.unwrap().to_vec()
+                    + v * verts[2].tex_coord.unwrap().to_vec()
             } else {
-                vec2(0.0, 0.0)
+                point2(0.0, 0.0)
             };
 
             if thread_rng().gen::<f32>() > material.sample_alpha(texture_coordinates, &self.textures) {

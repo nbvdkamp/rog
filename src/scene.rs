@@ -11,10 +11,10 @@ use cgmath::{
     Matrix,
     Matrix3,
     Matrix4,
+    Point2,
     Point3,
     Quaternion,
     SquareMatrix,
-    Vector2,
     Vector3,
     Vector4,
     Zero,
@@ -417,7 +417,7 @@ impl Scene {
             let tex_coords = match reader.read_tex_coords(0) {
                 Some(reader) => reader
                     .into_f32()
-                    .map(|uv| Some(Vector2::<f32>::new(uv[0], uv[1])))
+                    .map(|uv| Some(Point2::<f32>::new(uv[0], uv[1])))
                     .collect(),
                 None => vec![None; positions.len()],
             };

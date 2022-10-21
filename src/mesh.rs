@@ -5,7 +5,7 @@ use luminance_front::{
     Backend,
 };
 
-use cgmath::{Point3, Vector2, Vector3};
+use cgmath::{Point2, Point3, Vector3};
 
 use crate::material::Material;
 
@@ -33,7 +33,7 @@ pub struct Vertex {
     pub position: Point3<f32>,
     pub normal: Vector3<f32>,
     pub tangent: Vector3<f32>,
-    pub tex_coord: Option<Vector2<f32>>,
+    pub tex_coord: Option<Point2<f32>>,
 }
 
 pub type VertexIndex = u32;

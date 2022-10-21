@@ -343,12 +343,9 @@ impl SceneStatistics {
                         let v0 = verts[original_tri.index1 as usize].tex_coord.unwrap();
                         let v1 = verts[original_tri.index2 as usize].tex_coord.unwrap();
                         let v2 = verts[original_tri.index3 as usize].tex_coord.unwrap();
-                        let v0 = point2(v0.x, v0.y);
-                        let v1 = point2(v1.x, v1.y);
-                        let v2 = point2(v2.x, v2.y);
 
                         let texture_coordinates = interpolate_point_on_triangle(barycentric, v0, v1, v2);
-                        let sample = material.sample(texture_coordinates.to_vec(), textures);
+                        let sample = material.sample(texture_coordinates, textures);
                         spectrum += sample.base_color_spectrum;
                     } else {
                         spectrum += Spectrumf32::from_coefficients(material.base_color_coefficients);
