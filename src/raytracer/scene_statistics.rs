@@ -8,7 +8,7 @@ use arrayvec::ArrayVec;
 use rayon::iter::ParallelIterator;
 use static_assertions::const_assert;
 
-use cgmath::{point2, point3, vec2, vec3, ElementWise, EuclideanSpace, InnerSpace, Point2, Point3, Vector3};
+use cgmath::{point2, point3, vec2, vec3, ElementWise, Point2, Point3, Vector3};
 use rand::Rng;
 use rayon::prelude::IntoParallelIterator;
 
@@ -27,6 +27,7 @@ use super::{
     axis::Axis,
     geometry::{interpolate_point_on_triangle, line_axis_plane_intersect},
     ray::Ray,
+    sampling::{cumulative_probabilities_from_weights, sample_item_from_cumulative_probabilities},
     triangle::Triangle,
     Textures,
 };
@@ -290,42 +291,11 @@ impl SceneStatistics {
                     .map(|tri| triangle_area(tri.verts[0].position, tri.verts[1].position, tri.verts[2].position))
                     .collect::<Vec<_>>();
 
-                let sum = surface_areas.iter().sum::<f32>();
-
-                let mut cumulative_areas = Vec::new();
-                cumulative_areas.reserve(surface_areas.len());
-
-                let mut acc = 0.0;
-
-                for area in surface_areas {
-                    acc += area / sum;
-                    cumulative_areas.push(acc);
-                }
-
+                let cumulative_probabilities = cumulative_probabilities_from_weights(surface_areas);
                 let mut spectrum = Spectrumf32::constant(0.0);
-                let mut rng = rand::thread_rng();
 
                 for _ in 0..MATERIAL_SAMPLES {
-                    let sample = rng.gen::<f32>();
-                    let mut triangle_index = None;
-
-                    //TODO: This sampling is linear in the triangles, we can improve it if necessary
-                    for (i, &c) in cumulative_areas.iter().enumerate() {
-                        if c >= sample {
-                            triangle_index = Some(i);
-                            break;
-                        }
-                    }
-
-                    let triangle_index = if let Some(i) = triangle_index {
-                        i
-                    } else {
-                        // In the case that we sample very close to 1 and floating point error
-                        // causes the max cumulative area to be less than the sample.
-                        tris.len() - 1
-                    };
-
-                    let triangle = tris[triangle_index];
+                    let triangle = tris[sample_item_from_cumulative_probabilities(&cumulative_probabilities).unwrap()];
                     let original_tri = &triangles[triangle.original_index];
                     let material = &materials[original_tri.material_index as usize];
                     let has_tex_coords = verts[original_tri.index1 as usize].tex_coord.is_some();

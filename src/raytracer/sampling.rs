@@ -34,3 +34,37 @@ pub fn sample_coordinates_on_triangle() -> Point2<f32> {
         point2(r0, r1)
     }
 }
+
+pub fn cumulative_probabilities_from_weights(weights: Vec<f32>) -> Vec<f32> {
+    let sum = weights.iter().sum::<f32>();
+
+    let mut cumulative_probabilities = Vec::new();
+    cumulative_probabilities.reserve(weights.len());
+
+    let mut acc = 0.0;
+
+    for value in weights {
+        acc += value / sum;
+        cumulative_probabilities.push(acc);
+    }
+
+    cumulative_probabilities
+}
+
+pub fn sample_item_from_cumulative_probabilities(cumulative_probabilities: &[f32]) -> Option<usize> {
+    if cumulative_probabilities.is_empty() {
+        return None;
+    }
+
+    let mut rng = rand::thread_rng();
+    let sample = rng.gen();
+
+    //TODO: This sampling is linear in the number of items, we can improve it if necessary
+    for (i, &c) in cumulative_probabilities.iter().enumerate() {
+        if c >= sample {
+            return Some(i);
+        }
+    }
+
+    Some(cumulative_probabilities.len() - 1)
+}
