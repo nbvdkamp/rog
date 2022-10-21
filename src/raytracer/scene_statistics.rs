@@ -370,6 +370,17 @@ impl SceneStatistics {
 
         assert!(num_verts_on_split_plane < 2);
 
+        let intersect_edge = |v0: Vert, v1: Vert| {
+            let (t, split_point) = line_axis_plane_intersect(v0.position, v1.position, axis, position);
+
+            let new_vert = Vert {
+                position: split_point,
+                barycentric: v0.barycentric + t * (v1.barycentric - v0.barycentric),
+            };
+
+            (t, new_vert)
+        };
+
         if num_verts_on_split_plane == 1 {
             let (p1, p2) = if verts_on_split_plane[0] == PositionRelativeToPlane::On {
                 (1, 2)
@@ -379,18 +390,9 @@ impl SceneStatistics {
                 (0, 1)
             };
 
-            let (t, split_point) =
-                line_axis_plane_intersect(tri.verts[p1].position, tri.verts[p2].position, axis, position);
+            let (t, new_vert) = intersect_edge(tri.verts[p1], tri.verts[p2]);
 
             assert!((0.0..1.0).contains(&t));
-
-            let split_point_barycentric =
-                tri.verts[p1].barycentric + t * (tri.verts[p2].barycentric - tri.verts[p1].barycentric);
-
-            let new_vert = Vert {
-                position: split_point,
-                barycentric: split_point_barycentric,
-            };
 
             let mut tri1 = tri;
             tri1.verts[p1] = new_vert;
@@ -413,29 +415,11 @@ impl SceneStatistics {
                 (0, 1, 2)
             };
 
-            let (t1, split_point1) =
-                line_axis_plane_intersect(tri.verts[p0].position, tri.verts[p1].position, axis, position);
-            let (t2, split_point2) =
-                line_axis_plane_intersect(tri.verts[p0].position, tri.verts[p2].position, axis, position);
+            let (t1, new_vert1) = intersect_edge(tri.verts[p0], tri.verts[p1]);
+            let (t2, new_vert2) = intersect_edge(tri.verts[p0], tri.verts[p2]);
 
             // If both are on the boundary of the interval we create the same triangle again and get stuck in infinite recursion
             assert!((0.0..1.0).contains(&t1) || (0.0..1.0).contains(&t2));
-
-            let split_point1_barycentric =
-                tri.verts[p0].barycentric + t1 * (tri.verts[p1].barycentric - tri.verts[p0].barycentric);
-
-            let new_vert1 = Vert {
-                position: split_point1,
-                barycentric: split_point1_barycentric,
-            };
-
-            let split_point2_barycentric =
-                tri.verts[p0].barycentric + t2 * (tri.verts[p2].barycentric - tri.verts[p0].barycentric);
-
-            let new_vert2 = Vert {
-                position: split_point2,
-                barycentric: split_point2_barycentric,
-            };
 
             let mut tri1 = tri;
             tri1.verts[p1] = new_vert1;
