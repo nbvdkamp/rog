@@ -1,4 +1,4 @@
-use cgmath::Vector3;
+use cgmath::{point2, Point2, Vector3};
 use rand::{thread_rng, Rng};
 
 pub fn cos_weighted_sample_hemisphere() -> Vector3<f32> {
@@ -20,5 +20,17 @@ pub fn tent_sample() -> f32 {
         r.sqrt() - 1.0
     } else {
         1.0 - (2.0 - r).sqrt()
+    }
+}
+
+pub fn sample_coordinates_on_triangle() -> Point2<f32> {
+    let mut rng = rand::thread_rng();
+    let r0 = rng.gen();
+    let r1 = rng.gen();
+
+    if r0 + r1 > 1.0 {
+        point2(1.0 - r0, 1.0 - r1)
+    } else {
+        point2(r0, r1)
     }
 }

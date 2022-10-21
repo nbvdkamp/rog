@@ -1,4 +1,4 @@
-use cgmath::{vec2, InnerSpace, Point3, Vector3};
+use cgmath::{vec2, InnerSpace, Point2, Point3, Vector3};
 
 use super::axis::Axis;
 
@@ -27,6 +27,23 @@ pub fn line_axis_plane_intersect(a: Point3<f32>, b: Point3<f32>, axis: Axis, pos
 
     let t = (position - a[i]) / (b[i] - a[i]);
     (t, a + t * (b - a))
+}
+
+pub fn triangle_area(v0: Point3<f32>, v1: Point3<f32>, v2: Point3<f32>) -> f32 {
+    let edge01 = v1 - v0;
+    let edge02 = v2 - v0;
+    edge01.cross(edge02).magnitude() / 2.0
+}
+
+pub fn interpolate_point_on_triangle(
+    point: Point2<f32>,
+    v0: Point2<f32>,
+    v1: Point2<f32>,
+    v2: Point2<f32>,
+) -> Point2<f32> {
+    let edge01 = v1 - v0;
+    let edge02 = v2 - v0;
+    v0 + point.x * edge01 + point.y * edge02
 }
 
 /*

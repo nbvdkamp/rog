@@ -165,11 +165,22 @@ impl Raytracer {
             println!("Computed visibility map in {} seconds", start.elapsed().as_secs_f32());
 
             let start = Instant::now();
-            stats.sample_materials(&result.verts, &result.triangles, &triangle_bounds);
+            stats.sample_materials(
+                &result.verts,
+                &result.triangles,
+                &triangle_bounds,
+                &result.materials,
+                &result.textures,
+            );
             println!(
                 "Computed material averages in {} seconds",
                 start.elapsed().as_secs_f32()
             );
+
+            match stats.dump_materials_as_rgb("output/materials.grid") {
+                Err(e) => eprintln!("Couldn't write materials file: {e}"),
+                Ok(()) => (),
+            };
 
             result.stats = Some(stats);
             result.dump_visibility_image();

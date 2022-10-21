@@ -1,28 +1,41 @@
-use std::path::Path;
+use std::{
+    fs::File,
+    io::{Result, Write},
+    path::Path,
+};
 
 use arrayvec::ArrayVec;
 use rayon::iter::ParallelIterator;
 use static_assertions::const_assert;
 
-use cgmath::{point2, point3, vec2, vec3, ElementWise, Point2, Point3, Vector3};
+use cgmath::{point2, point3, vec2, vec3, ElementWise, EuclideanSpace, InnerSpace, Point2, Point3, Vector3};
 use rand::Rng;
 use rayon::prelude::IntoParallelIterator;
 
-use crate::{color::RGBf32, mesh::Vertex, util::save_image};
+use crate::{
+    color::RGBf32,
+    material::Material,
+    mesh::Vertex,
+    raytracer::{geometry::triangle_area, sampling::sample_coordinates_on_triangle},
+    spectrum::Spectrumf32,
+    util::save_image,
+};
 
 use super::{
     aabb::BoundingBox,
     acceleration::{structure::TraceResult, Accel, AccelerationStructures},
     axis::Axis,
-    geometry::line_axis_plane_intersect,
+    geometry::{interpolate_point_on_triangle, line_axis_plane_intersect},
     ray::Ray,
     triangle::Triangle,
+    Textures,
 };
 
 const RESOLUTION: usize = 1 << 4;
 const CELL_COUNT: usize = RESOLUTION * RESOLUTION * RESOLUTION;
 const TABLE_SIZE: usize = (CELL_COUNT * (CELL_COUNT + 1)) / 2;
 const VISIBILITY_SAMPLES: usize = 16;
+const MATERIAL_SAMPLES: usize = 128;
 
 type Visibility = u8;
 
@@ -33,6 +46,7 @@ pub struct SceneStatistics {
     scene_extent: Vector3<f32>,
     cell_extent: Vector3<f32>,
     visibility: Vec<Visibility>,
+    materials: Vec<Option<Spectrumf32>>,
 }
 
 impl SceneStatistics {
@@ -44,6 +58,7 @@ impl SceneStatistics {
             scene_extent,
             cell_extent: scene_extent / RESOLUTION as f32,
             visibility: Vec::new(),
+            materials: Vec::new(),
         }
     }
 
@@ -108,6 +123,29 @@ impl SceneStatistics {
         save_image(&buffer, image_size, path);
     }
 
+    pub fn dump_materials_as_rgb<P>(&self, path: P) -> Result<()>
+    where
+        P: AsRef<Path>,
+    {
+        let mut file = File::create(path)?;
+        write!(file, "resolution {RESOLUTION}\n")?;
+
+        for x in 0..RESOLUTION {
+            for y in 0..RESOLUTION {
+                for z in 0..RESOLUTION {
+                    let i = x + y * RESOLUTION + z * RESOLUTION * RESOLUTION;
+
+                    if let Some(spectrum) = self.materials[i] {
+                        let RGBf32 { r, g, b } = spectrum.to_srgb();
+                        write!(file, "{x} {y} {z} {r} {g} {b}\n")?;
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn get_grid_position(&self, point: Point3<f32>) -> Point3<usize> {
         let relative_pos = (point - self.scene_bounds.min).div_element_wise(self.scene_extent);
         let v = relative_pos * RESOLUTION as f32;
@@ -161,7 +199,14 @@ impl SceneStatistics {
         a + b * CELL_COUNT - b * (b + 1) / 2
     }
 
-    pub fn sample_materials(&mut self, verts: &[Vertex], triangles: &[Triangle], triangle_bounds: &[BoundingBox]) {
+    pub fn sample_materials(
+        &mut self,
+        verts: &[Vertex],
+        triangles: &[Triangle],
+        triangle_bounds: &[BoundingBox],
+        materials: &[Material],
+        textures: &Textures,
+    ) {
         let mut tris_per_cell = Vec::new();
         tris_per_cell.reserve(CELL_COUNT);
 
@@ -233,11 +278,86 @@ impl SceneStatistics {
             }
         }
 
-        println!(
-            "Input tris: {} output tris: {} ",
-            triangles.len(),
-            tris_per_cell.iter().map(|v| v.len()).sum::<usize>()
-        );
+        self.materials = tris_per_cell
+            .into_iter()
+            .map(|tris| {
+                if tris.is_empty() {
+                    return None;
+                }
+
+                let surface_areas = tris
+                    .iter()
+                    .map(|tri| triangle_area(tri.verts[0].position, tri.verts[1].position, tri.verts[2].position))
+                    .collect::<Vec<_>>();
+
+                let sum = surface_areas.iter().sum::<f32>();
+
+                let mut cumulative_areas = Vec::new();
+                cumulative_areas.reserve(surface_areas.len());
+
+                let mut acc = 0.0;
+
+                for area in surface_areas {
+                    acc += area / sum;
+                    cumulative_areas.push(acc);
+                }
+
+                let mut spectrum = Spectrumf32::constant(0.0);
+                let mut rng = rand::thread_rng();
+
+                for _ in 0..MATERIAL_SAMPLES {
+                    let sample = rng.gen::<f32>();
+                    let mut triangle_index = None;
+
+                    //TODO: This sampling is linear in the triangles, we can improve it if necessary
+                    for (i, &c) in cumulative_areas.iter().enumerate() {
+                        if c >= sample {
+                            triangle_index = Some(i);
+                            break;
+                        }
+                    }
+
+                    let triangle_index = if let Some(i) = triangle_index {
+                        i
+                    } else {
+                        // In the case that we sample very close to 1 and floating point error
+                        // causes the max cumulative area to be less than the sample.
+                        tris.len() - 1
+                    };
+
+                    let triangle = tris[triangle_index];
+                    let original_tri = &triangles[triangle.original_index];
+                    let material = &materials[original_tri.material_index as usize];
+                    let has_tex_coords = verts[original_tri.index1 as usize].tex_coord.is_some();
+
+                    if has_tex_coords {
+                        let point = sample_coordinates_on_triangle();
+
+                        let barycentric = interpolate_point_on_triangle(
+                            point,
+                            triangle.verts[0].barycentric,
+                            triangle.verts[1].barycentric,
+                            triangle.verts[2].barycentric,
+                        );
+
+                        let v0 = verts[original_tri.index1 as usize].tex_coord.unwrap();
+                        let v1 = verts[original_tri.index2 as usize].tex_coord.unwrap();
+                        let v2 = verts[original_tri.index3 as usize].tex_coord.unwrap();
+                        let v0 = point2(v0.x, v0.y);
+                        let v1 = point2(v1.x, v1.y);
+                        let v2 = point2(v2.x, v2.y);
+
+                        let texture_coordinates = interpolate_point_on_triangle(barycentric, v0, v1, v2);
+                        let sample = material.sample(texture_coordinates.to_vec(), textures);
+                        spectrum += sample.base_color_spectrum;
+                    } else {
+                        spectrum += Spectrumf32::from_coefficients(material.base_color_coefficients);
+                    }
+                }
+
+                Some(spectrum / MATERIAL_SAMPLES as f32)
+            })
+            .collect();
     }
 
     fn clip_triangle(tri: ClippedTri, axis: Axis, position: f32) -> ClipTriResult {
