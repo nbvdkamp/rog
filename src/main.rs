@@ -91,6 +91,7 @@ fn accel_benchmark() {
                 enable_dispersion: true,
                 always_sample_single_wavelength: false,
                 use_visibility: false,
+                dump_visibility_debug_data: false,
             };
 
             let (_, time_elapsed) = raytracer.render(&settings, None);
@@ -123,6 +124,10 @@ fn headless_render(args: Args) {
         &[args.render_settings.accel_structure],
         args.render_settings.use_visibility,
     );
+
+    if args.render_settings.dump_visibility_debug_data {
+        raytracer.dump_visibility_data();
+    }
 
     let report_progress = |completed, total, seconds_per_tile| {
         let time_remaining = (total - completed) as f32 * seconds_per_tile;

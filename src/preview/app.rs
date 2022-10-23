@@ -65,13 +65,19 @@ impl App {
             }
         };
 
+        let raytracer = Raytracer::new(
+            &scene,
+            textures,
+            &[args.render_settings.accel_structure],
+            args.render_settings.use_visibility,
+        );
+
+        if args.render_settings.dump_visibility_debug_data {
+            raytracer.dump_visibility_data();
+        }
+
         App {
-            raytracer: Raytracer::new(
-                &scene,
-                textures,
-                &[args.render_settings.accel_structure],
-                args.render_settings.use_visibility,
-            ),
+            raytracer,
             scene,
             render_settings: args.render_settings,
             output_file: args.output_file,

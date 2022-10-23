@@ -177,22 +177,20 @@ impl Raytracer {
                 start.elapsed().as_secs_f32()
             );
 
-            match stats.dump_materials_as_rgb("output/materials.grid") {
-                Err(e) => eprintln!("Couldn't write materials file: {e}"),
-                Ok(()) => (),
-            };
-
             result.stats = Some(stats);
-            result.dump_visibility_image();
-            std::process::exit(0);
         }
 
         result
     }
 
-    pub fn dump_visibility_image(&self) {
+    pub fn dump_visibility_data(&self) {
         if let Some(stats) = self.stats.as_ref() {
             stats.dump_visibility_image("output/vis.png");
+
+            match stats.dump_materials_as_rgb("output/materials.grid") {
+                Err(e) => eprintln!("Couldn't write materials file: {e}"),
+                Ok(()) => (),
+            };
         }
     }
 

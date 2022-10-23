@@ -52,6 +52,7 @@ impl Args {
                 arg!(-a --accel <NAME> "Name of acceleration structure to use (in snake_case)")
                     .required(false),
                 arg!(-v --visibility "Sample visibility data for the scene and use it for importance sampling"),
+                arg!(--visibilitydebug "Write computed visibility related data to disk for debugging"),
                 arg!(-b --benchmark "Benchmark acceleration structures"),
             ])
             .get_matches();
@@ -88,6 +89,15 @@ impl Args {
             Accel::KdTree
         };
 
+        let use_visibility = matches.get_flag("visibility");
+
+        let dump_visibility_debug_data = if use_visibility {
+            matches.get_flag("visibilitydebug")
+        } else {
+            eprintln!("Can't dump visibility data if using visibility data is not enabled");
+            std::process::exit(-1);
+        };
+
         let render_settings = RenderSettings {
             samples_per_pixel: read_usize("samples", 1),
             image_size: vec2(read_usize("width", 1920), read_usize("height", 1080)),
@@ -95,7 +105,8 @@ impl Args {
             accel_structure,
             enable_dispersion: !matches.get_flag("nodispersion"),
             always_sample_single_wavelength: matches.get_flag("alwayssamplewavelength"),
-            use_visibility: matches.get_flag("visibility"),
+            use_visibility,
+            dump_visibility_debug_data,
         };
 
         Args {

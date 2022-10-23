@@ -10,4 +10,5 @@ pub struct RenderSettings {
     pub enable_dispersion: bool,
     pub always_sample_single_wavelength: bool,
     pub use_visibility: bool,
+    pub dump_visibility_debug_data: bool,
 }
