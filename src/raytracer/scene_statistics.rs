@@ -110,6 +110,8 @@ impl SceneStatistics {
     where
         P: AsRef<Path>,
     {
+        assert_eq!(self.visibility.len(), TABLE_SIZE);
+
         let image_size = vec2(CELL_COUNT, CELL_COUNT);
         let mut buffer = vec![RGBf32::new(0.0, 0.0, 0.0); CELL_COUNT * CELL_COUNT];
 
@@ -128,6 +130,8 @@ impl SceneStatistics {
     where
         P: AsRef<Path>,
     {
+        assert_eq!(self.materials.len(), CELL_COUNT);
+
         let mut file = File::create(path)?;
         write!(file, "resolution {RESOLUTION}\n")?;
 
