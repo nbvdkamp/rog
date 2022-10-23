@@ -18,7 +18,6 @@ rand = "0.8.4"
 crossbeam-deque = "0.8.2"
 num_cpus = "1.13.1"
 lerp = "0.4.0"
-clap = "3.1.6"
 rayon = "1.5.3"
 static_assertions = "1.1.0"
 arrayvec = "0.7.2"
@@ -33,6 +32,10 @@ luminance-derive = "0.10.0"
 luminance-front = "0.6.1"
 luminance-glfw = "0.18.2"
 luminance-windowing = "0.10.1"
+
+[dependencies.clap]
+version = "4.0.15"
+features = ["string"]
 
 [dependencies.gltf]
 version = "1.0.0"
