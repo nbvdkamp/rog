@@ -212,6 +212,19 @@ impl SceneStatistics {
         materials: &[Material],
         textures: &Textures,
     ) {
+        self.materials = self
+            .split_triangles_into_cells(verts, triangles, triangle_bounds)
+            .into_iter()
+            .map(|tris| sample_triangle_materials(tris, verts, triangles, materials, textures))
+            .collect();
+    }
+
+    fn split_triangles_into_cells(
+        &self,
+        verts: &[Vertex],
+        triangles: &[Triangle],
+        triangle_bounds: &[BoundingBox],
+    ) -> Vec<Vec<ClippedTri>> {
         let mut tris_per_cell = Vec::new();
         tris_per_cell.reserve(CELL_COUNT);
 
@@ -266,7 +279,7 @@ impl SceneStatistics {
                         let clip_position = self.scene_bounds.min[axis_index]
                             + self.cell_extent[axis_index] * (center_grid_pos[axis_index] + x) as f32;
 
-                        match Self::clip_triangle(tri, Axis::from_index(axis_index), clip_position) {
+                        match clip_triangle(tri, Axis::from_index(axis_index), clip_position) {
                             ClipTriResult::Two(t1, t2) => {
                                 tris_to_sort.push(t1);
                                 tris_to_sort.push(t2);
@@ -283,131 +296,7 @@ impl SceneStatistics {
             }
         }
 
-        self.materials = tris_per_cell
-            .into_iter()
-            .map(|tris| {
-                if tris.is_empty() {
-                    return None;
-                }
-
-                let surface_areas = tris
-                    .iter()
-                    .map(|tri| triangle_area(tri.verts[0].position, tri.verts[1].position, tri.verts[2].position))
-                    .collect::<Vec<_>>();
-
-                let cumulative_probabilities = cumulative_probabilities_from_weights(surface_areas);
-                let mut spectrum = Spectrumf32::constant(0.0);
-
-                for _ in 0..MATERIAL_SAMPLES {
-                    let triangle = tris[sample_item_from_cumulative_probabilities(&cumulative_probabilities).unwrap()];
-                    let original_tri = &triangles[triangle.original_index];
-                    let material = &materials[original_tri.material_index as usize];
-                    let has_tex_coords = verts[original_tri.index1 as usize].tex_coord.is_some();
-
-                    if has_tex_coords {
-                        let point = sample_coordinates_on_triangle();
-
-                        let barycentric = interpolate_point_on_triangle(
-                            point,
-                            triangle.verts[0].barycentric,
-                            triangle.verts[1].barycentric,
-                            triangle.verts[2].barycentric,
-                        );
-
-                        let v0 = verts[original_tri.index1 as usize].tex_coord.unwrap();
-                        let v1 = verts[original_tri.index2 as usize].tex_coord.unwrap();
-                        let v2 = verts[original_tri.index3 as usize].tex_coord.unwrap();
-
-                        let texture_coordinates = interpolate_point_on_triangle(barycentric, v0, v1, v2);
-                        let sample = material.sample(texture_coordinates, textures);
-                        spectrum += sample.base_color_spectrum;
-                    } else {
-                        spectrum += Spectrumf32::from_coefficients(material.base_color_coefficients);
-                    }
-                }
-
-                Some(spectrum / MATERIAL_SAMPLES as f32)
-            })
-            .collect();
-    }
-
-    fn clip_triangle(tri: ClippedTri, axis: Axis, position: f32) -> ClipTriResult {
-        let pos_on_split_plane = |v: &Vert| PositionRelativeToPlane::test(v.position[axis.index()], position);
-        let verts_on_split_plane = tri.verts.iter().map(pos_on_split_plane).collect::<ArrayVec<_, 3>>();
-        let num_verts_on_split_plane: usize = verts_on_split_plane
-            .iter()
-            .map(|p| if *p == PositionRelativeToPlane::On { 1 } else { 0 })
-            .sum();
-
-        assert!(num_verts_on_split_plane < 2);
-
-        let intersect_edge = |v0: Vert, v1: Vert| {
-            let (t, split_point) = line_axis_plane_intersect(v0.position, v1.position, axis, position);
-
-            let new_vert = Vert {
-                position: split_point,
-                barycentric: v0.barycentric + t * (v1.barycentric - v0.barycentric),
-            };
-
-            (t, new_vert)
-        };
-
-        if num_verts_on_split_plane == 1 {
-            let (p1, p2) = if verts_on_split_plane[0] == PositionRelativeToPlane::On {
-                (1, 2)
-            } else if verts_on_split_plane[1] == PositionRelativeToPlane::On {
-                (2, 0)
-            } else {
-                (0, 1)
-            };
-
-            let (t, new_vert) = intersect_edge(tri.verts[p1], tri.verts[p2]);
-
-            assert!((0.0..1.0).contains(&t));
-
-            let mut tri1 = tri;
-            tri1.verts[p1] = new_vert;
-            tri1.recalculate_bounds();
-
-            let mut tri2 = tri;
-            tri2.verts[p2] = new_vert;
-            tri2.recalculate_bounds();
-
-            ClipTriResult::Two(tri1, tri2)
-        } else {
-            assert!(num_verts_on_split_plane == 0);
-
-            let (p0, p1, p2) = if verts_on_split_plane[0] == verts_on_split_plane[1] {
-                (2, 0, 1)
-            } else if verts_on_split_plane[0] == verts_on_split_plane[2] {
-                (1, 2, 0)
-            } else {
-                assert!(verts_on_split_plane[1] == verts_on_split_plane[2]);
-                (0, 1, 2)
-            };
-
-            let (t1, new_vert1) = intersect_edge(tri.verts[p0], tri.verts[p1]);
-            let (t2, new_vert2) = intersect_edge(tri.verts[p0], tri.verts[p2]);
-
-            // If both are on the boundary of the interval we create the same triangle again and get stuck in infinite recursion
-            assert!((0.0..1.0).contains(&t1) || (0.0..1.0).contains(&t2));
-
-            let mut tri1 = tri;
-            tri1.verts[p1] = new_vert1;
-            tri1.verts[p2] = new_vert2;
-            tri1.recalculate_bounds();
-
-            let mut tri2 = tri;
-            tri2.verts[p0] = new_vert1;
-            tri2.verts[p2] = new_vert2;
-            tri2.recalculate_bounds();
-
-            let mut tri3 = tri;
-            tri3.verts[p0] = new_vert2;
-            tri3.recalculate_bounds();
-
-            ClipTriResult::Three(tri1, tri2, tri3)
-        }
+        tris_per_cell
     }
 }
 
@@ -456,4 +345,133 @@ impl PositionRelativeToPlane {
             Self::On
         }
     }
+}
+
+fn clip_triangle(tri: ClippedTri, axis: Axis, position: f32) -> ClipTriResult {
+    let pos_on_split_plane = |v: &Vert| PositionRelativeToPlane::test(v.position[axis.index()], position);
+    let verts_on_split_plane = tri.verts.iter().map(pos_on_split_plane).collect::<ArrayVec<_, 3>>();
+    let num_verts_on_split_plane: usize = verts_on_split_plane
+        .iter()
+        .map(|p| if *p == PositionRelativeToPlane::On { 1 } else { 0 })
+        .sum();
+
+    assert!(num_verts_on_split_plane < 2);
+
+    let intersect_edge = |v0: Vert, v1: Vert| {
+        let (t, split_point) = line_axis_plane_intersect(v0.position, v1.position, axis, position);
+
+        let new_vert = Vert {
+            position: split_point,
+            barycentric: v0.barycentric + t * (v1.barycentric - v0.barycentric),
+        };
+
+        (t, new_vert)
+    };
+
+    if num_verts_on_split_plane == 1 {
+        let (p1, p2) = if verts_on_split_plane[0] == PositionRelativeToPlane::On {
+            (1, 2)
+        } else if verts_on_split_plane[1] == PositionRelativeToPlane::On {
+            (2, 0)
+        } else {
+            (0, 1)
+        };
+
+        let (t, new_vert) = intersect_edge(tri.verts[p1], tri.verts[p2]);
+
+        assert!((0.0..1.0).contains(&t));
+
+        let mut tri1 = tri;
+        tri1.verts[p1] = new_vert;
+        tri1.recalculate_bounds();
+
+        let mut tri2 = tri;
+        tri2.verts[p2] = new_vert;
+        tri2.recalculate_bounds();
+
+        ClipTriResult::Two(tri1, tri2)
+    } else {
+        assert!(num_verts_on_split_plane == 0);
+
+        let (p0, p1, p2) = if verts_on_split_plane[0] == verts_on_split_plane[1] {
+            (2, 0, 1)
+        } else if verts_on_split_plane[0] == verts_on_split_plane[2] {
+            (1, 2, 0)
+        } else {
+            assert!(verts_on_split_plane[1] == verts_on_split_plane[2]);
+            (0, 1, 2)
+        };
+
+        let (t1, new_vert1) = intersect_edge(tri.verts[p0], tri.verts[p1]);
+        let (t2, new_vert2) = intersect_edge(tri.verts[p0], tri.verts[p2]);
+
+        // If both are on the boundary of the interval we create the same triangle again and get stuck in infinite recursion
+        assert!((0.0..1.0).contains(&t1) || (0.0..1.0).contains(&t2));
+
+        let mut tri1 = tri;
+        tri1.verts[p1] = new_vert1;
+        tri1.verts[p2] = new_vert2;
+        tri1.recalculate_bounds();
+
+        let mut tri2 = tri;
+        tri2.verts[p0] = new_vert1;
+        tri2.verts[p2] = new_vert2;
+        tri2.recalculate_bounds();
+
+        let mut tri3 = tri;
+        tri3.verts[p0] = new_vert2;
+        tri3.recalculate_bounds();
+
+        ClipTriResult::Three(tri1, tri2, tri3)
+    }
+}
+
+fn sample_triangle_materials(
+    tris: Vec<ClippedTri>,
+    verts: &[Vertex],
+    original_triangles: &[Triangle],
+    materials: &[Material],
+    textures: &Textures,
+) -> Option<Spectrumf32> {
+    if tris.is_empty() {
+        return None;
+    }
+
+    let surface_areas = tris
+        .iter()
+        .map(|tri| triangle_area(tri.verts[0].position, tri.verts[1].position, tri.verts[2].position))
+        .collect::<Vec<_>>();
+
+    let cumulative_probabilities = cumulative_probabilities_from_weights(surface_areas);
+    let mut spectrum = Spectrumf32::constant(0.0);
+
+    for _ in 0..MATERIAL_SAMPLES {
+        let triangle = tris[sample_item_from_cumulative_probabilities(&cumulative_probabilities).unwrap()];
+        let original_tri = &original_triangles[triangle.original_index];
+        let material = &materials[original_tri.material_index as usize];
+        let has_tex_coords = verts[original_tri.index1 as usize].tex_coord.is_some();
+
+        if has_tex_coords {
+            let point = sample_coordinates_on_triangle();
+
+            let barycentric = interpolate_point_on_triangle(
+                point,
+                triangle.verts[0].barycentric,
+                triangle.verts[1].barycentric,
+                triangle.verts[2].barycentric,
+            );
+
+            let v0 = verts[original_tri.index1 as usize].tex_coord.unwrap();
+            let v1 = verts[original_tri.index2 as usize].tex_coord.unwrap();
+            let v2 = verts[original_tri.index3 as usize].tex_coord.unwrap();
+
+            let texture_coordinates = interpolate_point_on_triangle(barycentric, v0, v1, v2);
+            let sample = material.sample(texture_coordinates, textures);
+            spectrum += sample.base_color_spectrum;
+        } else {
+            spectrum += Spectrumf32::from_coefficients(material.base_color_coefficients);
+        }
+    }
+
+    Some(spectrum / MATERIAL_SAMPLES as f32)
 }
