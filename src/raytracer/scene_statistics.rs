@@ -33,8 +33,8 @@ use super::{
 };
 
 const RESOLUTION: usize = 1 << 4;
-const CELL_COUNT: usize = RESOLUTION * RESOLUTION * RESOLUTION;
-const TABLE_SIZE: usize = (CELL_COUNT * (CELL_COUNT + 1)) / 2;
+const VOXEL_COUNT: usize = RESOLUTION * RESOLUTION * RESOLUTION;
+const TABLE_SIZE: usize = (VOXEL_COUNT * (VOXEL_COUNT + 1)) / 2;
 const VISIBILITY_SAMPLES: usize = 16;
 const MATERIAL_SAMPLES: usize = 128;
 
@@ -45,7 +45,7 @@ const_assert!(Visibility::MAX as usize >= VISIBILITY_SAMPLES);
 pub struct SceneStatistics {
     scene_bounds: BoundingBox,
     scene_extent: Vector3<f32>,
-    cell_extent: Vector3<f32>,
+    voxel_extent: Vector3<f32>,
     visibility: Vec<Visibility>,
     materials: Vec<Option<Spectrumf32>>,
 }
@@ -57,7 +57,7 @@ impl SceneStatistics {
         SceneStatistics {
             scene_bounds,
             scene_extent,
-            cell_extent: scene_extent / RESOLUTION as f32,
+            voxel_extent: scene_extent / RESOLUTION as f32,
             visibility: Vec::new(),
             materials: Vec::new(),
         }
@@ -70,18 +70,18 @@ impl SceneStatistics {
         verts: &[Vertex],
         triangles: &[Triangle],
     ) {
-        self.visibility = (0..CELL_COUNT)
+        self.visibility = (0..VOXEL_COUNT)
             .into_par_iter()
             .flat_map(|b| {
                 let mut vis = Vec::new();
-                vis.reserve(CELL_COUNT - b);
+                vis.reserve(VOXEL_COUNT - b);
 
-                for a in b..CELL_COUNT {
+                for a in b..VOXEL_COUNT {
                     let mut v = 0;
 
                     for _ in 0..VISIBILITY_SAMPLES {
-                        let start = self.sample_point_in_cell(a);
-                        let end = self.sample_point_in_cell(b);
+                        let start = self.sample_point_in_voxel(a);
+                        let end = self.sample_point_in_voxel(b);
 
                         let ray = Ray {
                             origin: start,
@@ -112,13 +112,13 @@ impl SceneStatistics {
     {
         assert_eq!(self.visibility.len(), TABLE_SIZE);
 
-        let image_size = vec2(CELL_COUNT, CELL_COUNT);
-        let mut buffer = vec![RGBf32::new(0.0, 0.0, 0.0); CELL_COUNT * CELL_COUNT];
+        let image_size = vec2(VOXEL_COUNT, VOXEL_COUNT);
+        let mut buffer = vec![RGBf32::new(0.0, 0.0, 0.0); VOXEL_COUNT * VOXEL_COUNT];
 
-        for b in 0..CELL_COUNT {
-            for a in b..CELL_COUNT {
+        for b in 0..VOXEL_COUNT {
+            for a in b..VOXEL_COUNT {
                 let i = self.get_table_index(a, b);
-                buffer[a + b * CELL_COUNT] =
+                buffer[a + b * VOXEL_COUNT] =
                     RGBf32::from_grayscale(self.visibility[i] as f32 / VISIBILITY_SAMPLES as f32);
             }
         }
@@ -130,7 +130,7 @@ impl SceneStatistics {
     where
         P: AsRef<Path>,
     {
-        assert_eq!(self.materials.len(), CELL_COUNT);
+        assert_eq!(self.materials.len(), VOXEL_COUNT);
 
         let mut file = File::create(path)?;
         write!(file, "resolution {RESOLUTION}\n")?;
@@ -164,9 +164,9 @@ impl SceneStatistics {
     fn min_corner_of_voxel(&self, position: Point3<usize>) -> Point3<f32> {
         self.scene_bounds.min
             + vec3(
-                position.x as f32 * self.cell_extent.x,
-                position.y as f32 * self.cell_extent.y,
-                position.z as f32 * self.cell_extent.z,
+                position.x as f32 * self.voxel_extent.x,
+                position.y as f32 * self.voxel_extent.y,
+                position.z as f32 * self.voxel_extent.z,
             )
     }
 
@@ -181,27 +181,27 @@ impl SceneStatistics {
         }
     }
 
-    fn get_cell_index(&self, point: Point3<f32>) -> usize {
+    fn get_voxel_index(&self, point: Point3<f32>) -> usize {
         let v = self.get_grid_position(point);
         v.x + v.y * RESOLUTION + v.z * RESOLUTION * RESOLUTION
     }
 
-    fn sample_point_in_cell(&self, cell_index: usize) -> Point3<f32> {
-        let x = (cell_index % RESOLUTION) as f32;
-        let y = ((cell_index % (RESOLUTION * RESOLUTION)) / RESOLUTION) as f32;
-        let z = (cell_index / (RESOLUTION * RESOLUTION)) as f32;
-        let cell_offset = self.cell_extent.mul_element_wise(vec3(x, y, z));
+    fn sample_point_in_voxel(&self, voxel_index: usize) -> Point3<f32> {
+        let x = (voxel_index % RESOLUTION) as f32;
+        let y = ((voxel_index % (RESOLUTION * RESOLUTION)) / RESOLUTION) as f32;
+        let z = (voxel_index / (RESOLUTION * RESOLUTION)) as f32;
+        let voxel_offset = self.voxel_extent.mul_element_wise(vec3(x, y, z));
 
         let mut rng = rand::thread_rng();
         let random_offset = vec3(rng.gen::<f32>(), rng.gen::<f32>(), rng.gen::<f32>());
 
-        self.scene_bounds.min + cell_offset + self.cell_extent.mul_element_wise(random_offset)
+        self.scene_bounds.min + voxel_offset + self.voxel_extent.mul_element_wise(random_offset)
     }
 
     fn get_table_index(&self, first_index: usize, second_index: usize) -> usize {
         let a = first_index.max(second_index);
         let b = first_index.min(second_index);
-        a + b * CELL_COUNT - b * (b + 1) / 2
+        a + b * VOXEL_COUNT - b * (b + 1) / 2
     }
 
     pub fn sample_materials(
@@ -213,23 +213,23 @@ impl SceneStatistics {
         textures: &Textures,
     ) {
         self.materials = self
-            .split_triangles_into_cells(verts, triangles, triangle_bounds)
+            .split_triangles_into_voxels(verts, triangles, triangle_bounds)
             .into_iter()
             .map(|tris| sample_triangle_materials(tris, verts, triangles, materials, textures))
             .collect();
     }
 
-    fn split_triangles_into_cells(
+    fn split_triangles_into_voxels(
         &self,
         verts: &[Vertex],
         triangles: &[Triangle],
         triangle_bounds: &[BoundingBox],
     ) -> Vec<Vec<ClippedTri>> {
-        let mut tris_per_cell = Vec::new();
-        tris_per_cell.reserve(CELL_COUNT);
+        let mut tris_per_voxel = Vec::new();
+        tris_per_voxel.reserve(VOXEL_COUNT);
 
-        for _ in 0..CELL_COUNT {
-            tris_per_cell.push(Vec::new());
+        for _ in 0..VOXEL_COUNT {
+            tris_per_voxel.push(Vec::new());
         }
 
         let mut tris_to_sort = (0..triangles.len())
@@ -267,9 +267,9 @@ impl SceneStatistics {
                 voxel_bounds.within_max_bound_with_epsilon(tri.bounds.max, epsilon);
 
             if min_contained && max_contained {
-                let cell_index =
+                let voxel_index =
                     center_grid_pos.x + center_grid_pos.y * RESOLUTION + center_grid_pos.z * RESOLUTION * RESOLUTION;
-                tris_per_cell[cell_index].push(tri);
+                tris_per_voxel[voxel_index].push(tri);
             } else {
                 // Split the triangle on the voxel boundary and recursively handle the resulting triangles
                 for axis_index in 0..3 {
@@ -277,7 +277,7 @@ impl SceneStatistics {
                         let x = if !min_contained_axes[axis_index] { 0 } else { 1 };
 
                         let clip_position = self.scene_bounds.min[axis_index]
-                            + self.cell_extent[axis_index] * (center_grid_pos[axis_index] + x) as f32;
+                            + self.voxel_extent[axis_index] * (center_grid_pos[axis_index] + x) as f32;
 
                         match clip_triangle(tri, Axis::from_index(axis_index), clip_position) {
                             ClipTriResult::Two(t1, t2) => {
@@ -296,7 +296,7 @@ impl SceneStatistics {
             }
         }
 
-        tris_per_cell
+        tris_per_voxel
     }
 }
 
