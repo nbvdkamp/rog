@@ -223,27 +223,26 @@ impl SceneStatistics {
             tris_per_voxel.push(Vec::new());
         }
 
-        let mut tris_to_sort = (0..triangles.len())
-            .map(|i| {
-                let tri = &triangles[i];
-                ClippedTri {
-                    original_index: i,
-                    verts: [
-                        Vert {
-                            position: verts[tri.index1 as usize].position,
-                            barycentric: point2(0.0, 0.0),
-                        },
-                        Vert {
-                            position: verts[tri.index2 as usize].position,
-                            barycentric: point2(1.0, 0.0),
-                        },
-                        Vert {
-                            position: verts[tri.index3 as usize].position,
-                            barycentric: point2(0.0, 1.0),
-                        },
-                    ],
-                    bounds: triangle_bounds[i],
-                }
+        let mut tris_to_sort = triangles
+            .iter()
+            .enumerate()
+            .map(|(i, tri)| ClippedTri {
+                original_index: i,
+                verts: [
+                    Vert {
+                        position: verts[tri.index1 as usize].position,
+                        barycentric: point2(0.0, 0.0),
+                    },
+                    Vert {
+                        position: verts[tri.index2 as usize].position,
+                        barycentric: point2(1.0, 0.0),
+                    },
+                    Vert {
+                        position: verts[tri.index3 as usize].position,
+                        barycentric: point2(0.0, 1.0),
+                    },
+                ],
+                bounds: triangle_bounds[i],
             })
             .collect::<Vec<_>>();
 
