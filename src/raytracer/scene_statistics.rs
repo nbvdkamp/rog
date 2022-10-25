@@ -195,18 +195,11 @@ impl SceneStatistics {
         a + b * VOXEL_COUNT - b * (b + 1) / 2
     }
 
-    pub fn sample_materials(
-        &mut self,
-        verts: &[Vertex],
-        triangles: &[Triangle],
-        triangle_bounds: &[BoundingBox],
-        materials: &[Material],
-        textures: &Textures,
-    ) {
+    pub fn sample_materials(&mut self, raytracer: &Raytracer, triangle_bounds: &[BoundingBox]) {
         self.materials = self
-            .split_triangles_into_voxels(verts, triangles, triangle_bounds)
+            .split_triangles_into_voxels(&raytracer.verts, &raytracer.triangles, triangle_bounds)
             .into_iter()
-            .map(|tris| sample_triangle_materials(tris, verts, triangles, materials, textures))
+            .map(|tris| sample_triangle_materials(tris, raytracer))
             .collect();
     }
 
@@ -416,13 +409,7 @@ fn clip_triangle(tri: ClippedTri, axis: Axis, position: f32) -> ClipTriResult {
     }
 }
 
-fn sample_triangle_materials(
-    tris: Vec<ClippedTri>,
-    verts: &[Vertex],
-    original_triangles: &[Triangle],
-    materials: &[Material],
-    textures: &Textures,
-) -> Option<Spectrumf32> {
+fn sample_triangle_materials(tris: Vec<ClippedTri>, raytracer: &Raytracer) -> Option<Spectrumf32> {
     if tris.is_empty() {
         return None;
     }
@@ -437,9 +424,9 @@ fn sample_triangle_materials(
 
     for _ in 0..MATERIAL_SAMPLES {
         let triangle = tris[sample_item_from_cumulative_probabilities(&cumulative_probabilities).unwrap()];
-        let original_tri = &original_triangles[triangle.original_index];
-        let material = &materials[original_tri.material_index as usize];
-        let has_tex_coords = verts[original_tri.index1 as usize].tex_coord.is_some();
+        let original_tri = &raytracer.triangles[triangle.original_index];
+        let material = &raytracer.materials[original_tri.material_index as usize];
+        let has_tex_coords = raytracer.verts[original_tri.index1 as usize].tex_coord.is_some();
 
         if has_tex_coords {
             let point = sample_coordinates_on_triangle();
@@ -451,12 +438,12 @@ fn sample_triangle_materials(
                 triangle.verts[2].barycentric,
             );
 
-            let v0 = verts[original_tri.index1 as usize].tex_coord.unwrap();
-            let v1 = verts[original_tri.index2 as usize].tex_coord.unwrap();
-            let v2 = verts[original_tri.index3 as usize].tex_coord.unwrap();
+            let v0 = raytracer.verts[original_tri.index1 as usize].tex_coord.unwrap();
+            let v1 = raytracer.verts[original_tri.index2 as usize].tex_coord.unwrap();
+            let v2 = raytracer.verts[original_tri.index3 as usize].tex_coord.unwrap();
 
             let texture_coordinates = interpolate_point_on_triangle(barycentric, v0, v1, v2);
-            let sample = material.sample(texture_coordinates, textures);
+            let sample = material.sample(texture_coordinates, &raytracer.textures);
             spectrum += sample.base_color_spectrum;
         } else {
             spectrum += Spectrumf32::from_coefficients(material.base_color_coefficients);
