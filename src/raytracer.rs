@@ -153,15 +153,9 @@ impl Raytracer {
 
         if use_visibility {
             let mut stats = SceneStatistics::new(scene_bounds);
+
             let start = Instant::now();
-
-            stats.sample_visibility(
-                &result.accel_structures,
-                accel_structures_to_construct[0],
-                &result.verts,
-                &result.triangles,
-            );
-
+            stats.sample_visibility(&result, accel_structures_to_construct[0]);
             println!("Computed visibility map in {} seconds", start.elapsed().as_secs_f32());
 
             let start = Instant::now();
@@ -475,7 +469,7 @@ impl Raytracer {
                         };
 
                         let shadowed =
-                            self.cast_shadow_ray(shadow_ray, light_sample.distance, settings.accel_structure);
+                            self.is_ray_obstructed(shadow_ray, light_sample.distance, settings.accel_structure);
 
                         if !shadowed {
                             let local_incident = frame.to_local(light_sample.direction);
@@ -553,11 +547,11 @@ impl Raytracer {
         }
     }
 
-    /// Checks if distance to the nearest obstructing triangle is less than the distance to the light
+    /// Checks if distance to the nearest obstructing triangle is less than the distance
     /// Handles alpha by checking if R ~ U(0, 1) is greater than the texture's alpha and ignoring
     /// the triangle if it is.
-    fn cast_shadow_ray(&self, ray: Ray, light_distance: f32, accel: Accel) -> bool {
-        let mut distance = light_distance;
+    fn is_ray_obstructed(&self, ray: Ray, distance: f32, accel: Accel) -> bool {
+        let mut distance = distance;
         let mut ray = ray;
 
         while let TraceResult::Hit {

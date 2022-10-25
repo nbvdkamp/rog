@@ -23,12 +23,13 @@ use crate::{
 
 use super::{
     aabb::BoundingBox,
-    acceleration::{structure::TraceResult, Accel, AccelerationStructures},
+    acceleration::Accel,
     axis::Axis,
     geometry::{interpolate_point_on_triangle, line_axis_plane_intersect},
     ray::Ray,
     sampling::{cumulative_probabilities_from_weights, sample_item_from_cumulative_probabilities},
     triangle::Triangle,
+    Raytracer,
     Textures,
 };
 
@@ -63,32 +64,18 @@ impl SceneStatistics {
         }
     }
 
-    pub fn sample_visibility(
-        &mut self,
-        structures: &AccelerationStructures,
-        accel: Accel,
-        verts: &[Vertex],
-        triangles: &[Triangle],
-    ) {
+    pub fn sample_visibility(&mut self, raytracer: &Raytracer, accel: Accel) {
         self.visibility = (0..VOXEL_COUNT)
             .into_par_iter()
             .flat_map(|b| {
                 (b..VOXEL_COUNT)
-                    .map(|a| self.measure_visibility_between_voxels(a, b, structures, accel, verts, triangles))
+                    .map(|a| self.measure_visibility_between_voxels(a, b, raytracer, accel))
                     .collect::<Vec<_>>()
             })
             .collect();
     }
 
-    fn measure_visibility_between_voxels(
-        &self,
-        a: usize,
-        b: usize,
-        structures: &AccelerationStructures,
-        accel: Accel,
-        verts: &[Vertex],
-        triangles: &[Triangle],
-    ) -> Visibility {
+    fn measure_visibility_between_voxels(&self, a: usize, b: usize, raytracer: &Raytracer, accel: Accel) -> Visibility {
         (0..VISIBILITY_SAMPLES)
             .map(|_| {
                 let start = self.sample_point_in_voxel(a);
@@ -99,10 +86,7 @@ impl SceneStatistics {
                     direction: end - start,
                 };
 
-                let occluded = match structures.get(accel).intersect(&ray, verts, triangles) {
-                    TraceResult::Hit { t, .. } => t < 1.0,
-                    TraceResult::Miss => false,
-                };
+                let occluded = raytracer.is_ray_obstructed(ray, 1.0, accel);
 
                 if !occluded {
                     1
