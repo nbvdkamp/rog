@@ -91,11 +91,11 @@ impl Args {
 
         let use_visibility = matches.get_flag("visibility");
 
-        let dump_visibility_debug_data = if use_visibility {
-            matches.get_flag("visibilitydebug")
-        } else {
+        let dump_visibility_debug_data = if matches.get_flag("visibilitydebug") && !use_visibility {
             eprintln!("Can't dump visibility data if using visibility data is not enabled");
             std::process::exit(-1);
+        } else {
+            matches.get_flag("visibilitydebug")
         };
 
         let render_settings = RenderSettings {
