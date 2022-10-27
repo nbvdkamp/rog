@@ -87,8 +87,28 @@ impl App {
 
     pub fn run(&mut self) {
         let surface = GlfwSurface::new(|glfw| {
+            let mut width = 960;
+            let mut height = 540;
+
+            glfw.with_primary_monitor(|_, monitor| {
+                if let Some(monitor) = monitor {
+                    let (_, _, w, h) = monitor.get_workarea();
+                    let max_width = 2 * w as u32 / 3;
+                    let max_height = 4 * h as u32 / 5;
+                    let ratio = self.scene.camera.aspect_ratio;
+
+                    if ratio * max_height as f32 <= max_width as f32 {
+                        width = (ratio * max_height as f32) as u32;
+                        height = max_height;
+                    } else {
+                        width = max_width;
+                        height = (max_width as f32 / ratio) as u32;
+                    }
+                }
+            });
+
             let (mut window, events) = glfw
-                .create_window(960, 540, "Rust renderer", WindowMode::Windowed)
+                .create_window(width, height, "Rust renderer", WindowMode::Windowed)
                 .ok_or(GlfwSurfaceError::UserError(PlatformError::CannotCreateWindow))?;
 
             window.make_current();
