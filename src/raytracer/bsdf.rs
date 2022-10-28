@@ -131,8 +131,11 @@ fn eval_disney_diffuse(
     incident: Vector3<f32>,
     micronormal: Vector3<f32>,
 ) -> f32 {
-    let n_dot_i = incident.z.abs();
-    let n_dot_o = outgoing.z.abs();
+    let (n_dot_i, n_dot_o) = if incident.z <= 0.0 && outgoing.z <= 0.0 {
+        (incident.z.abs(), outgoing.z.abs())
+    } else {
+        (incident.z.max(0.0), outgoing.z.max(0.0))
+    };
     let m_dot_i = micronormal.dot(incident);
 
     let fl = fresnel::schlick_weight(n_dot_i);
@@ -145,14 +148,14 @@ fn eval_disney_diffuse(
         1.25 * (fss * (1.0 / (n_dot_i + n_dot_o) - 0.5) + 0.5)
     };
 
+    let lambert = 1.0;
+
+    let subsurf_approximation = lambert.lerp(hanrahan_krueger, mat.sub_surface_scattering);
+
     let retro_reflection = {
         let rr = 2.0 * mat.roughness * m_dot_i * m_dot_i;
         rr * (fl + fv + fl * fv * (rr - 1.0))
     };
-
-    let lambert = 1.0;
-
-    let subsurf_approximation = lambert.lerp(hanrahan_krueger, mat.sub_surface_scattering);
 
     n_dot_i * (retro_reflection + subsurf_approximation * (1.0 - 0.5 * fl) * (1.0 - 0.5 * fv)) / PI
 }
