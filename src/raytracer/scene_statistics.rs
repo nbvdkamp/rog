@@ -257,10 +257,10 @@ impl SceneStatistics {
                 // Split the triangle on the voxel boundary and recursively handle the resulting triangles
                 for axis_index in 0..3 {
                     if !min_contained_axes[axis_index] || !max_contained_axes[axis_index] {
-                        let x = if !min_contained_axes[axis_index] { 0 } else { 1 };
+                        let offset = if !min_contained_axes[axis_index] { 0 } else { 1 };
 
                         let clip_position = self.scene_bounds.min[axis_index]
-                            + self.voxel_extent[axis_index] * (center_grid_pos[axis_index] + x) as f32;
+                            + self.voxel_extent[axis_index] * (center_grid_pos[axis_index] + offset) as f32;
 
                         match clip_triangle(tri, Axis::from_index(axis_index), clip_position) {
                             ClipTriResult::Two(t1, t2) => {
