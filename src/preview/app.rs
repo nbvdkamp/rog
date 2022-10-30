@@ -152,18 +152,16 @@ impl App {
         };
 
         enum Tex {
-            None,
             Rgb(Texture<Dim2, NormRGB8UI>),
             Rgba(Texture<Dim2, NormRGBA8UI>),
         }
 
         enum BoundTex<'a> {
-            None,
             Rgb(BoundTexture<'a, Dim2, NormRGB8UI>),
             Rgba(BoundTexture<'a, Dim2, NormRGBA8UI>),
         }
 
-        let mut textures: Vec<Tex> = self
+        let mut textures: Vec<Option<Tex>> = self
             .scene
             .textures
             .iter()
@@ -174,17 +172,17 @@ impl App {
 
                 match texture.format {
                     Format::Rgb => match context.new_texture_raw(size, sampler, upload) {
-                        Ok(texture) => Tex::Rgb(texture),
+                        Ok(texture) => Some(Tex::Rgb(texture)),
                         Err(e) => {
                             println!("An error occured while uploading textures: {e}");
-                            Tex::None
+                            None
                         }
                     },
                     Format::Rgba => match context.new_texture_raw(size, sampler, upload) {
-                        Ok(texture) => Tex::Rgba(texture),
+                        Ok(texture) => Some(Tex::Rgba(texture)),
                         Err(e) => {
                             println!("An error occured while uploading textures: {e}");
-                            Tex::None
+                            None
                         }
                     },
                 }
@@ -234,18 +232,12 @@ impl App {
                     &PipelineState::default().set_clear_color(background_color),
                     |pipeline, mut shd_gate| {
                         for (tess, material) in &tesses {
-                            let mut none = Tex::None;
-
-                            let tex = if let Some(i) = material.base_color_texture {
-                                &mut textures[i]
-                            } else {
-                                &mut none
-                            };
+                            let tex = material.base_color_texture.and_then(|index| textures[index].as_mut());
 
                             let bound_tex = match tex {
-                                Tex::None => BoundTex::None,
-                                Tex::Rgb(rgb) => BoundTex::Rgb(pipeline.bind_texture(rgb)?),
-                                Tex::Rgba(rgba) => BoundTex::Rgba(pipeline.bind_texture(rgba)?),
+                                Some(Tex::Rgb(rgb)) => Some(BoundTex::Rgb(pipeline.bind_texture(rgb)?)),
+                                Some(Tex::Rgba(rgba)) => Some(BoundTex::Rgba(pipeline.bind_texture(rgba)?)),
+                                None => None,
                             };
 
                             shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
@@ -254,19 +246,12 @@ impl App {
                                 iface.set(&unif.u_base_color, material.base_color.into());
                                 iface.set(&unif.u_light_position, light_position);
 
-                                match bound_tex {
-                                    BoundTex::Rgb(rgb) => {
-                                        iface.set(&unif.u_base_color_texture, rgb.binding());
-                                        iface.set(&unif.u_use_texture, true);
-                                    }
-                                    BoundTex::Rgba(rgba) => {
-                                        iface.set(&unif.u_base_color_texture, rgba.binding());
-                                        iface.set(&unif.u_use_texture, true);
-                                    }
-                                    BoundTex::None => {
-                                        iface.set(&unif.u_use_texture, false);
-                                    }
-                                }
+                                bound_tex.iter().for_each(|tex| match tex {
+                                    BoundTex::Rgb(t) => iface.set(&unif.u_base_color_texture, t.binding()),
+                                    BoundTex::Rgba(t) => iface.set(&unif.u_base_color_texture, t.binding()),
+                                });
+
+                                iface.set(&unif.u_use_texture, bound_tex.is_some());
 
                                 let render_state = RenderState::default().set_blending(blending);
 
