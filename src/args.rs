@@ -25,7 +25,7 @@ impl Args {
             .about("A pathtracer")
             .args(&[
                 arg!(-f --file <FILE> "Path to .gltf or .glb file to render")
-                    .default_value("res/simple_raytracer_test.glb")
+                    .default_value("res/scenes/simple_raytracer_test.glb")
                     .required(false),
                 arg!(-H --headless "Run without a window"),
                 arg!(--samples --spp <NUM> "Number of samples per pixel")

@@ -67,11 +67,11 @@ fn accel_benchmark() {
     let thread_count = (num_cpus::get() - 2).max(1);
     let accel_structures_to_construct = vec![Accel::Bvh, Accel::BvhRecursive, Accel::KdTree];
 
-    for path in test_scene_filenames {
-        let (scene, textures) = Scene::load(format!("res/{path}.glb")).unwrap();
+    for scene_name in test_scene_filenames {
+        let (scene, textures) = Scene::load(format!("res/scenes/{scene_name}.glb")).unwrap();
         let raytracer = Raytracer::new(&scene, textures, &accel_structures_to_construct, false);
 
-        println!("Filename: {}, tris: {}", path, raytracer.get_num_tris());
+        println!("Filename: {scene_name}, tris: {}", raytracer.get_num_tris());
         #[cfg(feature = "stats")]
         println!(
             "{: <25} | {: <10} | {}",
