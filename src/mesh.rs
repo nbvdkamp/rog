@@ -40,35 +40,14 @@ pub type VertexIndex = u32;
 
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
-    pub luminance_vertices: Vec<LuminanceVertex>,
     pub indices: Vec<VertexIndex>,
     pub material: Material,
 }
 
 impl Mesh {
     pub fn new(vertices: Vec<Vertex>, indices: Vec<VertexIndex>, material: Material) -> Self {
-        let luminance_vertices = vertices
-            .iter()
-            .map(|v| {
-                let pos: [f32; 3] = v.position.into();
-                let norm: [f32; 3] = v.normal.into();
-                LuminanceVertex {
-                    position: pos.into(),
-                    normal: norm.into(),
-                    uv: match (v.tex_coord, material.base_color_texture) {
-                        (Some(uv), Some(tex_ref)) => {
-                            let Point2 { x: u, y: v } = tex_ref.transform_texture_coordinates(uv);
-                            [u, v].into()
-                        }
-                        _ => [0.0, 0.0].into(),
-                    },
-                }
-            })
-            .collect();
-
         Mesh {
             vertices,
-            luminance_vertices,
             indices,
             material,
         }
@@ -78,10 +57,30 @@ impl Mesh {
     where
         C: GraphicsContext<Backend = Backend>,
     {
+        let luminance_vertices = self
+            .vertices
+            .iter()
+            .map(|v| {
+                let pos: [f32; 3] = v.position.into();
+                let norm: [f32; 3] = v.normal.into();
+                LuminanceVertex {
+                    position: pos.into(),
+                    normal: norm.into(),
+                    uv: match (v.tex_coord, self.material.base_color_texture) {
+                        (Some(uv), Some(tex_ref)) => {
+                            let Point2 { x: u, y: v } = tex_ref.transform_texture_coordinates(uv);
+                            [u, v].into()
+                        }
+                        _ => [0.0, 0.0].into(),
+                    },
+                }
+            })
+            .collect::<Vec<_>>();
+
         context
             .new_tess()
             .set_mode(Mode::Triangle)
-            .set_vertices(self.luminance_vertices.clone())
+            .set_vertices(luminance_vertices)
             .set_indices(self.indices.clone())
             .build()
     }
