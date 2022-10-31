@@ -320,14 +320,16 @@ impl Scene {
             let base_color = RGBf32::new(base[0], base[1], base[2]);
             let base_color_coefficients = rgb2spec.fetch([base_color.r, base_color.g, base_color.b]);
 
+            let read_texture_transform = |transform: gltf::texture::TextureTransform| TextureTransform {
+                offset: transform.offset().into(),
+                rotation: Rotation2::from_angle(Rad(transform.rotation())),
+                scale: transform.scale().into(),
+            };
+
             let get_tex_ref = |t: gltf::texture::Info| TextureRef {
                 index: t.texture().source().index(),
                 texture_coordinate_set: t.tex_coord() as usize,
-                transform: t.texture_transform().map(|transform| TextureTransform {
-                    offset: transform.offset().into(),
-                    rotation: Rotation2::from_angle(Rad(transform.rotation())),
-                    scale: transform.scale().into(),
-                }),
+                transform: t.texture_transform().map(read_texture_transform),
             };
             let base_color_texture = pbr.base_color_texture().map(get_tex_ref);
 
@@ -369,8 +371,7 @@ impl Scene {
                 normal_texture: mat.normal_texture().map(|t| TextureRef {
                     index: t.texture().source().index(),
                     texture_coordinate_set: t.tex_coord() as usize,
-                    //TODO: Currently the gltf crate has no support for reading the transforms of normal textures
-                    transform: None,
+                    transform: t.texture_transform().map(read_texture_transform),
                 }),
             };
 
