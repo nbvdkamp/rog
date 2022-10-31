@@ -14,6 +14,8 @@ use cgmath::{
     Point2,
     Point3,
     Quaternion,
+    Rad,
+    Rotation2,
     SquareMatrix,
     Vector3,
     Vector4,
@@ -27,7 +29,7 @@ use crate::{
     color::RGBf32,
     environment::Environment,
     light::Light,
-    material::{CauchyCoefficients, Material, TextureRef},
+    material::{CauchyCoefficients, Material, TextureRef, TextureTransform},
     mesh::{Mesh, Vertex},
     raytracer::Textures,
     spectrum::Spectrumf32,
@@ -204,8 +206,10 @@ impl Scene {
                                 - 1;
 
                             for tex_opt in opts {
-                                assert!(tex_opt.is_some());
-                                let _ = tex_opt.insert(TextureRef { index: last_index });
+                                match tex_opt {
+                                    Some(tex) => tex.index = last_index,
+                                    None => unreachable!(),
+                                }
                             }
                         };
 
@@ -318,6 +322,12 @@ impl Scene {
 
             let get_tex_ref = |t: gltf::texture::Info| TextureRef {
                 index: t.texture().source().index(),
+                texture_coordinate_set: t.tex_coord() as usize,
+                transform: t.texture_transform().map(|transform| TextureTransform {
+                    offset: transform.offset().into(),
+                    rotation: Rotation2::from_angle(Rad(transform.rotation())),
+                    scale: transform.scale().into(),
+                }),
             };
             let base_color_texture = pbr.base_color_texture().map(get_tex_ref);
 
@@ -358,6 +368,9 @@ impl Scene {
                 emissive_texture: mat.emissive_texture().map(get_tex_ref),
                 normal_texture: mat.normal_texture().map(|t| TextureRef {
                     index: t.texture().source().index(),
+                    texture_coordinate_set: t.tex_coord() as usize,
+                    //TODO: Currently the gltf crate has no support for reading the transforms of normal textures
+                    transform: None,
                 }),
             };
 

@@ -44,6 +44,7 @@ features = [
     "KHR_lights_punctual",
     "KHR_materials_transmission",
     "KHR_materials_ior",
+    "KHR_texture_transform",
 ]
 
 [dependencies.rgb2spec-rs]

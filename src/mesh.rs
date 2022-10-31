@@ -55,7 +55,13 @@ impl Mesh {
                 LuminanceVertex {
                     position: pos.into(),
                     normal: norm.into(),
-                    uv: v.tex_coord.map_or([0.0, 0.0].into(), |uv| [uv.x, uv.y].into()),
+                    uv: match (v.tex_coord, material.base_color_texture) {
+                        (Some(uv), Some(tex_ref)) => {
+                            let Point2 { x: u, y: v } = tex_ref.transform_texture_coordinates(uv);
+                            [u, v].into()
+                        }
+                        _ => [0.0, 0.0].into(),
+                    },
                 }
             })
             .collect();

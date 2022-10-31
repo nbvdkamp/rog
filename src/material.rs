@@ -1,12 +1,7 @@
 use super::color::{RGBAf32, RGBf32};
-use cgmath::{vec3, InnerSpace, Point2, Vector3};
+use cgmath::{point2, vec3, Basis2, InnerSpace, Point2, Rotation, Vector2, Vector3};
 
 use crate::{raytracer::Textures, spectrum::Spectrumf32, texture::Texture};
-
-#[derive(Copy, Clone)]
-pub struct TextureRef {
-    pub index: usize,
-}
 
 #[derive(Clone)]
 pub struct Material {
@@ -43,7 +38,10 @@ pub struct MaterialSample {
 impl Material {
     pub fn sample(&self, texture_coordinates: Point2<f32>, textures: &Textures) -> MaterialSample {
         let sample = |tex: Option<TextureRef>, textures: &Vec<Texture>| match tex {
-            Some(tex) => textures[tex.index].sample(texture_coordinates.x, texture_coordinates.y),
+            Some(tex) => {
+                let Point2 { x: u, y: v } = tex.transform_texture_coordinates(texture_coordinates);
+                textures[tex.index].sample(u, v)
+            }
             None => RGBAf32::white(),
         };
 
@@ -51,18 +49,19 @@ impl Material {
         let metallic_roughness = sample(self.metallic_roughness_texture, &textures.metallic_roughness);
 
         let shading_normal = self.normal_texture.map(|tex| {
-            let RGBAf32 { r, g, b, .. } =
-                textures.normal[tex.index].sample(texture_coordinates.x, texture_coordinates.y);
+            let Point2 { x: u, y: v } = tex.transform_texture_coordinates(texture_coordinates);
+            let RGBAf32 { r, g, b, .. } = textures.normal[tex.index].sample(u, v);
             (2.0 * vec3(r, g, b) - vec3(1.0, 1.0, 1.0)).normalize()
         });
+        // let shading_normal = None; // TODO: Remove
 
         let base_color_spectrum = Spectrumf32::from_coefficients(self.base_color_coefficients);
         let mut alpha = 1.0;
 
         let base_color_spectrum = match self.base_color_texture {
             Some(tex) => {
-                let coeffs_sample =
-                    textures.base_color_coefficients[tex.index].sample(texture_coordinates.x, texture_coordinates.y);
+                let Point2 { x: u, y: v } = tex.transform_texture_coordinates(texture_coordinates);
+                let coeffs_sample = textures.base_color_coefficients[tex.index].sample(u, v);
                 alpha = coeffs_sample.a;
                 base_color_spectrum * Spectrumf32::from_coefficients(coeffs_sample.rgb().into())
             }
@@ -91,6 +90,35 @@ impl Material {
                 textures.base_color_coefficients[tex.index].sample_alpha(texture_coordinates.x, texture_coordinates.y)
             }
             None => 1.0,
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct TextureTransform {
+    pub offset: Vector2<f32>,
+    pub rotation: Basis2<f32>,
+    pub scale: Vector2<f32>,
+}
+
+impl TextureTransform {
+    pub fn transform_texture_coordinates(&self, Point2 { x: u, y: v }: Point2<f32>) -> Point2<f32> {
+        self.rotation.rotate_point(point2(u * self.scale.x, v * self.scale.y)) + self.offset
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct TextureRef {
+    pub index: usize,
+    pub texture_coordinate_set: usize,
+    pub transform: Option<TextureTransform>,
+}
+
+impl TextureRef {
+    pub fn transform_texture_coordinates(&self, uv: Point2<f32>) -> Point2<f32> {
+        match self.transform {
+            Some(t) => t.transform_texture_coordinates(uv),
+            None => uv,
         }
     }
 }
