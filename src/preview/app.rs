@@ -232,7 +232,7 @@ impl App {
                     &PipelineState::default().set_clear_color(background_color),
                     |pipeline, mut shd_gate| {
                         for (tess, material) in &tesses {
-                            let tex = material.base_color_texture.and_then(|index| textures[index].as_mut());
+                            let tex = material.base_color_texture.and_then(|tex| textures[tex.index].as_mut());
 
                             let bound_tex = match tex {
                                 Some(Tex::Rgb(rgb)) => Some(BoundTex::Rgb(pipeline.bind_texture(rgb)?)),

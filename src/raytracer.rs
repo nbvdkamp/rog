@@ -563,8 +563,8 @@ impl Raytracer {
             let triangle = &self.triangles[triangle_index as usize];
             let material = &self.materials[triangle.material_index as usize];
 
-            if let Some(i) = material.base_color_texture {
-                if !self.textures.base_color_coefficients[i].has_alpha {
+            if let Some(tex_ref) = material.base_color_texture {
+                if !self.textures.base_color_coefficients[tex_ref.index].has_alpha {
                     return true;
                 }
             } else {

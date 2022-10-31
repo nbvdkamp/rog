@@ -3,21 +3,26 @@ use cgmath::{vec3, InnerSpace, Point2, Vector3};
 
 use crate::{raytracer::Textures, spectrum::Spectrumf32, texture::Texture};
 
+#[derive(Copy, Clone)]
+pub struct TextureRef {
+    pub index: usize,
+}
+
 #[derive(Clone)]
 pub struct Material {
     pub base_color: RGBf32,
     pub base_color_coefficients: [f32; 3],
-    pub base_color_texture: Option<usize>,
+    pub base_color_texture: Option<TextureRef>,
     pub metallic: f32,
     pub roughness: f32,
-    pub metallic_roughness_texture: Option<usize>,
+    pub metallic_roughness_texture: Option<TextureRef>,
     pub ior: f32,
     pub cauchy_coefficients: CauchyCoefficients,
     pub transmission_factor: f32,
-    pub transmission_texture: Option<usize>,
+    pub transmission_texture: Option<TextureRef>,
     pub emissive: RGBf32,
-    pub emissive_texture: Option<usize>,
-    pub normal_texture: Option<usize>,
+    pub emissive_texture: Option<TextureRef>,
+    pub normal_texture: Option<TextureRef>,
 }
 
 pub struct MaterialSample {
@@ -37,29 +42,27 @@ pub struct MaterialSample {
 
 impl Material {
     pub fn sample(&self, texture_coordinates: Point2<f32>, textures: &Textures) -> MaterialSample {
-        let sample = |tex: Option<usize>, textures: &Vec<Texture>| match tex {
-            Some(index) => textures[index].sample(texture_coordinates.x, texture_coordinates.y),
+        let sample = |tex: Option<TextureRef>, textures: &Vec<Texture>| match tex {
+            Some(tex) => textures[tex.index].sample(texture_coordinates.x, texture_coordinates.y),
             None => RGBAf32::white(),
         };
 
         // B channel is metallic, G is roughness
         let metallic_roughness = sample(self.metallic_roughness_texture, &textures.metallic_roughness);
 
-        let shading_normal = self.normal_texture.map(|index| {
-            let sample = textures.normal[index].sample(texture_coordinates.x, texture_coordinates.y);
-            let x = 2.0 * sample.r - 1.0;
-            let y = 2.0 * sample.g - 1.0;
-            let z = 2.0 * sample.b - 1.0;
-            vec3(x, y, z).normalize()
+        let shading_normal = self.normal_texture.map(|tex| {
+            let RGBAf32 { r, g, b, .. } =
+                textures.normal[tex.index].sample(texture_coordinates.x, texture_coordinates.y);
+            (2.0 * vec3(r, g, b) - vec3(1.0, 1.0, 1.0)).normalize()
         });
 
         let base_color_spectrum = Spectrumf32::from_coefficients(self.base_color_coefficients);
         let mut alpha = 1.0;
 
         let base_color_spectrum = match self.base_color_texture {
-            Some(index) => {
+            Some(tex) => {
                 let coeffs_sample =
-                    textures.base_color_coefficients[index].sample(texture_coordinates.x, texture_coordinates.y);
+                    textures.base_color_coefficients[tex.index].sample(texture_coordinates.x, texture_coordinates.y);
                 alpha = coeffs_sample.a;
                 base_color_spectrum * Spectrumf32::from_coefficients(coeffs_sample.rgb().into())
             }
@@ -84,8 +87,8 @@ impl Material {
 
     pub fn sample_alpha(&self, texture_coordinates: Point2<f32>, textures: &Textures) -> f32 {
         match self.base_color_texture {
-            Some(index) => {
-                textures.base_color_coefficients[index].sample_alpha(texture_coordinates.x, texture_coordinates.y)
+            Some(tex) => {
+                textures.base_color_coefficients[tex.index].sample_alpha(texture_coordinates.x, texture_coordinates.y)
             }
             None => 1.0,
         }

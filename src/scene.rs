@@ -27,7 +27,7 @@ use crate::{
     color::RGBf32,
     environment::Environment,
     light::Light,
-    material::{CauchyCoefficients, Material},
+    material::{CauchyCoefficients, Material, TextureRef},
     mesh::{Mesh, Vertex},
     raytracer::Textures,
     spectrum::Spectrumf32,
@@ -137,7 +137,7 @@ impl Scene {
                     macro_rules! set_type {
                         ( $tex:expr, $tex_type:expr ) => {
                             match $tex {
-                                Some(index) => match texture_types[index].entry($tex_type) {
+                                Some(tex) => match texture_types[tex.index].entry($tex_type) {
                                     Entry::Vacant(e) => {
                                         e.insert(vec![&mut $tex]);
                                     }
@@ -177,7 +177,7 @@ impl Scene {
                             return;
                         }
 
-                        let mut insert = |texture: Texture, texture_type, opts: Vec<&mut Option<usize>>| {
+                        let mut insert = |texture: Texture, texture_type, opts: Vec<&mut Option<TextureRef>>| {
                             match texture_type {
                                 TextureType::BaseColor => {
                                     sorted_textures
@@ -205,7 +205,7 @@ impl Scene {
 
                             for tex_opt in opts {
                                 assert!(tex_opt.is_some());
-                                let _ = tex_opt.insert(last_index);
+                                let _ = tex_opt.insert(TextureRef { index: last_index });
                             }
                         };
 
@@ -222,7 +222,7 @@ impl Scene {
                 result_scene.meshes.iter_mut().partition_in_place(|mesh| {
                     mesh.material
                         .base_color_texture
-                        .map_or(true, |index| result_scene.textures[index].format == Format::Rgb)
+                        .map_or(true, |tex| result_scene.textures[tex.index].format == Format::Rgb)
                 });
 
                 let textures_time = start.elapsed().as_secs_f32();
@@ -316,11 +316,13 @@ impl Scene {
             let base_color = RGBf32::new(base[0], base[1], base[2]);
             let base_color_coefficients = rgb2spec.fetch([base_color.r, base_color.g, base_color.b]);
 
-            let get_index = |t: gltf::texture::Info| t.texture().source().index();
-            let base_color_texture = pbr.base_color_texture().map(get_index);
+            let get_tex_ref = |t: gltf::texture::Info| TextureRef {
+                index: t.texture().source().index(),
+            };
+            let base_color_texture = pbr.base_color_texture().map(get_tex_ref);
 
             let (transmission_factor, transmission_texture) = if let Some(transmission) = mat.transmission() {
-                let texture = transmission.transmission_texture().map(get_index);
+                let texture = transmission.transmission_texture().map(get_tex_ref);
                 (transmission.transmission_factor(), texture)
             } else {
                 (0.0, None)
@@ -347,14 +349,16 @@ impl Scene {
                 base_color_texture,
                 roughness: pbr.roughness_factor(),
                 metallic: pbr.metallic_factor(),
-                metallic_roughness_texture: pbr.metallic_roughness_texture().map(get_index),
+                metallic_roughness_texture: pbr.metallic_roughness_texture().map(get_tex_ref),
                 ior,
                 cauchy_coefficients,
                 transmission_factor,
                 transmission_texture,
                 emissive: mat.emissive_factor().into(),
-                emissive_texture: mat.emissive_texture().map(get_index),
-                normal_texture: mat.normal_texture().map(|t| t.texture().source().index()),
+                emissive_texture: mat.emissive_texture().map(get_tex_ref),
+                normal_texture: mat.normal_texture().map(|t| TextureRef {
+                    index: t.texture().source().index(),
+                }),
             };
 
             let positions: Vec<Point3<f32>> = reader
