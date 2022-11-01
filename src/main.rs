@@ -68,7 +68,14 @@ fn accel_benchmark() {
     let accel_structures_to_construct = vec![Accel::Bvh, Accel::BvhRecursive, Accel::KdTree];
 
     for scene_name in test_scene_filenames {
-        let (scene, textures) = Scene::load(format!("res/scenes/{scene_name}.glb")).unwrap();
+        let (scene, textures) = match Scene::load(format!("res/scenes/{scene_name}.glb")) {
+            Ok(result) => result,
+            Err(e) => {
+                eprintln!("Couldn't open scene {scene_name}: {e}");
+                continue;
+            }
+        };
+
         let raytracer = Raytracer::new(&scene, textures, &accel_structures_to_construct, false);
 
         println!("Filename: {scene_name}, tris: {}", raytracer.get_num_tris());
