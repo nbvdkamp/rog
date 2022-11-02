@@ -21,6 +21,7 @@ lerp = "0.4.0"
 rayon = "1.5.3"
 static_assertions = "1.1.0"
 arrayvec = "0.7.2"
+rgb2spec = "0.1.0"
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -46,6 +47,3 @@ features = [
     "KHR_materials_ior",
     "KHR_texture_transform",
 ]
-
-[dependencies.rgb2spec-rs]
-path = "../rgb2spec-rust"
