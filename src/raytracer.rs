@@ -175,10 +175,9 @@ impl Raytracer {
         if let Some(stats) = self.stats.as_ref() {
             stats.dump_visibility_image("output/vis.png");
 
-            match stats.dump_materials_as_rgb("output/materials.grid") {
-                Err(e) => eprintln!("Couldn't write materials file: {e}"),
-                Ok(()) => (),
-            };
+            if let Err(e) = stats.dump_materials_as_rgb("output/materials.grid") {
+                eprintln!("Couldn't write materials file: {e}")
+            }
         }
     }
 
@@ -658,7 +657,7 @@ fn bump_shading_factor(
     let g_dot_i = geometric_normal.dot(light_direction);
     let s_dot_i = shading_normal.dot(light_direction);
     let g_dot_s = geometric_normal.dot(shading_normal);
-    let g = (g_dot_i / (s_dot_i * g_dot_s)).min(1.0).max(0.0);
+    let g = (g_dot_i / (s_dot_i * g_dot_s)).clamp(0.0, 1.0);
 
     // Hermite interpolation
     -(g * g * g) + (g * g) + g

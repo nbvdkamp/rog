@@ -88,11 +88,7 @@ impl SceneStatistics {
 
                 let occluded = raytracer.is_ray_obstructed(ray, 1.0, accel);
 
-                if !occluded {
-                    1
-                } else {
-                    0
-                }
+                u8::from(!occluded)
             })
             .sum()
     }
@@ -124,7 +120,7 @@ impl SceneStatistics {
         assert_eq!(self.materials.len(), VOXEL_COUNT);
 
         let mut file = File::create(path)?;
-        write!(file, "resolution {RESOLUTION}\n")?;
+        writeln!(file, "resolution {RESOLUTION}")?;
 
         for x in 0..RESOLUTION {
             for y in 0..RESOLUTION {
@@ -133,7 +129,7 @@ impl SceneStatistics {
 
                     if let Some(spectrum) = self.materials[i] {
                         let RGBf32 { r, g, b } = spectrum.to_srgb();
-                        write!(file, "{x} {y} {z} {r} {g} {b}\n")?;
+                        writeln!(file, "{x} {y} {z} {r} {g} {b}")?;
                     }
                 }
             }
@@ -257,7 +253,8 @@ impl SceneStatistics {
                 // Split the triangle on the voxel boundary and recursively handle the resulting triangles
                 for axis_index in 0..3 {
                     if !min_contained_axes[axis_index] || !max_contained_axes[axis_index] {
-                        let offset = if !min_contained_axes[axis_index] { 0 } else { 1 };
+                        // If the intersection is on the max bound, offset by 1
+                        let offset = usize::from(min_contained_axes[axis_index]);
 
                         let clip_position = self.scene_bounds.min[axis_index]
                             + self.voxel_extent[axis_index] * (center_grid_pos[axis_index] + offset) as f32;
@@ -335,7 +332,7 @@ fn clip_triangle(tri: ClippedTri, axis: Axis, position: f32) -> ClipTriResult {
     let verts_on_split_plane = tri.verts.iter().map(pos_on_split_plane).collect::<ArrayVec<_, 3>>();
     let num_verts_on_split_plane: usize = verts_on_split_plane
         .iter()
-        .map(|p| if *p == PositionRelativeToPlane::On { 1 } else { 0 })
+        .map(|p| usize::from(*p == PositionRelativeToPlane::On))
         .sum();
 
     assert!(num_verts_on_split_plane < 2);

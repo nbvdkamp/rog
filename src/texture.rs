@@ -46,7 +46,7 @@ pub struct CoefficientTexture {
 
 impl Texture {
     pub fn new(pixels: Vec<u8>, width: usize, height: usize, format: Format) -> Self {
-        assert_eq!(pixels.len(), (width * height * format.bytes()) as usize);
+        assert_eq!(pixels.len(), width * height * format.bytes());
 
         Texture {
             image: pixels,
@@ -59,7 +59,7 @@ impl Texture {
     pub fn sample(&self, u: f32, v: f32) -> RGBAf32 {
         let get_pixel = |x: usize, y: usize| {
             let pixel_index = y * self.width + x;
-            let i = (pixel_index * self.format.bytes()) as usize;
+            let i = pixel_index * self.format.bytes();
 
             let alpha = if self.format == Format::Rgba {
                 self.image[i + 3] as f32 / 255.0

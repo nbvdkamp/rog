@@ -118,7 +118,7 @@ impl BoundingVolumeHierarchy {
                 stats.count_leaf_node();
                 nodes.push(Node::new_leaf(left_indices, left_bounds));
             } else {
-                stack.push((new_left_index as usize, left_indices, depth + 1));
+                stack.push((new_left_index, left_indices, depth + 1));
                 stats.count_inner_node();
                 nodes.push(Node::new_inner(left_bounds));
             }
@@ -127,7 +127,7 @@ impl BoundingVolumeHierarchy {
                 stats.count_leaf_node();
                 nodes.push(Node::new_leaf(right_indices, right_bounds));
             } else {
-                stack.push((new_right_index as usize, right_indices, depth + 1));
+                stack.push((new_right_index, right_indices, depth + 1));
                 stats.count_inner_node();
                 nodes.push(Node::new_inner(right_bounds));
             }

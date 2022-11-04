@@ -42,7 +42,7 @@ pub fn intersect_triangles_indexed(
     let mut result = TraceResult::Miss;
 
     for triangle_index in triangle_indices {
-        let triangle = &triangles[*triangle_index as usize];
+        let triangle = &triangles[*triangle_index];
         let p1 = &verts[triangle.index1 as usize];
         let p2 = &verts[triangle.index2 as usize];
         let p3 = &verts[triangle.index3 as usize];

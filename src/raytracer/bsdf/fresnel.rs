@@ -35,7 +35,7 @@ impl Reflectance {
 }
 
 pub fn dielectric(cos_theta_i: f32, medium_ior: f32, material_ior: f32) -> Reflectance {
-    let cos_theta_i = cos_theta_i.min(1.0).max(-1.0);
+    let cos_theta_i = cos_theta_i.clamp(-1.0, 1.0);
 
     let eta = medium_ior / material_ior;
     let sin_theta_t_squared = eta * eta * (1.0 - cos_theta_i * cos_theta_i);
