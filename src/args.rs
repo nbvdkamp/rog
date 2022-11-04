@@ -78,12 +78,11 @@ impl Args {
         }
 
         let accel_structure = if let Some(name) = matches.get_one::<String>("accel") {
-            match Accel::from_str(name) {
-                Ok(accel) => accel,
-                Err(_) => {
-                    eprintln!("Wrong acceleration structure name provided, using KD tree instead");
-                    Accel::KdTree
-                }
+            if let Ok(accel) = Accel::from_str(name) {
+                accel
+            } else {
+                eprintln!("Can't parse \"{name}\" as an acceleration structure name, using KD tree instead");
+                Accel::KdTree
             }
         } else {
             Accel::KdTree
