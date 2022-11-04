@@ -28,7 +28,7 @@ use crate::{
     camera::PerspectiveCamera,
     color::RGBf32,
     environment::Environment,
-    light::Light,
+    light::{Kind, Light},
     material::{CauchyCoefficients, Material, TextureRef, TextureTransform},
     mesh::{Mesh, Vertex},
     raytracer::Textures,
@@ -280,9 +280,7 @@ impl Scene {
                     println!("Non-perspective cameras are not supported");
                 }
             } else if let Some(light) = node.light() {
-                if let Some(light) = parse_light(light, transform, rgb2spec) {
-                    self.lights.push(light);
-                }
+                self.lights.push(parse_light(light, transform, rgb2spec));
             }
 
             self.parse_nodes(node.children().collect(), buffers, transform, rgb2spec);
@@ -531,18 +529,20 @@ struct LightExtras {
     angular_diameter: Option<f32>,
 }
 
-fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>, rgb2spec: &RGB2Spec) -> Option<Light> {
+fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>, rgb2spec: &RGB2Spec) -> Light {
     let extras: Option<LightExtras> = light
         .extras()
         .as_ref()
         .and_then(|extras| serde_json::from_str(extras.as_ref().get()).ok());
 
+    use gltf::khr_lights_punctual::Kind as GltfKind;
+
     let kind = match light.kind() {
-        gltf::khr_lights_punctual::Kind::Point => {
+        GltfKind::Point => {
             let radius = (|| extras?.radius)().unwrap_or(0.0);
-            crate::light::Kind::Point { radius }
+            Kind::Point { radius }
         }
-        gltf::khr_lights_punctual::Kind::Directional => {
+        GltfKind::Directional => {
             let m = Matrix3::from_cols(transform.x.truncate(), transform.y.truncate(), transform.z.truncate());
             let normal_transform = m.invert().unwrap().transpose();
             let direction = -(normal_transform * vec3(0.0, 0.0, -1.0)).normalize();
@@ -552,16 +552,16 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>,
             let radius = angle.tan();
             let area = std::f32::consts::PI * radius * radius;
 
-            crate::light::Kind::Directional {
+            Kind::Directional {
                 direction,
                 radius,
                 area,
             }
         }
-        gltf::khr_lights_punctual::Kind::Spot {
+        GltfKind::Spot {
             inner_cone_angle,
             outer_cone_angle,
-        } => crate::light::Kind::Spot {
+        } => Kind::Spot {
             inner_cone_angle,
             outer_cone_angle,
         },
@@ -574,14 +574,14 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>,
     // though it seems to be a reasonable placeholder / fallback method.
     let spectrum = Spectrumf32::from_coefficients(rgb2spec.fetch(color.into()));
 
-    Some(Light {
+    Light {
         pos: Point3::from_homogeneous(transform * vec4(0.0, 0.0, 0.0, 1.0)),
         intensity: light.intensity(),
         range: light.range().unwrap_or(f32::INFINITY),
         color,
         spectrum,
         kind,
-    })
+    }
 }
 
 pub fn drop_every_other_byte(v: Vec<u8>) -> Vec<u8> {
