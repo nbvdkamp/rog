@@ -77,7 +77,7 @@ impl Args {
             std::process::exit(-1);
         }
 
-        let accel_structure = if let Some(name) = matches.get_one::<&str>("accel") {
+        let accel_structure = if let Some(name) = matches.get_one::<String>("accel") {
             match Accel::from_str(name) {
                 Ok(accel) => accel,
                 Err(_) => {
