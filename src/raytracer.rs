@@ -356,177 +356,175 @@ impl Raytracer {
         let mut depth = 0;
 
         while depth < self.max_depth {
-            if let TraceResult::Hit {
+            let TraceResult::Hit {
                 triangle_index, u, v, ..
-            } = self.trace(&ray, settings.accel_structure)
-            {
-                let triangle = &self.triangles[triangle_index as usize];
-                let material = &self.materials[triangle.material_index as usize];
+            } = self.trace(&ray, settings.accel_structure) else {
+                result += path_weight * self.environment.sample(ray.direction);
+                break;
+            };
 
-                let verts = [
-                    &self.verts[triangle.index1 as usize],
-                    &self.verts[triangle.index2 as usize],
-                    &self.verts[triangle.index3 as usize],
-                ];
+            let triangle = &self.triangles[triangle_index as usize];
+            let material = &self.materials[triangle.material_index as usize];
 
-                let w = 1.0 - u - v;
-                let hit_pos = w * verts[0].position + u * verts[1].position.to_vec() + v * verts[2].position.to_vec();
+            let verts = [
+                &self.verts[triangle.index1 as usize],
+                &self.verts[triangle.index2 as usize],
+                &self.verts[triangle.index3 as usize],
+            ];
 
-                let has_texture_coords = verts[0].tex_coord.is_some();
+            let w = 1.0 - u - v;
+            let hit_pos = w * verts[0].position + u * verts[1].position.to_vec() + v * verts[2].position.to_vec();
 
-                let texture_coordinates = if has_texture_coords {
-                    w * verts[0].tex_coord.unwrap()
-                        + u * verts[1].tex_coord.unwrap().to_vec()
-                        + v * verts[2].tex_coord.unwrap().to_vec()
-                } else {
-                    point2(0.0, 0.0)
-                };
+            let has_texture_coords = verts[0].tex_coord.is_some();
 
-                let mut mat_sample = material.sample(texture_coordinates, &self.textures);
+            let texture_coordinates = if has_texture_coords {
+                w * verts[0].tex_coord.unwrap()
+                    + u * verts[1].tex_coord.unwrap().to_vec()
+                    + v * verts[2].tex_coord.unwrap().to_vec()
+            } else {
+                point2(0.0, 0.0)
+            };
 
-                if thread_rng().gen::<f32>() > mat_sample.alpha {
-                    // Offset to the back of the triangle
-                    ray.origin = hit_pos + ray.direction * 0.0002;
+            let mut mat_sample = material.sample(texture_coordinates, &self.textures);
 
-                    // Don't count alpha hits for max bounces
-                    continue;
-                }
+            if thread_rng().gen::<f32>() > mat_sample.alpha {
+                // Offset to the back of the triangle
+                ray.origin = hit_pos + ray.direction * 0.0002;
 
-                if settings.enable_dispersion && mat_sample.transmission > 0.0 {
-                    let lambda;
+                // Don't count alpha hits for max bounces
+                continue;
+            }
 
-                    match wavelength {
-                        Wavelength::Undecided => {
-                            lambda = CIE::LAMBDA_MIN + CIE::LAMBDA_RANGE * thread_rng().gen::<f32>();
-                            wavelength = Wavelength::Sampled { value: lambda }
-                        }
-                        Wavelength::Sampled { value } => lambda = value,
+            if settings.enable_dispersion && mat_sample.transmission > 0.0 {
+                let lambda;
+
+                match wavelength {
+                    Wavelength::Undecided => {
+                        lambda = CIE::LAMBDA_MIN + CIE::LAMBDA_RANGE * thread_rng().gen::<f32>();
+                        wavelength = Wavelength::Sampled { value: lambda }
                     }
-
-                    mat_sample.ior = mat_sample.cauchy_coefficients.ior_for_wavelength(lambda);
+                    Wavelength::Sampled { value } => lambda = value,
                 }
 
-                let edge1 = verts[0].position - verts[1].position;
-                let edge2 = verts[0].position - verts[2].position;
-                let mut geom_normal = edge1.cross(edge2).normalize();
+                mat_sample.ior = mat_sample.cauchy_coefficients.ior_for_wavelength(lambda);
+            }
 
-                // Interpolate the vertex normals
-                let mut normal = (w * verts[0].normal + u * verts[1].normal + v * verts[2].normal).normalize();
-                let mut tangent = (w * verts[0].tangent + u * verts[1].tangent + v * verts[2].tangent).normalize();
+            let edge1 = verts[0].position - verts[1].position;
+            let edge2 = verts[0].position - verts[2].position;
+            let mut geom_normal = edge1.cross(edge2).normalize();
 
-                // Handle the rare case where a bad tangent (linearly dependent with the normal) causes NaNs
-                if normal == tangent || -normal == tangent {
-                    tangent = orthogonal_vector(normal);
-                }
+            // Interpolate the vertex normals
+            let mut normal = (w * verts[0].normal + u * verts[1].normal + v * verts[2].normal).normalize();
+            let mut tangent = (w * verts[0].tangent + u * verts[1].tangent + v * verts[2].tangent).normalize();
 
-                // Flip the computed geometric normal to the same side as the interpolated vertex normal.
-                if geom_normal.dot(normal) < 0.0 {
-                    geom_normal = -geom_normal;
-                }
+            // Handle the rare case where a bad tangent (linearly dependent with the normal) causes NaNs
+            if normal == tangent || -normal == tangent {
+                tangent = orthogonal_vector(normal);
+            }
 
-                let backfacing = geom_normal.dot(-ray.direction) < 0.0;
+            // Flip the computed geometric normal to the same side as the interpolated vertex normal.
+            if geom_normal.dot(normal) < 0.0 {
+                geom_normal = -geom_normal;
+            }
 
-                if backfacing {
-                    normal = -normal;
+            let backfacing = geom_normal.dot(-ray.direction) < 0.0;
 
-                    // Swap IORs
-                    (mat_sample.ior, mat_sample.medium_ior) = (mat_sample.medium_ior, mat_sample.ior);
-                }
+            if backfacing {
+                normal = -normal;
 
-                let mut frame = ShadingFrame::new_with_tangent(normal, tangent);
+                // Swap IORs
+                (mat_sample.ior, mat_sample.medium_ior) = (mat_sample.medium_ior, mat_sample.ior);
+            }
 
-                let shading_normal = mat_sample
-                    .shading_normal
-                    .map(|n| ensure_valid_reflection(geom_normal, -ray.direction, frame.to_global(n)));
+            let mut frame = ShadingFrame::new_with_tangent(normal, tangent);
 
-                if let Some(shading_normal) = shading_normal {
-                    frame = ShadingFrame::new(shading_normal);
-                }
+            let shading_normal = mat_sample
+                .shading_normal
+                .map(|n| ensure_valid_reflection(geom_normal, -ray.direction, frame.to_global(n)));
 
-                let local_outgoing = frame.to_local(-ray.direction);
+            if let Some(shading_normal) = shading_normal {
+                frame = ShadingFrame::new(shading_normal);
+            }
 
-                let sample = bsdf::sample(&mat_sample, local_outgoing);
+            let local_outgoing = frame.to_local(-ray.direction);
 
-                // Next event estimation (directly sampling lights)
-                if num_lights > 0 {
-                    let light = &self.lights[rand::thread_rng().gen_range(0..num_lights)];
-                    let light_sample = light.sample(hit_pos);
+            let sample = bsdf::sample(&mat_sample, local_outgoing);
 
-                    let offset_direction = light_sample.direction.dot(geom_normal).signum() * geom_normal;
-                    let offset_hit_pos = Raytracer::offset_hit_pos(hit_pos, offset_direction);
+            // Next event estimation (directly sampling lights)
+            if num_lights > 0 {
+                let light = &self.lights[rand::thread_rng().gen_range(0..num_lights)];
+                let light_sample = light.sample(hit_pos);
 
-                    if light_sample.distance <= light.range {
-                        let shadow_ray = Ray {
-                            origin: offset_hit_pos,
-                            direction: light_sample.direction,
-                        };
+                let offset_direction = light_sample.direction.dot(geom_normal).signum() * geom_normal;
+                let offset_hit_pos = Raytracer::offset_hit_pos(hit_pos, offset_direction);
 
-                        let shadowed =
-                            self.is_ray_obstructed(shadow_ray, light_sample.distance, settings.accel_structure);
+                if light_sample.distance <= light.range {
+                    let shadow_ray = Ray {
+                        origin: offset_hit_pos,
+                        direction: light_sample.direction,
+                    };
 
-                        if !shadowed {
-                            let local_incident = frame.to_local(light_sample.direction);
-                            let eval = bsdf::eval(&mat_sample, local_outgoing, local_incident);
+                    let shadowed = self.is_ray_obstructed(shadow_ray, light_sample.distance, settings.accel_structure);
 
-                            if let Evaluation::Evaluation { weight: bsdf, pdf } = eval {
-                                let light_pick_prob = 1.0 / num_lights as f32;
-                                let light_pdf = light_pick_prob * light_sample.pdf;
+                    if !shadowed {
+                        let local_incident = frame.to_local(light_sample.direction);
+                        let eval = bsdf::eval(&mat_sample, local_outgoing, local_incident);
 
-                                let mis_weight = if light_sample.use_mis {
-                                    mis2(light_pdf, pdf)
-                                } else {
-                                    1.0
-                                };
+                        if let Evaluation::Evaluation { weight: bsdf, pdf } = eval {
+                            let light_pick_prob = 1.0 / num_lights as f32;
+                            let light_pdf = light_pick_prob * light_sample.pdf;
 
-                                let shadow_terminator = shading_normal.map_or(1.0, |shading_normal| {
-                                    bump_shading_factor(normal, shading_normal, light_sample.direction)
-                                });
+                            let mis_weight = if light_sample.use_mis {
+                                mis2(light_pdf, pdf)
+                            } else {
+                                1.0
+                            };
 
-                                result += path_weight
+                            let shadow_terminator = shading_normal.map_or(1.0, |shading_normal| {
+                                bump_shading_factor(normal, shading_normal, light_sample.direction)
+                            });
+
+                            result += path_weight
                                     // * mat_sample.base_color_spectrum
                                     * mis_weight
                                     * light_sample.intensity
                                     * shadow_terminator
                                     * bsdf
-                                    / light_pdf
-                                    * light.spectrum;
-                            }
+                                / light_pdf
+                                * light.spectrum;
                         }
                     }
                 }
+            }
 
-                let (local_bounce_dir, bsdf, pdf) = match sample {
-                    Sample::Sample { incident, weight, pdf } => (incident, weight, pdf),
-                    Sample::Null => break,
-                };
+            let (local_bounce_dir, bsdf, pdf) = match sample {
+                Sample::Sample { incident, weight, pdf } => (incident, weight, pdf),
+                Sample::Null => break,
+            };
 
-                let offset_direction = if backfacing { -1.0 } else { 1.0 } * local_bounce_dir.z.signum() * geom_normal;
-                let offset_hit_pos = Raytracer::offset_hit_pos(hit_pos, offset_direction);
+            let offset_direction = if backfacing { -1.0 } else { 1.0 } * local_bounce_dir.z.signum() * geom_normal;
+            let offset_hit_pos = Raytracer::offset_hit_pos(hit_pos, offset_direction);
 
-                let bounce_dir = frame.to_global(local_bounce_dir);
+            let bounce_dir = frame.to_global(local_bounce_dir);
 
-                let shadow_terminator = shading_normal.map_or(1.0, |shading_normal| {
-                    bump_shading_factor(normal, shading_normal, bounce_dir)
-                });
+            let shadow_terminator = shading_normal.map_or(1.0, |shading_normal| {
+                bump_shading_factor(normal, shading_normal, bounce_dir)
+            });
 
-                path_weight *= bsdf * shadow_terminator / pdf;
+            path_weight *= bsdf * shadow_terminator / pdf;
 
-                let continue_prob = path_weight.max_value().max(1.0);
+            let continue_prob = path_weight.max_value().max(1.0);
 
-                if thread_rng().gen::<f32>() < continue_prob {
-                    path_weight /= continue_prob;
-                } else {
-                    break;
-                }
-
-                ray = Ray {
-                    origin: offset_hit_pos,
-                    direction: bounce_dir,
-                };
+            if thread_rng().gen::<f32>() < continue_prob {
+                path_weight /= continue_prob;
             } else {
-                result += path_weight * self.environment.sample(ray.direction);
                 break;
             }
+
+            ray = Ray {
+                origin: offset_hit_pos,
+                direction: bounce_dir,
+            };
 
             depth += 1;
         }

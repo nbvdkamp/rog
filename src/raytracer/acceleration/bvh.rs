@@ -80,39 +80,38 @@ impl BoundingVolumeHierarchy {
             let left_bounds;
             let right_bounds;
 
-            if let Node::Inner {
+            let Node::Inner {
                 left_child,
                 right_child,
                 bounds,
-            } = node
-            {
-                let axes_to_search = [Axis::from_index(depth)];
-                match surface_area_heuristic_bvh(triangle_bounds, triangle_indices, *bounds, &axes_to_search) {
-                    SurfaceAreaHeuristicResultBvh::MakeLeaf { mut indices } => {
-                        left_indices = indices.split_off(indices.len() / 2);
-                        right_indices = indices;
-                        left_is_leaf = true;
-                        right_is_leaf = true;
-                    }
-                    SurfaceAreaHeuristicResultBvh::MakeInner {
-                        left_indices: left,
-                        right_indices: right,
-                    } => {
-                        left_indices = left;
-                        right_indices = right;
-                        left_is_leaf = left_indices.len() < 2;
-                        right_is_leaf = right_indices.len() < 2;
-                    }
-                };
-
-                left_bounds = compute_bounding_box_triangle_indexed(triangle_bounds, &left_indices);
-                right_bounds = compute_bounding_box_triangle_indexed(triangle_bounds, &right_indices);
-
-                *left_child = NonZeroU32::new(new_left_index as u32);
-                *right_child = NonZeroU32::new(new_right_index as u32);
-            } else {
+            } = node else {
                 unreachable!();
-            }
+            };
+
+            let axes_to_search = [Axis::from_index(depth)];
+            match surface_area_heuristic_bvh(triangle_bounds, triangle_indices, *bounds, &axes_to_search) {
+                SurfaceAreaHeuristicResultBvh::MakeLeaf { mut indices } => {
+                    left_indices = indices.split_off(indices.len() / 2);
+                    right_indices = indices;
+                    left_is_leaf = true;
+                    right_is_leaf = true;
+                }
+                SurfaceAreaHeuristicResultBvh::MakeInner {
+                    left_indices: left,
+                    right_indices: right,
+                } => {
+                    left_indices = left;
+                    right_indices = right;
+                    left_is_leaf = left_indices.len() < 2;
+                    right_is_leaf = right_indices.len() < 2;
+                }
+            };
+
+            left_bounds = compute_bounding_box_triangle_indexed(triangle_bounds, &left_indices);
+            right_bounds = compute_bounding_box_triangle_indexed(triangle_bounds, &right_indices);
+
+            *left_child = NonZeroU32::new(new_left_index as u32);
+            *right_child = NonZeroU32::new(new_right_index as u32);
 
             if left_is_leaf {
                 stats.count_leaf_node();

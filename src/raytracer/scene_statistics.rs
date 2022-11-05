@@ -14,7 +14,6 @@ use rayon::prelude::IntoParallelIterator;
 
 use crate::{
     color::RGBf32,
-    material::Material,
     mesh::Vertex,
     raytracer::{geometry::triangle_area, sampling::sample_coordinates_on_triangle},
     spectrum::Spectrumf32,
@@ -30,7 +29,6 @@ use super::{
     sampling::{cumulative_probabilities_from_weights, sample_item_from_cumulative_probabilities},
     triangle::Triangle,
     Raytracer,
-    Textures,
 };
 
 const RESOLUTION: usize = 1 << 4;
