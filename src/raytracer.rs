@@ -289,15 +289,12 @@ impl Raytracer {
                     }
                 };
 
-                match thread::Builder::new()
+                if let Err(e) = thread::Builder::new()
                     .name(format!("Render thread {i}"))
                     .spawn_scoped(s, work)
                 {
-                    Ok(_) => (),
-                    Err(error) => {
-                        eprintln!("Unable to spawn thread {i}, error: {error}");
-                        std::process::exit(-1);
-                    }
+                    eprintln!("Unable to spawn thread {i}: {e}");
+                    std::process::exit(-1);
                 };
             }
 
