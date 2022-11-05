@@ -28,7 +28,7 @@ mod util;
 
 use args::Args;
 use preview::app::App;
-use raytracer::Raytracer;
+use raytracer::{render_and_save, Raytracer};
 use render_settings::RenderSettings;
 use scene::Scene;
 use util::{convert_spectrum_buffer_to_rgb, save_image};
@@ -136,20 +136,5 @@ fn headless_render(args: Args) {
         raytracer.dump_visibility_data();
     }
 
-    let report_progress = |completed, total, seconds_per_tile| {
-        let time_remaining = (total - completed) as f32 * seconds_per_tile;
-        print!("\r\x1b[2K Completed {completed}/{total} tiles. Approximately {time_remaining:.2} seconds remaining");
-        std::io::stdout().flush().unwrap();
-    };
-
-    let progress = Some(raytracer::RenderProgress {
-        report_interval: Duration::from_secs(3),
-        report: Box::new(report_progress),
-    });
-
-    let (buffer, time_elapsed) = raytracer.render(&args.render_settings, progress);
-    println!("\r\x1b[2KFinished rendering in {time_elapsed} seconds");
-
-    let buffer = convert_spectrum_buffer_to_rgb(buffer);
-    save_image(&buffer, args.render_settings.image_size, args.output_file);
+    render_and_save(&raytracer, &args.render_settings, args.output_file);
 }

@@ -1,5 +1,7 @@
 use rand::{thread_rng, Rng};
 use std::{
+    io::Write,
+    path::Path,
     sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
@@ -30,6 +32,7 @@ use crate::{
     scene::Scene,
     spectrum::Spectrumf32,
     texture::{CoefficientTexture, Texture},
+    util::{convert_spectrum_buffer_to_rgb, save_image},
 };
 
 use aabb::BoundingBox;
@@ -644,6 +647,28 @@ impl Raytracer {
             e(pos.z, normal.z, p_i.z),
         )
     }
+}
+
+pub fn render_and_save<P>(raytracer: &Raytracer, render_settings: &RenderSettings, path: P)
+where
+    P: AsRef<Path>,
+{
+    let report_progress = |completed, total, seconds_per_tile| {
+        let time_remaining = (total - completed) as f32 * seconds_per_tile;
+        print!("\r\x1b[2K Completed {completed}/{total} tiles. Approximately {time_remaining:.2} seconds remaining");
+        std::io::stdout().flush().unwrap();
+    };
+
+    let progress = Some(RenderProgress {
+        report_interval: Duration::from_secs(3),
+        report: Box::new(report_progress),
+    });
+
+    let (buffer, time_elapsed) = raytracer.render(&render_settings, progress);
+    println!("\r\x1b[2KFinished rendering in {time_elapsed} seconds");
+
+    let buffer = convert_spectrum_buffer_to_rgb(buffer);
+    save_image(&buffer, render_settings.image_size, path);
 }
 
 /// From Chiang et al. 2019, 'Taming the Shadow Terminator'

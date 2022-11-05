@@ -1,5 +1,3 @@
-use std::{io::Write, time::Duration};
-
 use cgmath::{vec2, vec3, Matrix4, Rad, SquareMatrix, Vector2, Vector3};
 
 use glfw::{Action, Context as _, Key, MouseButton, SwapInterval, WindowEvent, WindowMode};
@@ -24,11 +22,11 @@ use crate::{
     args::Args,
     material::Material,
     mesh::{LuminanceVertex, VertexIndex, VertexSemantics},
-    raytracer::{Raytracer, RenderProgress},
+    raytracer::{render_and_save, Raytracer},
     render_settings::RenderSettings,
     scene::Scene,
     texture::Format,
-    util::{convert_spectrum_buffer_to_rgb, mat_to_shader_type, save_image},
+    util::mat_to_shader_type,
 };
 
 #[derive(Debug, UniformInterface)]
@@ -278,29 +276,6 @@ impl App {
         }
     }
 
-    fn render(&mut self) {
-        self.raytracer.camera = self.scene.camera;
-
-        let report_progress = |completed, total, seconds_per_tile| {
-            let time_remaining = (total - completed) as f32 * seconds_per_tile;
-            print!(
-                "\r\x1b[2K Completed {completed}/{total} tiles. Approximately {time_remaining:.2} seconds remaining"
-            );
-            std::io::stdout().flush().unwrap();
-        };
-
-        let progress = Some(RenderProgress {
-            report_interval: Duration::from_secs(3),
-            report: Box::new(report_progress),
-        });
-
-        let (buffer, time_elapsed) = self.raytracer.render(&self.render_settings, progress);
-        println!("\r\x1b[2KFinished rendering in {time_elapsed} seconds");
-
-        let buffer = convert_spectrum_buffer_to_rgb(buffer);
-        save_image(&buffer, self.render_settings.image_size, &self.output_file);
-    }
-
     fn do_movement(&mut self, delta_time: f32) -> bool {
         let moving = self.movement.moving();
 
@@ -341,7 +316,10 @@ impl App {
     fn handle_key_event(&mut self, key: Key, action: Action) {
         match action {
             Action::Press => match key {
-                Key::Enter => self.render(),
+                Key::Enter => {
+                    self.raytracer.camera = self.scene.camera;
+                    render_and_save(&self.raytracer, &self.render_settings, &self.output_file);
+                }
                 Key::W => self.movement.forward_backward.set(1),
                 Key::S => self.movement.forward_backward.set(-1),
                 Key::A => self.movement.left_right.set(1),
