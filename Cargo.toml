@@ -1,14 +1,20 @@
 [package]
-name = "rustexperiment"
+name = "renderer"
 version = "0.1.0"
 authors = ["kamp <nbvdkamp@gmail.com>"]
 edition = "2021"
+default-run = "renderer"
+
 
 [profile.release]
 debug = true
 
 [features]
 stats = []
+
+[[bin]]
+name = "bench"
+path = "src/acceleration_benchmark.rs"
 
 [dependencies]
 impl_ops = "0.1.1"

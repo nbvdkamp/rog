@@ -12,7 +12,6 @@ pub struct Args {
     pub output_file: String,
     pub render_settings: RenderSettings,
     pub headless: bool,
-    pub benchmark: bool,
 }
 
 impl Args {
@@ -53,7 +52,6 @@ impl Args {
                     .required(false),
                 arg!(-v --visibility "Sample visibility data for the scene and use it for importance sampling"),
                 arg!(--visibilitydebug "Write computed visibility related data to disk for debugging"),
-                arg!(-b --benchmark "Benchmark acceleration structures"),
             ])
             .get_matches();
 
@@ -113,7 +111,6 @@ impl Args {
             output_file,
             render_settings,
             headless: matches.get_flag("headless"),
-            benchmark: matches.get_flag("benchmark"),
         }
     }
 }

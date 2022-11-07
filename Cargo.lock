@@ -809,13 +809,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "rgb2spec"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6b554c80a03dd6ceca0a6684a195cefa63092e06616a5a246db44e74a72fcc6"
-
-[[package]]
-name = "rustexperiment"
+name = "renderer"
 version = "0.1.0"
 dependencies = [
  "arrayvec",
@@ -840,6 +834,12 @@ dependencies = [
  "serde_json",
  "static_assertions",
 ]
+
+[[package]]
+name = "rgb2spec"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6b554c80a03dd6ceca0a6684a195cefa63092e06616a5a246db44e74a72fcc6"
 
 [[package]]
 name = "ryu"
