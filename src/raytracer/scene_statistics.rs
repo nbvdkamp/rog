@@ -39,6 +39,11 @@ const MATERIAL_SAMPLES: usize = 128;
 
 type Visibility = u8;
 
+pub struct Distribution {
+    pub probabilities: Spectrumf32,
+    pub cumulative_probabilities: Spectrumf32,
+}
+
 const_assert!(Visibility::MAX as usize >= VISIBILITY_SAMPLES);
 
 pub struct SceneStatistics {
@@ -47,6 +52,7 @@ pub struct SceneStatistics {
     voxel_extent: Vector3<f32>,
     visibility: Vec<Visibility>,
     materials: Vec<Option<Spectrumf32>>,
+    pub spectral_distributions: Vec<Option<Distribution>>,
 }
 
 impl SceneStatistics {
@@ -59,6 +65,7 @@ impl SceneStatistics {
             voxel_extent: scene_extent / RESOLUTION as f32,
             visibility: Vec::new(),
             materials: Vec::new(),
+            spectral_distributions: Vec::new(),
         }
     }
 
@@ -166,7 +173,7 @@ impl SceneStatistics {
         }
     }
 
-    fn get_voxel_index(&self, point: Point3<f32>) -> usize {
+    pub fn get_voxel_index(&self, point: Point3<f32>) -> usize {
         let v = self.get_grid_position(point);
         v.x + v.y * RESOLUTION + v.z * RESOLUTION * RESOLUTION
     }
@@ -187,6 +194,54 @@ impl SceneStatistics {
         let a = first_index.max(second_index);
         let b = first_index.min(second_index);
         a + b * VOXEL_COUNT - b * (b + 1) / 2
+    }
+
+    pub fn compute_visibility_weighted_material_sums(&mut self) {
+        assert_eq!(self.visibility.len(), TABLE_SIZE);
+        assert_eq!(self.materials.len(), VOXEL_COUNT);
+
+        self.spectral_distributions = self
+            .materials
+            .iter()
+            .enumerate()
+            .map(|(i, material)| {
+                material.as_ref().map(|spectrum| {
+                    let mut neighbour_vis_sum = 0.0;
+                    let mut neigbour_material_sum = Spectrumf32::constant(0.0);
+
+                    for (j, n) in self.materials.iter().enumerate() {
+                        if i == j {
+                            continue;
+                        }
+
+                        if let Some(n_spec) = n {
+                            let vis = self.visibility[self.get_table_index(i, j)] as f32 / VISIBILITY_SAMPLES as f32;
+                            neighbour_vis_sum += vis;
+                            neigbour_material_sum += vis * *n_spec;
+                        }
+                    }
+
+                    let neighbour_materials_mean = neigbour_material_sum / neighbour_vis_sum;
+                    let base_chance = 0.1;
+                    let weights = Spectrumf32::constant(base_chance) + spectrum * neighbour_materials_mean;
+                    let probabilities = weights / weights.data.iter().sum::<f32>();
+
+                    let mut cumulative_probabilities = Spectrumf32::constant(0.0);
+                    let mut acc = 0.0;
+
+                    for i in 0..Spectrumf32::RESOLUTION {
+                        acc += probabilities.data[i];
+
+                        cumulative_probabilities.data[i] = acc;
+                    }
+
+                    Distribution {
+                        probabilities,
+                        cumulative_probabilities,
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
     }
 
     pub fn sample_materials(&mut self, raytracer: &Raytracer, triangle_bounds: &[BoundingBox]) {

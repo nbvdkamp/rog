@@ -40,12 +40,11 @@ use acceleration::{structure::TraceResult, Accel, AccelerationStructures};
 use bsdf::{mis2, Evaluation, Sample};
 use geometry::{ensure_valid_reflection, orthogonal_vector};
 use ray::Ray;
-use sampling::tent_sample;
+use sampling::{sample_item_from_cumulative_probabilities, tent_sample};
 use scene_statistics::SceneStatistics;
 use shadingframe::ShadingFrame;
 use triangle::Triangle;
-
-use self::working_image::WorkingImage;
+use working_image::WorkingImage;
 
 pub struct Textures {
     pub base_color_coefficients: Vec<CoefficientTexture>,
@@ -169,6 +168,8 @@ impl Raytracer {
                 "Computed material averages in {} seconds",
                 start.elapsed().as_secs_f32()
             );
+
+            stats.compute_visibility_weighted_material_sums();
 
             result.stats = Some(stats);
         }
@@ -351,13 +352,7 @@ impl Raytracer {
         let mut path_weight = Spectrumf32::constant(1.0);
         let mut ray = ray;
 
-        let mut wavelength = if image_settings.always_sample_single_wavelength {
-            Wavelength::Sampled {
-                value: CIE::LAMBDA_MIN + CIE::LAMBDA_RANGE * thread_rng().gen::<f32>(),
-            }
-        } else {
-            Wavelength::Undecided
-        };
+        let mut wavelength = Wavelength::Undecided;
 
         let num_lights = self.lights.len();
         let mut depth = 0;
@@ -381,6 +376,32 @@ impl Raytracer {
 
             let w = 1.0 - u - v;
             let hit_pos = w * verts[0].position + u * verts[1].position.to_vec() + v * verts[2].position.to_vec();
+
+            if let Wavelength::Undecided = wavelength {
+                if image_settings.always_sample_single_wavelength {
+                    let value = if let Some(stats) = &self.stats {
+                        let voxel_index = stats.get_voxel_index(hit_pos);
+
+                        let distribution = stats.spectral_distributions[voxel_index]
+                            .as_ref()
+                            .expect("voxel should have distributions");
+
+                        let i = sample_item_from_cumulative_probabilities(&distribution.cumulative_probabilities.data)
+                            .expect("data can't be empty");
+
+                        path_weight /= distribution.probabilities.data[i] * Spectrumf32::RESOLUTION as f32;
+
+                        const STEP_SIZE: f32 = CIE::LAMBDA_RANGE / Spectrumf32::RESOLUTION as f32;
+
+                        CIE::LAMBDA_MIN + STEP_SIZE * (i as f32 + thread_rng().gen::<f32>())
+                    } else {
+                        // Sample uniformly
+                        CIE::LAMBDA_MIN + CIE::LAMBDA_RANGE * thread_rng().gen::<f32>()
+                    };
+
+                    wavelength = Wavelength::Sampled { value };
+                }
+            }
 
             let has_texture_coords = verts[0].tex_coord.is_some();
 
