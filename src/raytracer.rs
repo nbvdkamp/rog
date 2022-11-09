@@ -20,6 +20,7 @@ mod sampling;
 mod scene_statistics;
 mod shadingframe;
 mod triangle;
+pub mod working_image;
 
 use crate::{
     camera::PerspectiveCamera,
@@ -28,11 +29,10 @@ use crate::{
     light::Light,
     material::Material,
     mesh::Vertex,
-    render_settings::RenderSettings,
+    render_settings::{ImageSettings, RenderSettings},
     scene::Scene,
     spectrum::Spectrumf32,
     texture::{CoefficientTexture, Texture},
-    util::{convert_spectrum_buffer_to_rgb, save_image},
 };
 
 use aabb::BoundingBox;
@@ -44,6 +44,8 @@ use sampling::tent_sample;
 use scene_statistics::SceneStatistics;
 use shadingframe::ShadingFrame;
 use triangle::Triangle;
+
+use self::working_image::WorkingImage;
 
 pub struct Textures {
     pub base_color_coefficients: Vec<CoefficientTexture>,
@@ -66,7 +68,7 @@ pub struct Raytracer {
     pub accel_structures: AccelerationStructures,
 }
 
-pub struct RenderProgress {
+pub struct RenderProgressReporting {
     pub report_interval: Duration,
     /// Completed count, total count, seconds per completed item so far
     pub report: Box<dyn Fn(usize, usize, f32)>,
@@ -184,8 +186,13 @@ impl Raytracer {
         }
     }
 
-    pub fn render(&self, settings: &RenderSettings, progress: Option<RenderProgress>) -> (Vec<Spectrumf32>, f32) {
-        let image_size = settings.image_size;
+    pub fn render(
+        &self,
+        settings: &RenderSettings,
+        reporting: Option<RenderProgressReporting>,
+        image: WorkingImage,
+    ) -> (WorkingImage, f32) {
+        let image_size = image.settings.size();
         let aspect_ratio = image_size.x as f32 / image_size.y as f32;
         let fov_factor = (self.camera.y_fov / 2.).tan();
 
@@ -195,8 +202,8 @@ impl Raytracer {
         let cam_model = self.camera.model;
         let cam_pos4 = cam_model * Vector4::new(0., 0., 0., 1.);
         let camera_pos = Point3::from_homogeneous(cam_pos4);
-        let buffer = vec![Spectrumf32::constant(0.0); image_size.x * image_size.y];
-        let buffer = Arc::new(Mutex::new(buffer));
+        let image_settings = image.settings.clone();
+        let image = Arc::new(Mutex::new(image));
 
         let tile_size = 100;
 
@@ -228,7 +235,8 @@ impl Raytracer {
 
         thread::scope(|s| {
             for i in 0..settings.thread_count {
-                let buffer = Arc::clone(&buffer);
+                let buffer = Arc::clone(&image);
+                let image_settings = image_settings.clone();
 
                 let work = move || {
                     'work: loop {
@@ -267,7 +275,7 @@ impl Raytracer {
                                         direction: dir4.truncate().normalize(),
                                     };
 
-                                    match self.radiance(ray, settings) {
+                                    match self.radiance(ray, settings, &image_settings) {
                                         RadianceResult::Spectrum(spectrum) => {
                                             color += spectrum;
                                             samples += Spectrumf32::RESOLUTION;
@@ -280,10 +288,9 @@ impl Raytracer {
                                     }
                                 }
 
-                                color /= samples as f32 / Spectrumf32::RESOLUTION as f32;
-
-                                let mut buffer = buffer.lock().unwrap();
-                                buffer[image_size.x * y + x] = color;
+                                let mut image = buffer.lock().unwrap();
+                                image.pixels[image_size.x * y + x].spectrum += color;
+                                image.pixels[image_size.x * y + x].samples += samples as u32;
                             }
                         }
                     }
@@ -298,15 +305,15 @@ impl Raytracer {
                 };
             }
 
-            if let Some(progress) = progress {
+            if let Some(reporting) = reporting {
                 while !tiles.is_empty() {
                     // We don't sleep for the progress report interval here to not wait needlessly once the render is done
                     let sleep_duration = Duration::from_millis(10);
                     thread::sleep(sleep_duration);
 
-                    if last_progress_report.elapsed() > progress.report_interval {
+                    if last_progress_report.elapsed() > reporting.report_interval {
                         let completed = total_tiles - tiles.len();
-                        (progress.report)(completed, total_tiles, start.elapsed().as_secs_f32() / completed as f32);
+                        (reporting.report)(completed, total_tiles, start.elapsed().as_secs_f32() / completed as f32);
                         last_progress_report = Instant::now();
                     }
                 }
@@ -314,10 +321,10 @@ impl Raytracer {
         });
 
         // Errors when the lock has multiple owners but the scope should guarantee that never happens
-        let lock = Arc::try_unwrap(buffer).ok().unwrap();
-        let buffer = lock.into_inner().expect("Cannot unlock buffer mutex");
+        let lock = Arc::try_unwrap(image).ok().unwrap();
+        let image = lock.into_inner().expect("Cannot unlock image mutex");
 
-        (buffer, start.elapsed().as_secs_f32())
+        (image, start.elapsed().as_secs_f32())
     }
 
     fn pixel_to_screen(
@@ -339,12 +346,12 @@ impl Raytracer {
         self.triangles.len()
     }
 
-    fn radiance(&self, ray: Ray, settings: &RenderSettings) -> RadianceResult {
+    fn radiance(&self, ray: Ray, settings: &RenderSettings, image_settings: &ImageSettings) -> RadianceResult {
         let mut result = Spectrumf32::constant(0.0);
         let mut path_weight = Spectrumf32::constant(1.0);
         let mut ray = ray;
 
-        let mut wavelength = if settings.always_sample_single_wavelength {
+        let mut wavelength = if image_settings.always_sample_single_wavelength {
             Wavelength::Sampled {
                 value: CIE::LAMBDA_MIN + CIE::LAMBDA_RANGE * thread_rng().gen::<f32>(),
             }
@@ -395,7 +402,7 @@ impl Raytracer {
                 continue;
             }
 
-            if settings.enable_dispersion && mat_sample.transmission > 0.0 {
+            if image_settings.enable_dispersion && mat_sample.transmission > 0.0 {
                 let lambda;
 
                 match wavelength {
@@ -646,7 +653,7 @@ impl Raytracer {
     }
 }
 
-pub fn render_and_save<P>(raytracer: &Raytracer, render_settings: &RenderSettings, path: P)
+pub fn render_and_save<P>(raytracer: &Raytracer, render_settings: &RenderSettings, image: WorkingImage, path: P)
 where
     P: AsRef<Path>,
 {
@@ -656,16 +663,24 @@ where
         std::io::stdout().flush().unwrap();
     };
 
-    let progress = Some(RenderProgress {
+    let progress = Some(RenderProgressReporting {
         report_interval: Duration::from_secs(3),
         report: Box::new(report_progress),
     });
 
-    let (buffer, time_elapsed) = raytracer.render(&render_settings, progress);
+    let (image, time_elapsed) = raytracer.render(&render_settings, progress, image);
     println!("\r\x1b[2KFinished rendering in {time_elapsed} seconds");
 
-    let buffer = convert_spectrum_buffer_to_rgb(buffer);
-    save_image(&buffer, render_settings.image_size, path);
+    image.save_as_rgb(path);
+
+    if let Some(path) = &render_settings.intermediate_write_path {
+        match image.write_to_file(path) {
+            Ok(()) => println!("Saved intermediate file successfully"),
+            Err(e) => {
+                eprintln!("Failed to save intermediate file: {e}");
+            }
+        };
+    }
 }
 
 /// From Chiang et al. 2019, 'Taming the Shadow Terminator'

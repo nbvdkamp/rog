@@ -1,7 +1,7 @@
 use renderer::{
     args::Args,
     preview::app::App,
-    raytracer::{render_and_save, Raytracer},
+    raytracer::{render_and_save, working_image::WorkingImage, Raytracer},
     scene::Scene,
 };
 
@@ -18,6 +18,18 @@ fn main() {
 }
 
 fn headless_render(args: Args) {
+    let image = if let Some(path) = &args.render_settings.intermediate_read_path {
+        match WorkingImage::read_from_file(path, &args.image_settings.scene_version.clone().unwrap()) {
+            Ok(image) => image,
+            Err(e) => {
+                eprintln!("An error occured while opening intermediate image: {e}");
+                std::process::exit(-1);
+            }
+        }
+    } else {
+        WorkingImage::new(args.image_settings.clone())
+    };
+
     let (scene, textures) = match Scene::load(args.scene_file) {
         Ok(scene) => scene,
         Err(message) => {
@@ -30,12 +42,12 @@ fn headless_render(args: Args) {
         &scene,
         textures,
         &[args.render_settings.accel_structure],
-        args.render_settings.use_visibility,
+        args.image_settings.use_visibility(),
     );
 
-    if args.render_settings.dump_visibility_debug_data {
+    if args.image_settings.dump_visibility_data() {
         raytracer.dump_visibility_data();
     }
 
-    render_and_save(&raytracer, &args.render_settings, args.output_file);
+    render_and_save(&raytracer, &args.render_settings, image, args.output_file);
 }

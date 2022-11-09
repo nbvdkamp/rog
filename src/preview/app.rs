@@ -22,8 +22,8 @@ use crate::{
     args::Args,
     material::Material,
     mesh::{LuminanceVertex, VertexIndex, VertexSemantics},
-    raytracer::{render_and_save, Raytracer},
-    render_settings::RenderSettings,
+    raytracer::{render_and_save, working_image::WorkingImage, Raytracer},
+    render_settings::{ImageSettings, RenderSettings},
     scene::Scene,
     texture::Format,
     util::mat_to_shader_type,
@@ -46,6 +46,7 @@ pub struct App {
     raytracer: Raytracer,
     scene: Scene,
     render_settings: RenderSettings,
+    image_settings: ImageSettings,
     output_file: String,
     movement: Movement,
 }
@@ -69,10 +70,10 @@ impl App {
             &scene,
             textures,
             &[args.render_settings.accel_structure],
-            args.render_settings.use_visibility,
+            args.image_settings.use_visibility(),
         );
 
-        if args.render_settings.dump_visibility_debug_data {
+        if args.image_settings.dump_visibility_data() {
             raytracer.dump_visibility_data();
         }
 
@@ -80,6 +81,7 @@ impl App {
             raytracer,
             scene,
             render_settings: args.render_settings,
+            image_settings: args.image_settings,
             output_file: args.output_file,
             movement: Movement::new(),
         }
@@ -318,7 +320,8 @@ impl App {
             Action::Press => match key {
                 Key::Enter => {
                     self.raytracer.camera = self.scene.camera;
-                    render_and_save(&self.raytracer, &self.render_settings, &self.output_file);
+                    let image = WorkingImage::new(self.image_settings.clone());
+                    render_and_save(&self.raytracer, &self.render_settings, image, &self.output_file);
                 }
                 Key::W => self.movement.forward_backward.set(1),
                 Key::S => self.movement.forward_backward.set(-1),

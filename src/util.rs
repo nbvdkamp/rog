@@ -3,10 +3,6 @@ use std::path::Path;
 use cgmath::{Matrix4, Point3, Vector2, Vector3};
 use luminance_front::shader::types::Mat44;
 
-use rayon::prelude::*;
-
-use crate::spectrum::Spectrumf32;
-
 use super::color::{RGBf32, RGBu8};
 
 pub trait ElementWiseMinMax {
@@ -77,7 +73,7 @@ where
     };
 
     let save_result = image::save_buffer(
-        path,
+        &path,
         byte_buffer,
         image_size.x as u32,
         image_size.y as u32,
@@ -85,32 +81,9 @@ where
     );
 
     match save_result {
-        Ok(_) => println!("File was saved succesfully"),
+        Ok(_) => println!("File was saved succesfully: {}", path.as_ref().display()),
         Err(e) => println!("Couldn't save file: {}", e),
     }
-}
-
-pub fn convert_spectrum_buffer_to_rgb(buffer: Vec<Spectrumf32>) -> Vec<RGBf32> {
-    buffer
-        .into_par_iter()
-        // .map(|spectrum| spectrum.to_srgb().linear_to_srgb())
-        .map(|spectrum| {
-            if spectrum.data[0] == 69.0 {
-                return RGBf32::new(0.0, 1.0, 1.0);
-            }
-
-            if spectrum.data.iter().any(|v| v.is_nan()) {
-                return RGBf32::new(1.0, 0.5, 0.0);
-            }
-
-            let c = spectrum.to_srgb().linear_to_srgb();
-            if c.has_nan_component() {
-                RGBf32::new(0.0, 1.0, 0.0)
-            } else {
-                c
-            }
-        })
-        .collect()
 }
 
 pub mod bit_hacks {

@@ -18,6 +18,7 @@ pub mod preview;
 pub mod raytracer;
 pub mod render_settings;
 pub mod scene;
+pub mod scene_version;
 pub mod spectrum;
 pub mod texture;
 pub mod util;

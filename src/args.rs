@@ -1,9 +1,8 @@
-use std::str::FromStr;
+use std::{path::PathBuf, str::FromStr};
 
-use crate::raytracer::acceleration::Accel;
+use crate::{raytracer::acceleration::Accel, scene_version::SceneVersion};
 
-use super::render_settings::RenderSettings;
-use cgmath::vec2;
+use super::render_settings::{ImageSettings, RenderSettings, VisibilitySettings};
 use clap::{arg, value_parser, Command};
 use image::ImageFormat;
 
@@ -11,6 +10,7 @@ pub struct Args {
     pub scene_file: String,
     pub output_file: String,
     pub render_settings: RenderSettings,
+    pub image_settings: ImageSettings,
     pub headless: bool,
 }
 
@@ -50,6 +50,12 @@ impl Args {
                 arg!(--alwayssamplewavelength "Sample only one wavelength per path, even if it doesn't encounter any dispersive surfaces"),
                 arg!(-a --accel <NAME> "Name of acceleration structure to use (in snake_case)")
                     .required(false),
+                arg!(-w --"write-intermediate" <FILE> "Write intermediate image to file to be able to continue rendering later")
+                    .value_parser(value_parser!(PathBuf))
+                    .required(false),
+                arg!(-r --"read-intermediate" <FILE> "Read from intermediate image file to resume rendering")
+                    .value_parser(value_parser!(PathBuf))
+                    .required(false),
                 arg!(-v --visibility "Sample visibility data for the scene and use it for importance sampling"),
                 arg!(--visibilitydebug "Write computed visibility related data to disk for debugging"),
             ])
@@ -88,7 +94,7 @@ impl Args {
 
         let use_visibility = matches.get_flag("visibility");
 
-        let dump_visibility_debug_data = if matches.get_flag("visibilitydebug") && !use_visibility {
+        let dump_debug_data = if matches.get_flag("visibilitydebug") && !use_visibility {
             eprintln!("Can't dump visibility data if using visibility data is not enabled");
             std::process::exit(-1);
         } else {
@@ -97,19 +103,38 @@ impl Args {
 
         let render_settings = RenderSettings {
             samples_per_pixel: read_usize("samples", 1),
-            image_size: vec2(read_usize("width", 1920), read_usize("height", 1080)),
             thread_count: read_usize("threads", default_thread_count).clamp(1, 2048),
             accel_structure,
+            intermediate_read_path: matches.get_one::<PathBuf>("read-intermediate").map(|p| p.clone()),
+            intermediate_write_path: matches.get_one::<PathBuf>("write-intermediate").map(|p| p.clone()),
+        };
+
+        let scene_version = match SceneVersion::new(scene_file.clone()) {
+            Ok(scene_version) => Some(scene_version),
+            Err(e) => {
+                eprintln!("Can't read scene file: {e}");
+                std::process::exit(-1);
+            }
+        };
+
+        let image_settings = ImageSettings {
+            width: read_usize("width", 1920),
+            height: read_usize("height", 1080),
             enable_dispersion: !matches.get_flag("nodispersion"),
             always_sample_single_wavelength: matches.get_flag("alwayssamplewavelength"),
-            use_visibility,
-            dump_visibility_debug_data,
+            visibility: if use_visibility {
+                Some(VisibilitySettings { dump_debug_data })
+            } else {
+                None
+            },
+            scene_version,
         };
 
         Args {
             scene_file,
             output_file,
             render_settings,
+            image_settings,
             headless: matches.get_flag("headless"),
         }
     }

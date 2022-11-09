@@ -1,9 +1,8 @@
-use cgmath::vec2;
 #[cfg(feature = "stats")]
 use renderer::raytracer::acceleration::statistics::Statistics;
 use renderer::{
-    raytracer::{acceleration::Accel, Raytracer},
-    render_settings::RenderSettings,
+    raytracer::{acceleration::Accel, working_image::WorkingImage, Raytracer},
+    render_settings::{ImageSettings, RenderSettings},
     scene::Scene,
 };
 
@@ -51,16 +50,24 @@ fn main() {
         for &structure in &accel_structures_to_construct {
             let settings = RenderSettings {
                 samples_per_pixel: samples,
-                image_size: vec2(width, height),
                 thread_count,
                 accel_structure: structure,
-                enable_dispersion: true,
-                always_sample_single_wavelength: false,
-                use_visibility: false,
-                dump_visibility_debug_data: false,
+                intermediate_read_path: None,
+                intermediate_write_path: None,
             };
 
-            let (_, time_elapsed) = raytracer.render(&settings, None);
+            let image_settings = ImageSettings {
+                width,
+                height,
+                enable_dispersion: true,
+                always_sample_single_wavelength: false,
+                visibility: None,
+                scene_version: None,
+            };
+
+            let image = WorkingImage::new(image_settings);
+
+            let (_, time_elapsed) = raytracer.render(&settings, None, image);
             let name = raytracer.accel_structures.get(structure).get_name();
 
             #[cfg(feature = "stats")]
