@@ -7,8 +7,8 @@ use clap::{arg, value_parser, Command};
 use image::ImageFormat;
 
 pub struct Args {
-    pub scene_file: String,
-    pub output_file: String,
+    pub scene_file: PathBuf,
+    pub output_file: PathBuf,
     pub render_settings: RenderSettings,
     pub image_settings: ImageSettings,
     pub headless: bool,
@@ -25,6 +25,7 @@ impl Args {
             .args(&[
                 arg!(-f --file <FILE> "Path to .gltf or .glb file to render")
                     .default_value("res/scenes/simple_raytracer_test.glb")
+                    .value_parser(value_parser!(PathBuf))
                     .required(false),
                 arg!(-H --headless "Run without a window"),
                 arg!(--samples --spp <NUM> "Number of samples per pixel")
@@ -41,6 +42,7 @@ impl Args {
                     .required(false),
                 arg!(-o --output <FILE> "Path/filename where image should be saved")
                     .default_value("output/result.png")
+                    .value_parser(value_parser!(PathBuf))
                     .required(false),
                 arg!(-t --threads <NUM> "Number of threads to use for rendering (default is based on available threads)")
                     .value_parser(value_parser!(usize))
@@ -73,8 +75,8 @@ impl Args {
             }
         };
 
-        let scene_file = matches.get_one::<String>("file").expect("defaulted").clone();
-        let output_file = matches.get_one::<String>("output").expect("defaulted").clone();
+        let scene_file = matches.get_one::<PathBuf>("file").expect("defaulted").clone();
+        let output_file = matches.get_one::<PathBuf>("output").expect("defaulted").clone();
 
         if let Err(e) = ImageFormat::from_path(&output_file) {
             eprintln!("Invalid output file specified:\n\t{e}");

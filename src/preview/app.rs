@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use cgmath::{vec2, vec3, Matrix4, Rad, SquareMatrix, Vector2, Vector3};
 
 use glfw::{Action, Context as _, Key, MouseButton, SwapInterval, WindowEvent, WindowMode};
@@ -47,7 +49,7 @@ pub struct App {
     scene: Scene,
     render_settings: RenderSettings,
     image_settings: ImageSettings,
-    output_file: String,
+    output_file: PathBuf,
     movement: Movement,
 }
 
