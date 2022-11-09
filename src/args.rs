@@ -46,8 +46,8 @@ impl Args {
                     .value_parser(value_parser!(usize))
                     .default_value(format!("{}", default_thread_count))
                     .required(false),
-                arg!(--nodispersion "Disable dispersion"),
-                arg!(--alwayssamplewavelength "Sample only one wavelength per path, even if it doesn't encounter any dispersive surfaces"),
+                arg!(--"no-dispersion" "Disable dispersion"),
+                arg!(--"always-sample-wavelength" "Sample only one wavelength per path, even if it doesn't encounter any dispersive surfaces"),
                 arg!(-a --accel <NAME> "Name of acceleration structure to use (in snake_case)")
                     .required(false),
                 arg!(-w --"write-intermediate" <FILE> "Write intermediate image to file to be able to continue rendering later")
@@ -57,7 +57,7 @@ impl Args {
                     .value_parser(value_parser!(PathBuf))
                     .required(false),
                 arg!(-v --visibility "Sample visibility data for the scene and use it for importance sampling"),
-                arg!(--visibilitydebug "Write computed visibility related data to disk for debugging"),
+                arg!(--"visibility-debug" "Write computed visibility related data to disk for debugging"),
             ])
             .get_matches();
 
@@ -94,11 +94,11 @@ impl Args {
 
         let use_visibility = matches.get_flag("visibility");
 
-        let dump_debug_data = if matches.get_flag("visibilitydebug") && !use_visibility {
+        let dump_debug_data = if matches.get_flag("visibility-debug") && !use_visibility {
             eprintln!("Can't dump visibility data if using visibility data is not enabled");
             std::process::exit(-1);
         } else {
-            matches.get_flag("visibilitydebug")
+            matches.get_flag("visibility-debug")
         };
 
         let render_settings = RenderSettings {
@@ -120,8 +120,8 @@ impl Args {
         let image_settings = ImageSettings {
             width: read_usize("width", 1920),
             height: read_usize("height", 1080),
-            enable_dispersion: !matches.get_flag("nodispersion"),
-            always_sample_single_wavelength: matches.get_flag("alwayssamplewavelength"),
+            enable_dispersion: !matches.get_flag("no-dispersion"),
+            always_sample_single_wavelength: matches.get_flag("always-sample-wavelength"),
             visibility: if use_visibility {
                 Some(VisibilitySettings { dump_debug_data })
             } else {
