@@ -1,8 +1,9 @@
 use super::{axis::Axis, Ray};
 use crate::util::*;
 use cgmath::{ElementWise, EuclideanSpace, Point3, Vector3};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct BoundingBox {
     pub min: Point3<f32>,
     pub max: Point3<f32>,

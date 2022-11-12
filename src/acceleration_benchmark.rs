@@ -34,7 +34,7 @@ fn main() {
             }
         };
 
-        let raytracer = Raytracer::new(&scene, textures, &accel_structures_to_construct, false);
+        let raytracer = Raytracer::new(&scene, textures, &accel_structures_to_construct, false, None);
 
         println!("Filename: {scene_name}, tris: {}", raytracer.get_num_tris());
         #[cfg(feature = "stats")]

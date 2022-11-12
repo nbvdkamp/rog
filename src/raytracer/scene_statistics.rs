@@ -1,11 +1,14 @@
 use std::{
+    fmt,
     fs::File,
-    io::{Result, Write},
+    io::{Read, Write},
     path::Path,
 };
 
 use arrayvec::ArrayVec;
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rayon::iter::ParallelIterator;
+use serde::{Deserialize, Serialize};
 use static_assertions::const_assert;
 
 use cgmath::{point2, point3, vec2, vec3, ElementWise, Point2, Point3, Vector3};
@@ -16,8 +19,9 @@ use crate::{
     color::RGBf32,
     mesh::Vertex,
     raytracer::{geometry::triangle_area, sampling::sample_coordinates_on_triangle},
+    scene_version::SceneVersion,
     spectrum::Spectrumf32,
-    util::save_image,
+    util::{align_to, save_image},
 };
 
 use super::{
@@ -37,6 +41,16 @@ const TABLE_SIZE: usize = (VOXEL_COUNT * (VOXEL_COUNT + 1)) / 2;
 const VISIBILITY_SAMPLES: usize = 16;
 const MATERIAL_SAMPLES: usize = 128;
 
+// File format
+const FORMAT_VERSION: u32 = 1;
+const TAG: &str = "SCENE_STATISTICS";
+const JSON_TAG: &str = "JSON";
+const VISIBILITY_TAG: &str = "VIS ";
+const MATERIALS_TAG: &str = "MATS";
+static_assertions::const_assert_eq!(TAG.len() % 4, 0);
+static_assertions::const_assert_eq!(JSON_TAG.len() % 4, 0);
+static_assertions::const_assert_eq!(VISIBILITY_TAG.len() % 4, 0);
+
 type Visibility = u8;
 
 pub struct Distribution {
@@ -46,23 +60,29 @@ pub struct Distribution {
 
 const_assert!(Visibility::MAX as usize >= VISIBILITY_SAMPLES);
 
+#[derive(Serialize, Deserialize)]
 pub struct SceneStatistics {
     scene_bounds: BoundingBox,
     scene_extent: Vector3<f32>,
     voxel_extent: Vector3<f32>,
+    scene_version: SceneVersion,
+    #[serde(skip)]
     visibility: Vec<Visibility>,
+    #[serde(skip)]
     materials: Vec<Option<Spectrumf32>>,
+    #[serde(skip)]
     pub spectral_distributions: Vec<Option<Distribution>>,
 }
 
 impl SceneStatistics {
-    pub fn new(scene_bounds: BoundingBox) -> Self {
+    pub fn new(scene_bounds: BoundingBox, scene_version: SceneVersion) -> Self {
         let scene_extent = scene_bounds.max - scene_bounds.min;
 
         SceneStatistics {
             scene_bounds,
             scene_extent,
             voxel_extent: scene_extent / RESOLUTION as f32,
+            scene_version,
             visibility: Vec::new(),
             materials: Vec::new(),
             spectral_distributions: Vec::new(),
@@ -118,7 +138,7 @@ impl SceneStatistics {
         save_image(&buffer, image_size, path);
     }
 
-    pub fn dump_materials_as_rgb<P>(&self, path: P) -> Result<()>
+    pub fn dump_materials_as_rgb<P>(&self, path: P) -> Result<(), std::io::Error>
     where
         P: AsRef<Path>,
     {
@@ -331,6 +351,127 @@ impl SceneStatistics {
 
         tris_per_voxel
     }
+
+    pub fn write_to_file<P>(&self, path: P) -> Result<(), Error>
+    where
+        P: AsRef<Path>,
+    {
+        use Error::{Serde, IO};
+        let mut file = File::create(path).map_err(IO)?;
+
+        let json = serde_json::to_string(self).map_err(Serde)?;
+        let bytes_to_pad = align_to(json.len(), 4) - json.len();
+        let json = format!("{}{}", json, " ".repeat(bytes_to_pad));
+
+        let visibility_size = self.visibility.len() * std::mem::size_of::<Visibility>();
+        let materials_size = self.materials.len() * std::mem::size_of::<Option<Spectrumf32>>();
+
+        let size = FileHeader::SIZE
+            + JsonSectionHeader::SIZE
+            + json.len()
+            + VisibilitySectionHeader::SIZE
+            + visibility_size
+            + MaterialSectionHeader::SIZE
+            + materials_size;
+
+        let header = FileHeader {
+            format_version: FORMAT_VERSION,
+            total_size: size as u64,
+            resolution: RESOLUTION as u32,
+            visibility_samples: VISIBILITY_SAMPLES as u32,
+            material_samples: MATERIAL_SAMPLES as u32,
+        };
+
+        let json_header = JsonSectionHeader {
+            size: json.len() as u64,
+        };
+
+        let visibility_header = VisibilitySectionHeader {
+            size: visibility_size as u64,
+        };
+
+        let materials_header = MaterialSectionHeader {
+            size: materials_size as u64,
+            spectrum_resolution: Spectrumf32::RESOLUTION as u64,
+        };
+
+        let materials_buffer: &[u8] =
+            unsafe { std::slice::from_raw_parts(self.materials.as_ptr() as *const u8, materials_size) };
+
+        header.to_writer(&mut file).map_err(IO)?;
+        json_header.to_writer(&mut file).map_err(IO)?;
+
+        file.write_all(json.as_bytes()).map_err(IO)?;
+
+        visibility_header.to_writer(&mut file).map_err(IO)?;
+        file.write_all(&self.visibility).map_err(IO)?;
+
+        materials_header.to_writer(&mut file).map_err(IO)?;
+        file.write_all(materials_buffer).map_err(IO)?;
+
+        Ok(())
+    }
+
+    pub fn read_from_file<P>(path: P, expected_scene_version: &SceneVersion) -> Result<Self, Error>
+    where
+        P: AsRef<Path>,
+    {
+        use Error::{Serde, IO};
+        let mut file = File::open(path).map_err(IO)?;
+
+        let header = FileHeader::from_reader(&mut file)?;
+
+        let json_header = JsonSectionHeader::from_reader(&mut file)?;
+
+        //Read json
+        let mut json_buffer = vec![0; json_header.size as usize];
+        file.read_exact(&mut json_buffer).map_err(IO)?;
+
+        let mut stats = serde_json::from_slice::<Self>(&json_buffer).map_err(Serde)?;
+
+        if stats.scene_version.hash != expected_scene_version.hash {
+            return Err(Error::SceneMismatch);
+        }
+
+        let expected_voxel_count = (header.resolution * header.resolution * header.resolution) as usize;
+        let expected_vis_count = (expected_voxel_count * (expected_voxel_count + 1)) / 2;
+
+        let visibility_header = VisibilitySectionHeader::from_reader(&mut file)?;
+
+        let expected_vis_size = expected_vis_count * std::mem::size_of::<Visibility>();
+        let expected_mats_size = expected_voxel_count * std::mem::size_of::<Option<Spectrumf32>>();
+
+        if expected_vis_size != visibility_header.size as usize {
+            return Err(Error::VisibilitySectionSizeMismatch);
+        }
+
+        stats.visibility = vec![0; expected_vis_count];
+
+        file.read_exact(&mut stats.visibility).map_err(IO)?;
+
+        let materials_header = MaterialSectionHeader::from_reader(&mut file)?;
+
+        let spectrum_resolution = materials_header.spectrum_resolution as usize;
+
+        if spectrum_resolution != Spectrumf32::RESOLUTION {
+            return Err(Error::SpectrumResolutionMismatch(spectrum_resolution));
+        }
+
+        stats.materials = vec![None; expected_voxel_count];
+
+        unsafe {
+            file.read_exact(std::slice::from_raw_parts_mut(
+                stats.materials.as_ptr() as *mut u8,
+                expected_mats_size,
+            ))
+            .map_err(IO)?;
+        }
+
+        // These aren't stored because we can just recompute them
+        stats.compute_visibility_weighted_material_sums();
+
+        Ok(stats)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -501,4 +642,216 @@ fn sample_triangle_materials(tris: Vec<ClippedTri>, raytracer: &Raytracer) -> Op
     }
 
     Some(spectrum / MATERIAL_SAMPLES as f32)
+}
+
+pub enum Error {
+    IO(std::io::Error),
+    Serde(serde_json::Error),
+    TagMismatch { expected: Vec<u8>, actual: Vec<u8> },
+    FormatVersionMismatch(u32),
+    SceneMismatch,
+    SpectrumResolutionMismatch(usize),
+    VisibilityResolutionMismatch(usize),
+    VisibilitySamplesMismatch(usize),
+    MaterialSamplesMismatch(usize),
+    VisibilitySectionSizeMismatch,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Error::IO(e) => return e.fmt(f),
+                Error::Serde(e) => return e.fmt(f),
+                Error::TagMismatch { expected, actual } => format!("wrong binary tag found, expected {expected:?} but got {actual:?}"),
+                Error::FormatVersionMismatch(version) =>
+                    format!("current format version ({}) does not match the version of the file ({version})", FORMAT_VERSION),
+                Error::SceneMismatch => "hash of provided scene file does not match that of the scene used to render itermediate image".to_string(),
+                Error::SpectrumResolutionMismatch(resolution) =>
+                    format!("current spectrum resolution ({}) does not match the resolution used when rendering the intermediate image ({resolution})", Spectrumf32::RESOLUTION),
+                Error::VisibilityResolutionMismatch(resolution) =>
+                    format!("current visibility resolution ({}) does not match the resolution used when rendering the intermediate image ({resolution})", RESOLUTION),
+                Error::VisibilitySamplesMismatch(samples) =>
+                    format!("current visibility sample count ({}) does not match the count used when rendering the intermediate image ({samples})", VISIBILITY_SAMPLES),
+                Error::MaterialSamplesMismatch(samples) =>
+                    format!("current material sample count ({}) does not match the count used when rendering the intermediate image ({samples})", MATERIAL_SAMPLES),
+                Error::VisibilitySectionSizeMismatch => "size of visibility section does not match the expected value".to_string(),
+            }
+        )
+    }
+}
+
+struct FileHeader {
+    pub format_version: u32,
+    pub total_size: u64,
+    pub resolution: u32,
+    pub visibility_samples: u32,
+    pub material_samples: u32,
+}
+
+impl FileHeader {
+    const SIZE: usize = TAG.len() + std::mem::size_of::<Self>();
+
+    pub fn to_writer<W>(self, writer: &mut W) -> Result<(), std::io::Error>
+    where
+        W: Write,
+    {
+        write!(writer, "{}", TAG)?;
+        writer.write_u32::<LittleEndian>(self.format_version)?;
+        writer.write_u64::<LittleEndian>(self.total_size)?;
+        writer.write_u32::<LittleEndian>(self.resolution)?;
+        writer.write_u32::<LittleEndian>(self.visibility_samples)?;
+        writer.write_u32::<LittleEndian>(self.material_samples)?;
+        Ok(())
+    }
+
+    pub fn from_reader<R: Read>(reader: &mut R) -> Result<Self, Error> {
+        use Error::IO;
+        let mut tag = [0; TAG.len()];
+        reader.read_exact(&mut tag).map_err(IO)?;
+
+        if tag == TAG.as_bytes() {
+            let format_version = reader.read_u32::<LittleEndian>().map_err(IO)?;
+            if format_version != FORMAT_VERSION {
+                return Err(Error::FormatVersionMismatch(format_version));
+            }
+
+            let total_size = reader.read_u64::<LittleEndian>().map_err(IO)?;
+
+            let resolution = reader.read_u32::<LittleEndian>().map_err(IO)?;
+            if resolution as usize != RESOLUTION {
+                return Err(Error::VisibilityResolutionMismatch(resolution as usize));
+            }
+
+            let visibility_samples = reader.read_u32::<LittleEndian>().map_err(IO)?;
+            if visibility_samples as usize != VISIBILITY_SAMPLES {
+                return Err(Error::VisibilitySamplesMismatch(resolution as usize));
+            }
+
+            let material_samples = reader.read_u32::<LittleEndian>().map_err(IO)?;
+            if material_samples as usize != MATERIAL_SAMPLES {
+                return Err(Error::MaterialSamplesMismatch(resolution as usize));
+            }
+
+            Ok(Self {
+                format_version,
+                total_size,
+                resolution,
+                visibility_samples,
+                material_samples,
+            })
+        } else {
+            Err(Error::TagMismatch {
+                expected: TAG.as_bytes().to_vec(),
+                actual: tag.to_vec(),
+            })
+        }
+    }
+}
+
+struct JsonSectionHeader {
+    pub size: u64,
+}
+
+impl JsonSectionHeader {
+    const SIZE: usize = JSON_TAG.len() + std::mem::size_of::<Self>();
+
+    pub fn to_writer<W>(self, writer: &mut W) -> Result<(), std::io::Error>
+    where
+        W: Write,
+    {
+        write!(writer, "{}", JSON_TAG)?;
+        writer.write_u64::<LittleEndian>(self.size)?;
+        Ok(())
+    }
+
+    pub fn from_reader<R: Read>(reader: &mut R) -> Result<Self, Error> {
+        use Error::IO;
+        let mut tag = [0; JSON_TAG.len()];
+        reader.read_exact(&mut tag).map_err(IO)?;
+
+        if tag == JSON_TAG.as_bytes() {
+            let size = reader.read_u64::<LittleEndian>().map_err(IO)?;
+            Ok(Self { size })
+        } else {
+            Err(Error::TagMismatch {
+                expected: TAG.as_bytes().to_vec(),
+                actual: tag.to_vec(),
+            })
+        }
+    }
+}
+
+struct VisibilitySectionHeader {
+    pub size: u64,
+}
+
+impl VisibilitySectionHeader {
+    const SIZE: usize = VISIBILITY_TAG.len() + std::mem::size_of::<Self>();
+
+    pub fn to_writer<W>(self, writer: &mut W) -> Result<(), std::io::Error>
+    where
+        W: Write,
+    {
+        write!(writer, "{}", VISIBILITY_TAG)?;
+        writer.write_u64::<LittleEndian>(self.size)?;
+        Ok(())
+    }
+
+    pub fn from_reader<R: Read>(reader: &mut R) -> Result<Self, Error> {
+        use Error::IO;
+        let mut tag = [0; VISIBILITY_TAG.len()];
+        reader.read_exact(&mut tag).map_err(IO)?;
+
+        if tag == VISIBILITY_TAG.as_bytes() {
+            let size = reader.read_u64::<LittleEndian>().map_err(IO)?;
+            Ok(Self { size })
+        } else {
+            Err(Error::TagMismatch {
+                expected: VISIBILITY_TAG.as_bytes().to_vec(),
+                actual: tag.to_vec(),
+            })
+        }
+    }
+}
+
+struct MaterialSectionHeader {
+    pub size: u64,
+    pub spectrum_resolution: u64,
+}
+
+impl MaterialSectionHeader {
+    const SIZE: usize = MATERIALS_TAG.len() + std::mem::size_of::<Self>();
+
+    pub fn to_writer<W>(self, writer: &mut W) -> Result<(), std::io::Error>
+    where
+        W: Write,
+    {
+        write!(writer, "{}", MATERIALS_TAG)?;
+        writer.write_u64::<LittleEndian>(self.size)?;
+        writer.write_u64::<LittleEndian>(self.spectrum_resolution)?;
+        Ok(())
+    }
+
+    pub fn from_reader<R: Read>(reader: &mut R) -> Result<Self, Error> {
+        use Error::IO;
+        let mut tag = [0; MATERIALS_TAG.len()];
+        reader.read_exact(&mut tag).map_err(IO)?;
+
+        if tag == MATERIALS_TAG.as_bytes() {
+            let size = reader.read_u64::<LittleEndian>().map_err(IO)?;
+            let spectrum_resolution = reader.read_u64::<LittleEndian>().map_err(IO)?;
+            Ok(Self {
+                size,
+                spectrum_resolution,
+            })
+        } else {
+            Err(Error::TagMismatch {
+                expected: MATERIALS_TAG.as_bytes().to_vec(),
+                actual: tag.to_vec(),
+            })
+        }
+    }
 }

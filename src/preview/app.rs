@@ -73,6 +73,7 @@ impl App {
             textures,
             &[args.render_settings.accel_structure],
             args.image_settings.use_visibility(),
+            args.image_settings.scene_version.clone(),
         );
 
         if args.image_settings.dump_visibility_data() {

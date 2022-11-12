@@ -15,7 +15,7 @@ use crate::{
     render_settings::ImageSettings,
     scene_version::SceneVersion,
     spectrum::Spectrumf32,
-    util::save_image,
+    util::{align_to, save_image},
 };
 
 const FORMAT_VERSION: u32 = 1;
@@ -326,11 +326,4 @@ impl PixelsSectionHeader {
             })
         }
     }
-}
-
-fn align_to(x: usize, alignment: usize) -> usize {
-    assert!(alignment.count_ones() == 1);
-
-    let a = alignment - 1;
-    (x + a) & !a
 }

@@ -95,3 +95,10 @@ pub mod bit_hacks {
         x.to_bits() as i32
     }
 }
+
+pub fn align_to(x: usize, alignment: usize) -> usize {
+    assert!(alignment.count_ones() == 1);
+
+    let a = alignment - 1;
+    (x + a) & !a
+}

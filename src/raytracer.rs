@@ -1,7 +1,7 @@
 use rand::{thread_rng, Rng};
 use std::{
     io::Write,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
@@ -29,8 +29,10 @@ use crate::{
     light::Light,
     material::Material,
     mesh::Vertex,
+    raytracer::scene_statistics::Error,
     render_settings::{ImageSettings, RenderSettings},
     scene::Scene,
+    scene_version::SceneVersion,
     spectrum::Spectrumf32,
     texture::{CoefficientTexture, Texture},
 };
@@ -88,6 +90,7 @@ impl Raytracer {
         textures: Textures,
         accel_structures_to_construct: &[Accel],
         use_visibility: bool,
+        scene_version: Option<SceneVersion>,
     ) -> Self {
         let mut verts = Vec::new();
         let mut triangles = Vec::new();
@@ -156,20 +159,49 @@ impl Raytracer {
         );
 
         if use_visibility {
-            let mut stats = SceneStatistics::new(scene_bounds);
+            let scene_version = scene_version.expect("scene_version should be passed when using visibility data");
 
-            let start = Instant::now();
-            stats.sample_visibility(&result, accel_structures_to_construct[0]);
-            println!("Computed visibility map in {} seconds", start.elapsed().as_secs_f32());
+            let dir = PathBuf::from("output/cache/");
+            let mut path = dir.clone();
 
-            let start = Instant::now();
-            stats.sample_materials(&result, &triangle_bounds);
-            println!(
-                "Computed material averages in {} seconds",
-                start.elapsed().as_secs_f32()
+            path.push(
+                scene_version
+                    .filepath
+                    .file_name()
+                    .expect("scene file should have a name"),
             );
+            path.set_extension("vis");
 
-            stats.compute_visibility_weighted_material_sums();
+            let cached_stats = SceneStatistics::read_from_file(path.clone(), &scene_version);
+
+            let stats = if let Ok(stats) = cached_stats {
+                stats
+            } else {
+                // If we can't find matching cached visibilty data, compute it
+                let mut stats = SceneStatistics::new(scene_bounds, scene_version);
+
+                let start = Instant::now();
+                stats.sample_visibility(&result, accel_structures_to_construct[0]);
+                println!("Computed visibility map in {} seconds", start.elapsed().as_secs_f32());
+
+                let start = Instant::now();
+                stats.sample_materials(&result, &triangle_bounds);
+                println!(
+                    "Computed material averages in {} seconds",
+                    start.elapsed().as_secs_f32()
+                );
+
+                stats.compute_visibility_weighted_material_sums();
+
+                if let Err(e) = std::fs::create_dir_all(dir)
+                    .map_err(|e| Error::IO(e))
+                    .and(stats.write_to_file(path))
+                {
+                    println!("Writing visibility data to file failed: {e}");
+                }
+
+                stats
+            };
 
             result.stats = Some(stats);
         }
