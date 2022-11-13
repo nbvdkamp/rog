@@ -103,12 +103,21 @@ impl Args {
             matches.get_flag("visibility-debug")
         };
 
+        let headless = matches.get_flag("headless");
+        let intermediate_read_path = matches.get_one::<PathBuf>("read-intermediate").map(|p| p.clone());
+        let intermediate_write_path = matches.get_one::<PathBuf>("write-intermediate").map(|p| p.clone());
+
+        if !headless && intermediate_read_path.is_some() {
+            eprintln!("Resuming rendering currently only works in --headless mode");
+            std::process::exit(-1);
+        }
+
         let render_settings = RenderSettings {
             samples_per_pixel: read_usize("samples", 1),
             thread_count: read_usize("threads", default_thread_count).clamp(1, 2048),
             accel_structure,
-            intermediate_read_path: matches.get_one::<PathBuf>("read-intermediate").map(|p| p.clone()),
-            intermediate_write_path: matches.get_one::<PathBuf>("write-intermediate").map(|p| p.clone()),
+            intermediate_read_path,
+            intermediate_write_path,
         };
 
         let scene_version = match SceneVersion::new(scene_file.clone()) {
@@ -137,7 +146,7 @@ impl Args {
             output_file,
             render_settings,
             image_settings,
-            headless: matches.get_flag("headless"),
+            headless,
         }
     }
 }
