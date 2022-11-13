@@ -1,7 +1,6 @@
 use rayon::prelude::*;
 
 use std::{
-    fmt,
     fs::File,
     io::{Read, Write},
     path::Path,
@@ -12,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     color::RGBf32,
+    raytracer::file_formatting::{Error, SectionHeader},
     render_settings::ImageSettings,
     scene_version::SceneVersion,
     spectrum::Spectrumf32,
@@ -91,27 +91,27 @@ impl WorkingImage {
 
         let pixels_size = self.pixels.len() * std::mem::size_of::<Pixel>();
 
-        let size = FileHeader::SIZE + JsonSectionHeader::SIZE + json.len() + PixelsSectionHeader::SIZE + pixels_size;
+        let size = FileHeader::SIZE
+            + JSON_TAG.len()
+            + PIXELS_TAG.len()
+            + 2 * std::mem::size_of::<SectionHeader>()
+            + json.len()
+            + pixels_size;
 
         let header = FileHeader {
             format_version: FORMAT_VERSION,
             total_size: size as u64,
-        };
-
-        let json_header = JsonSectionHeader {
-            size: json.len() as u64,
-        };
-
-        let pixels_header = PixelsSectionHeader {
-            size: pixels_size as u64,
-            spectrum_resolution: Spectrumf32::RESOLUTION as u64,
+            spectrum_resolution: Spectrumf32::RESOLUTION as u32,
         };
 
         header.to_writer(&mut file).map_err(IO)?;
+
+        let json_header = SectionHeader::new(json.len(), JSON_TAG);
         json_header.to_writer(&mut file).map_err(IO)?;
 
         file.write_all(json.as_bytes()).map_err(IO)?;
 
+        let pixels_header = SectionHeader::new(pixels_size, PIXELS_TAG);
         pixels_header.to_writer(&mut file).map_err(IO)?;
 
         let pixels_buffer: &[u8] =
@@ -130,7 +130,7 @@ impl WorkingImage {
 
         let _header = FileHeader::from_reader(&mut file)?;
 
-        let json_header = JsonSectionHeader::from_reader(&mut file)?;
+        let json_header = SectionHeader::from_reader(&mut file, JSON_TAG, None)?;
 
         //Read json
         let mut json_buffer = vec![0; json_header.size as usize];
@@ -148,20 +148,9 @@ impl WorkingImage {
         }
 
         let expected_pixel_count = image.settings.width * image.settings.height;
-
-        let pixels_header = PixelsSectionHeader::from_reader(&mut file)?;
-
-        let spectrum_resolution = pixels_header.spectrum_resolution as usize;
-
-        if spectrum_resolution != Spectrumf32::RESOLUTION {
-            return Err(Error::SpectrumResolutionMismatch(spectrum_resolution));
-        }
-
         let expected_pixels_size = expected_pixel_count * std::mem::size_of::<Pixel>();
 
-        if expected_pixels_size != pixels_header.size as usize {
-            return Err(Error::PixelSectionSizeMismatch);
-        }
+        let _pixels_header = SectionHeader::from_reader(&mut file, PIXELS_TAG, Some(expected_pixels_size))?;
 
         image.pixels = vec![
             Pixel {
@@ -183,39 +172,10 @@ impl WorkingImage {
     }
 }
 
-pub enum Error {
-    IO(std::io::Error),
-    Serde(serde_json::Error),
-    TagMismatch { expected: Vec<u8>, actual: Vec<u8> },
-    FormatVersionMismatch(u32),
-    SceneMismatch,
-    SpectrumResolutionMismatch(usize),
-    PixelSectionSizeMismatch,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Error::IO(e) => return e.fmt(f),
-                Error::Serde(e) => return e.fmt(f),
-                Error::TagMismatch { expected, actual } => format!("wrong binary tag found, expected {expected:?} but got {actual:?}"),
-                Error::FormatVersionMismatch(version) =>
-                    format!("current format version ({}) does not match the version of the file ({version})", FORMAT_VERSION),
-                Error::SceneMismatch => "hash of provided scene file does not match that of the scene used to render itermediate image".to_string(),
-                Error::SpectrumResolutionMismatch(resolution) =>
-                    format!("current spectrum resolution ({}) does not match the resolution used when rendering the intermediate image ({resolution})", Spectrumf32::RESOLUTION),
-                Error::PixelSectionSizeMismatch => "size of pixels section does not match the expected value".to_string(),
-            }
-        )
-    }
-}
-
 struct FileHeader {
     pub format_version: u32,
     pub total_size: u64,
+    pub spectrum_resolution: u32,
 }
 
 impl FileHeader {
@@ -228,6 +188,7 @@ impl FileHeader {
         write!(writer, "{}", TAG)?;
         writer.write_u32::<LittleEndian>(self.format_version)?;
         writer.write_u64::<LittleEndian>(self.total_size)?;
+        writer.write_u32::<LittleEndian>(self.spectrum_resolution)?;
         Ok(())
     }
 
@@ -239,89 +200,31 @@ impl FileHeader {
         if tag == TAG.as_bytes() {
             let format_version = reader.read_u32::<LittleEndian>().map_err(IO)?;
             if format_version != FORMAT_VERSION {
-                return Err(Error::FormatVersionMismatch(format_version));
+                return Err(Error::FormatVersionMismatch {
+                    current: FORMAT_VERSION,
+                    file: format_version,
+                });
             }
 
             let total_size = reader.read_u64::<LittleEndian>().map_err(IO)?;
+
+            let spectrum_resolution = reader.read_u32::<LittleEndian>().map_err(IO)?;
+            if spectrum_resolution as usize != Spectrumf32::RESOLUTION {
+                return Err(Error::ResolutionMismatch {
+                    current: Spectrumf32::RESOLUTION,
+                    file: spectrum_resolution as usize,
+                    name: "spectrum".to_string(),
+                });
+            }
+
             Ok(Self {
                 format_version,
                 total_size,
-            })
-        } else {
-            Err(Error::TagMismatch {
-                expected: TAG.as_bytes().to_vec(),
-                actual: tag.to_vec(),
-            })
-        }
-    }
-}
-
-struct JsonSectionHeader {
-    pub size: u64,
-}
-
-impl JsonSectionHeader {
-    const SIZE: usize = JSON_TAG.len() + std::mem::size_of::<Self>();
-
-    pub fn to_writer<W>(self, writer: &mut W) -> Result<(), std::io::Error>
-    where
-        W: Write,
-    {
-        write!(writer, "{}", JSON_TAG)?;
-        writer.write_u64::<LittleEndian>(self.size)?;
-        Ok(())
-    }
-
-    pub fn from_reader<R: Read>(reader: &mut R) -> Result<Self, Error> {
-        use Error::IO;
-        let mut tag = [0; JSON_TAG.len()];
-        reader.read_exact(&mut tag).map_err(IO)?;
-
-        if tag == JSON_TAG.as_bytes() {
-            let size = reader.read_u64::<LittleEndian>().map_err(IO)?;
-            Ok(Self { size })
-        } else {
-            Err(Error::TagMismatch {
-                expected: JSON_TAG.as_bytes().to_vec(),
-                actual: tag.to_vec(),
-            })
-        }
-    }
-}
-
-struct PixelsSectionHeader {
-    pub size: u64,
-    pub spectrum_resolution: u64,
-}
-
-impl PixelsSectionHeader {
-    const SIZE: usize = PIXELS_TAG.len() + std::mem::size_of::<Self>();
-
-    pub fn to_writer<W>(self, writer: &mut W) -> Result<(), std::io::Error>
-    where
-        W: Write,
-    {
-        write!(writer, "{}", PIXELS_TAG)?;
-        writer.write_u64::<LittleEndian>(self.size)?;
-        writer.write_u64::<LittleEndian>(self.spectrum_resolution)?;
-        Ok(())
-    }
-
-    pub fn from_reader<R: Read>(reader: &mut R) -> Result<Self, Error> {
-        use Error::IO;
-        let mut tag = [0; PIXELS_TAG.len()];
-        reader.read_exact(&mut tag).map_err(IO)?;
-
-        if tag == PIXELS_TAG.as_bytes() {
-            let size = reader.read_u64::<LittleEndian>().map_err(IO)?;
-            let spectrum_resolution = reader.read_u64::<LittleEndian>().map_err(IO)?;
-            Ok(Self {
-                size,
                 spectrum_resolution,
             })
         } else {
             Err(Error::TagMismatch {
-                expected: PIXELS_TAG.as_bytes().to_vec(),
+                expected: TAG.as_bytes().to_vec(),
                 actual: tag.to_vec(),
             })
         }

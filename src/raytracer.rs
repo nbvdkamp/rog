@@ -14,6 +14,7 @@ mod aabb;
 pub mod acceleration;
 mod axis;
 mod bsdf;
+mod file_formatting;
 pub mod geometry;
 mod ray;
 mod sampling;
@@ -29,7 +30,7 @@ use crate::{
     light::Light,
     material::Material,
     mesh::Vertex,
-    raytracer::scene_statistics::Error,
+    raytracer::file_formatting::Error,
     render_settings::{ImageSettings, RenderSettings},
     scene::Scene,
     scene_version::SceneVersion,
