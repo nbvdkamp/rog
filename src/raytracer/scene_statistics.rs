@@ -367,11 +367,12 @@ impl SceneStatistics {
         let materials_size = self.materials.len() * std::mem::size_of::<Option<Spectrumf32>>();
 
         let size = FileHeader::SIZE
-            + JsonSectionHeader::SIZE
+            + JSON_TAG.len()
+            + VISIBILITY_TAG.len()
+            + MATERIALS_TAG.len()
+            + 3 * std::mem::size_of::<SectionHeader>()
             + json.len()
-            + VisibilitySectionHeader::SIZE
             + visibility_size
-            + MaterialSectionHeader::SIZE
             + materials_size;
 
         let header = FileHeader {
@@ -380,33 +381,26 @@ impl SceneStatistics {
             resolution: RESOLUTION as u32,
             visibility_samples: VISIBILITY_SAMPLES as u32,
             material_samples: MATERIAL_SAMPLES as u32,
+            spectrum_resolution: Spectrumf32::RESOLUTION as u32,
         };
-
-        let json_header = JsonSectionHeader {
-            size: json.len() as u64,
-        };
-
-        let visibility_header = VisibilitySectionHeader {
-            size: visibility_size as u64,
-        };
-
-        let materials_header = MaterialSectionHeader {
-            size: materials_size as u64,
-            spectrum_resolution: Spectrumf32::RESOLUTION as u64,
-        };
-
-        let materials_buffer: &[u8] =
-            unsafe { std::slice::from_raw_parts(self.materials.as_ptr() as *const u8, materials_size) };
 
         header.to_writer(&mut file).map_err(IO)?;
+
+        let json_header = SectionHeader::new(json.len(), JSON_TAG);
         json_header.to_writer(&mut file).map_err(IO)?;
 
         file.write_all(json.as_bytes()).map_err(IO)?;
 
+        let visibility_header = SectionHeader::new(visibility_size, VISIBILITY_TAG);
         visibility_header.to_writer(&mut file).map_err(IO)?;
         file.write_all(&self.visibility).map_err(IO)?;
 
+        let materials_header = SectionHeader::new(materials_size, MATERIALS_TAG);
         materials_header.to_writer(&mut file).map_err(IO)?;
+
+        let materials_buffer: &[u8] =
+            unsafe { std::slice::from_raw_parts(self.materials.as_ptr() as *const u8, materials_size) };
+
         file.write_all(materials_buffer).map_err(IO)?;
 
         Ok(())
@@ -421,7 +415,7 @@ impl SceneStatistics {
 
         let header = FileHeader::from_reader(&mut file)?;
 
-        let json_header = JsonSectionHeader::from_reader(&mut file)?;
+        let json_header = SectionHeader::from_reader(&mut file, JSON_TAG)?;
 
         //Read json
         let mut json_buffer = vec![0; json_header.size as usize];
@@ -436,25 +430,23 @@ impl SceneStatistics {
         let expected_voxel_count = (header.resolution * header.resolution * header.resolution) as usize;
         let expected_vis_count = (expected_voxel_count * (expected_voxel_count + 1)) / 2;
 
-        let visibility_header = VisibilitySectionHeader::from_reader(&mut file)?;
+        let visibility_header = SectionHeader::from_reader(&mut file, VISIBILITY_TAG)?;
 
         let expected_vis_size = expected_vis_count * std::mem::size_of::<Visibility>();
         let expected_mats_size = expected_voxel_count * std::mem::size_of::<Option<Spectrumf32>>();
 
         if expected_vis_size != visibility_header.size as usize {
-            return Err(Error::VisibilitySectionSizeMismatch);
+            return Err(Error::SectionSizeMismatch);
         }
 
         stats.visibility = vec![0; expected_vis_count];
 
         file.read_exact(&mut stats.visibility).map_err(IO)?;
 
-        let materials_header = MaterialSectionHeader::from_reader(&mut file)?;
+        let materials_header = SectionHeader::from_reader(&mut file, MATERIALS_TAG)?;
 
-        let spectrum_resolution = materials_header.spectrum_resolution as usize;
-
-        if spectrum_resolution != Spectrumf32::RESOLUTION {
-            return Err(Error::SpectrumResolutionMismatch(spectrum_resolution));
+        if expected_mats_size != materials_header.size as usize {
+            return Err(Error::SectionSizeMismatch);
         }
 
         stats.materials = vec![None; expected_voxel_count];
@@ -654,7 +646,7 @@ pub enum Error {
     VisibilityResolutionMismatch(usize),
     VisibilitySamplesMismatch(usize),
     MaterialSamplesMismatch(usize),
-    VisibilitySectionSizeMismatch,
+    SectionSizeMismatch,
 }
 
 impl fmt::Display for Error {
@@ -677,7 +669,7 @@ impl fmt::Display for Error {
                     format!("current visibility sample count ({}) does not match the count used when rendering the intermediate image ({samples})", VISIBILITY_SAMPLES),
                 Error::MaterialSamplesMismatch(samples) =>
                     format!("current material sample count ({}) does not match the count used when rendering the intermediate image ({samples})", MATERIAL_SAMPLES),
-                Error::VisibilitySectionSizeMismatch => "size of visibility section does not match the expected value".to_string(),
+                Error::SectionSizeMismatch => "size of binary data section does not match the expected value".to_string(),
             }
         )
     }
@@ -689,6 +681,7 @@ struct FileHeader {
     pub resolution: u32,
     pub visibility_samples: u32,
     pub material_samples: u32,
+    pub spectrum_resolution: u32,
 }
 
 impl FileHeader {
@@ -704,6 +697,7 @@ impl FileHeader {
         writer.write_u32::<LittleEndian>(self.resolution)?;
         writer.write_u32::<LittleEndian>(self.visibility_samples)?;
         writer.write_u32::<LittleEndian>(self.material_samples)?;
+        writer.write_u32::<LittleEndian>(self.spectrum_resolution)?;
         Ok(())
     }
 
@@ -727,12 +721,17 @@ impl FileHeader {
 
             let visibility_samples = reader.read_u32::<LittleEndian>().map_err(IO)?;
             if visibility_samples as usize != VISIBILITY_SAMPLES {
-                return Err(Error::VisibilitySamplesMismatch(resolution as usize));
+                return Err(Error::VisibilitySamplesMismatch(visibility_samples as usize));
             }
 
             let material_samples = reader.read_u32::<LittleEndian>().map_err(IO)?;
             if material_samples as usize != MATERIAL_SAMPLES {
-                return Err(Error::MaterialSamplesMismatch(resolution as usize));
+                return Err(Error::MaterialSamplesMismatch(material_samples as usize));
+            }
+
+            let spectrum_resolution = reader.read_u32::<LittleEndian>().map_err(IO)?;
+            if spectrum_resolution as usize != Spectrumf32::RESOLUTION {
+                return Err(Error::SpectrumResolutionMismatch(spectrum_resolution as usize));
             }
 
             Ok(Self {
@@ -741,115 +740,53 @@ impl FileHeader {
                 resolution,
                 visibility_samples,
                 material_samples,
-            })
-        } else {
-            Err(Error::TagMismatch {
-                expected: TAG.as_bytes().to_vec(),
-                actual: tag.to_vec(),
-            })
-        }
-    }
-}
-
-struct JsonSectionHeader {
-    pub size: u64,
-}
-
-impl JsonSectionHeader {
-    const SIZE: usize = JSON_TAG.len() + std::mem::size_of::<Self>();
-
-    pub fn to_writer<W>(self, writer: &mut W) -> Result<(), std::io::Error>
-    where
-        W: Write,
-    {
-        write!(writer, "{}", JSON_TAG)?;
-        writer.write_u64::<LittleEndian>(self.size)?;
-        Ok(())
-    }
-
-    pub fn from_reader<R: Read>(reader: &mut R) -> Result<Self, Error> {
-        use Error::IO;
-        let mut tag = [0; JSON_TAG.len()];
-        reader.read_exact(&mut tag).map_err(IO)?;
-
-        if tag == JSON_TAG.as_bytes() {
-            let size = reader.read_u64::<LittleEndian>().map_err(IO)?;
-            Ok(Self { size })
-        } else {
-            Err(Error::TagMismatch {
-                expected: TAG.as_bytes().to_vec(),
-                actual: tag.to_vec(),
-            })
-        }
-    }
-}
-
-struct VisibilitySectionHeader {
-    pub size: u64,
-}
-
-impl VisibilitySectionHeader {
-    const SIZE: usize = VISIBILITY_TAG.len() + std::mem::size_of::<Self>();
-
-    pub fn to_writer<W>(self, writer: &mut W) -> Result<(), std::io::Error>
-    where
-        W: Write,
-    {
-        write!(writer, "{}", VISIBILITY_TAG)?;
-        writer.write_u64::<LittleEndian>(self.size)?;
-        Ok(())
-    }
-
-    pub fn from_reader<R: Read>(reader: &mut R) -> Result<Self, Error> {
-        use Error::IO;
-        let mut tag = [0; VISIBILITY_TAG.len()];
-        reader.read_exact(&mut tag).map_err(IO)?;
-
-        if tag == VISIBILITY_TAG.as_bytes() {
-            let size = reader.read_u64::<LittleEndian>().map_err(IO)?;
-            Ok(Self { size })
-        } else {
-            Err(Error::TagMismatch {
-                expected: VISIBILITY_TAG.as_bytes().to_vec(),
-                actual: tag.to_vec(),
-            })
-        }
-    }
-}
-
-struct MaterialSectionHeader {
-    pub size: u64,
-    pub spectrum_resolution: u64,
-}
-
-impl MaterialSectionHeader {
-    const SIZE: usize = MATERIALS_TAG.len() + std::mem::size_of::<Self>();
-
-    pub fn to_writer<W>(self, writer: &mut W) -> Result<(), std::io::Error>
-    where
-        W: Write,
-    {
-        write!(writer, "{}", MATERIALS_TAG)?;
-        writer.write_u64::<LittleEndian>(self.size)?;
-        writer.write_u64::<LittleEndian>(self.spectrum_resolution)?;
-        Ok(())
-    }
-
-    pub fn from_reader<R: Read>(reader: &mut R) -> Result<Self, Error> {
-        use Error::IO;
-        let mut tag = [0; MATERIALS_TAG.len()];
-        reader.read_exact(&mut tag).map_err(IO)?;
-
-        if tag == MATERIALS_TAG.as_bytes() {
-            let size = reader.read_u64::<LittleEndian>().map_err(IO)?;
-            let spectrum_resolution = reader.read_u64::<LittleEndian>().map_err(IO)?;
-            Ok(Self {
-                size,
                 spectrum_resolution,
             })
         } else {
             Err(Error::TagMismatch {
-                expected: MATERIALS_TAG.as_bytes().to_vec(),
+                expected: TAG.as_bytes().to_vec(),
+                actual: tag.to_vec(),
+            })
+        }
+    }
+}
+
+struct SectionHeader {
+    pub size: u64,
+    pub tag: String,
+}
+
+impl SectionHeader {
+    pub fn new(size: usize, tag: &str) -> Self {
+        SectionHeader {
+            size: size as u64,
+            tag: tag.to_string(),
+        }
+    }
+
+    pub fn to_writer<W>(self, writer: &mut W) -> Result<(), std::io::Error>
+    where
+        W: Write,
+    {
+        write!(writer, "{}", self.tag)?;
+        writer.write_u64::<LittleEndian>(self.size)?;
+        Ok(())
+    }
+
+    pub fn from_reader<R: Read>(reader: &mut R, expected_tag: &str) -> Result<Self, Error> {
+        use Error::IO;
+        let mut tag = vec![0; expected_tag.len()];
+        reader.read_exact(&mut tag).map_err(IO)?;
+
+        if tag == expected_tag.as_bytes() {
+            let size = reader.read_u64::<LittleEndian>().map_err(IO)?;
+            Ok(Self {
+                size,
+                tag: expected_tag.to_string(),
+            })
+        } else {
+            Err(Error::TagMismatch {
+                expected: expected_tag.as_bytes().to_vec(),
                 actual: tag.to_vec(),
             })
         }
