@@ -659,66 +659,66 @@ impl FileHeader {
         let mut tag = [0; TAG.len()];
         reader.read_exact(&mut tag).map_err(IO)?;
 
-        if tag == TAG.as_bytes() {
-            let format_version = reader.read_u32::<LittleEndian>().map_err(IO)?;
-            if format_version != FORMAT_VERSION {
-                return Err(Error::FormatVersionMismatch {
-                    current: FORMAT_VERSION,
-                    file: format_version,
-                });
-            }
-
-            let total_size = reader.read_u64::<LittleEndian>().map_err(IO)?;
-
-            let resolution = reader.read_u32::<LittleEndian>().map_err(IO)?;
-            if resolution as usize != RESOLUTION {
-                return Err(Error::ResolutionMismatch {
-                    current: RESOLUTION,
-                    file: resolution as usize,
-                    name: "visibility".to_string(),
-                });
-            }
-
-            let visibility_samples = reader.read_u32::<LittleEndian>().map_err(IO)?;
-            if visibility_samples as usize != VISIBILITY_SAMPLES {
-                return Err(Error::SamplesMismatch {
-                    current: VISIBILITY_SAMPLES,
-                    file: visibility_samples as usize,
-                    name: "visibility".to_string(),
-                });
-            }
-
-            let material_samples = reader.read_u32::<LittleEndian>().map_err(IO)?;
-            if material_samples as usize != MATERIAL_SAMPLES {
-                return Err(Error::SamplesMismatch {
-                    current: MATERIAL_SAMPLES,
-                    file: material_samples as usize,
-                    name: "material".to_string(),
-                });
-            }
-
-            let spectrum_resolution = reader.read_u32::<LittleEndian>().map_err(IO)?;
-            if spectrum_resolution as usize != Spectrumf32::RESOLUTION {
-                return Err(Error::ResolutionMismatch {
-                    current: Spectrumf32::RESOLUTION,
-                    file: spectrum_resolution as usize,
-                    name: "spectrum".to_string(),
-                });
-            }
-
-            Ok(Self {
-                format_version,
-                total_size,
-                resolution,
-                visibility_samples,
-                material_samples,
-                spectrum_resolution,
-            })
-        } else {
-            Err(Error::TagMismatch {
+        if tag != TAG.as_bytes() {
+            return Err(Error::TagMismatch {
                 expected: TAG.as_bytes().to_vec(),
                 actual: tag.to_vec(),
-            })
+            });
         }
+
+        let format_version = reader.read_u32::<LittleEndian>().map_err(IO)?;
+        if format_version != FORMAT_VERSION {
+            return Err(Error::FormatVersionMismatch {
+                current: FORMAT_VERSION,
+                file: format_version,
+            });
+        }
+
+        let total_size = reader.read_u64::<LittleEndian>().map_err(IO)?;
+
+        let resolution = reader.read_u32::<LittleEndian>().map_err(IO)?;
+        if resolution as usize != RESOLUTION {
+            return Err(Error::ResolutionMismatch {
+                current: RESOLUTION,
+                file: resolution as usize,
+                name: "visibility".to_string(),
+            });
+        }
+
+        let visibility_samples = reader.read_u32::<LittleEndian>().map_err(IO)?;
+        if visibility_samples as usize != VISIBILITY_SAMPLES {
+            return Err(Error::SamplesMismatch {
+                current: VISIBILITY_SAMPLES,
+                file: visibility_samples as usize,
+                name: "visibility".to_string(),
+            });
+        }
+
+        let material_samples = reader.read_u32::<LittleEndian>().map_err(IO)?;
+        if material_samples as usize != MATERIAL_SAMPLES {
+            return Err(Error::SamplesMismatch {
+                current: MATERIAL_SAMPLES,
+                file: material_samples as usize,
+                name: "material".to_string(),
+            });
+        }
+
+        let spectrum_resolution = reader.read_u32::<LittleEndian>().map_err(IO)?;
+        if spectrum_resolution as usize != Spectrumf32::RESOLUTION {
+            return Err(Error::ResolutionMismatch {
+                current: Spectrumf32::RESOLUTION,
+                file: spectrum_resolution as usize,
+                name: "spectrum".to_string(),
+            });
+        }
+
+        Ok(Self {
+            format_version,
+            total_size,
+            resolution,
+            visibility_samples,
+            material_samples,
+            spectrum_resolution,
+        })
     }
 }

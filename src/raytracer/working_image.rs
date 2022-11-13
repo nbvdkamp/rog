@@ -197,36 +197,36 @@ impl FileHeader {
         let mut tag = [0; TAG.len()];
         reader.read_exact(&mut tag).map_err(IO)?;
 
-        if tag == TAG.as_bytes() {
-            let format_version = reader.read_u32::<LittleEndian>().map_err(IO)?;
-            if format_version != FORMAT_VERSION {
-                return Err(Error::FormatVersionMismatch {
-                    current: FORMAT_VERSION,
-                    file: format_version,
-                });
-            }
-
-            let total_size = reader.read_u64::<LittleEndian>().map_err(IO)?;
-
-            let spectrum_resolution = reader.read_u32::<LittleEndian>().map_err(IO)?;
-            if spectrum_resolution as usize != Spectrumf32::RESOLUTION {
-                return Err(Error::ResolutionMismatch {
-                    current: Spectrumf32::RESOLUTION,
-                    file: spectrum_resolution as usize,
-                    name: "spectrum".to_string(),
-                });
-            }
-
-            Ok(Self {
-                format_version,
-                total_size,
-                spectrum_resolution,
-            })
-        } else {
-            Err(Error::TagMismatch {
+        if tag != TAG.as_bytes() {
+            return Err(Error::TagMismatch {
                 expected: TAG.as_bytes().to_vec(),
                 actual: tag.to_vec(),
-            })
+            });
         }
+
+        let format_version = reader.read_u32::<LittleEndian>().map_err(IO)?;
+        if format_version != FORMAT_VERSION {
+            return Err(Error::FormatVersionMismatch {
+                current: FORMAT_VERSION,
+                file: format_version,
+            });
+        }
+
+        let total_size = reader.read_u64::<LittleEndian>().map_err(IO)?;
+
+        let spectrum_resolution = reader.read_u32::<LittleEndian>().map_err(IO)?;
+        if spectrum_resolution as usize != Spectrumf32::RESOLUTION {
+            return Err(Error::ResolutionMismatch {
+                current: Spectrumf32::RESOLUTION,
+                file: spectrum_resolution as usize,
+                name: "spectrum".to_string(),
+            });
+        }
+
+        Ok(Self {
+            format_version,
+            total_size,
+            spectrum_resolution,
+        })
     }
 }
