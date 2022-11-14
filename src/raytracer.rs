@@ -290,7 +290,7 @@ impl Raytracer {
                                 for sample in 0..settings.samples_per_pixel {
                                     let mut offset = vec2(0.5, 0.5);
 
-                                    if sample > 0 {
+                                    if sample > 0 || settings.intermediate_read_path.is_some() {
                                         offset += vec2(tent_sample(), tent_sample());
                                     }
 
