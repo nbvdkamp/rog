@@ -15,6 +15,7 @@ pub struct ImageSettings {
     pub width: usize,
     pub height: usize,
     pub enable_dispersion: bool,
+    pub max_depth: Option<usize>,
     pub always_sample_single_wavelength: bool,
     pub visibility: Option<VisibilitySettings>,
     pub scene_version: Option<SceneVersion>,
@@ -35,6 +36,13 @@ impl ImageSettings {
 
     pub fn size(&self) -> Vector2<usize> {
         vec2(self.width, self.height)
+    }
+
+    pub fn max_depth_reached(&self, depth: usize) -> bool {
+        match self.max_depth {
+            Some(max) => depth >= max,
+            None => false,
+        }
     }
 }
 

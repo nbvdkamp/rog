@@ -66,7 +66,6 @@ pub struct Raytracer {
     environment: Environment,
     stats: Option<SceneStatistics>,
     pub camera: PerspectiveCamera,
-    max_depth: usize,
     pub accel_structures: AccelerationStructures,
 }
 
@@ -138,7 +137,6 @@ impl Raytracer {
             environment: scene.environment.clone(),
             stats: None,
             camera: scene.camera,
-            max_depth: 10,
             accel_structures: AccelerationStructures::default(),
         };
 
@@ -390,7 +388,8 @@ impl Raytracer {
         let num_lights = self.lights.len();
         let mut depth = 0;
 
-        while depth < self.max_depth {
+        // Hard cap bounces to prevent endless bouncing inside perfectly reflective surfaces
+        while !image_settings.max_depth_reached(depth) && depth < 100 {
             let TraceResult::Hit {
                 triangle_index, u, v, ..
             } = self.trace(&ray, settings.accel_structure) else {

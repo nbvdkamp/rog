@@ -48,6 +48,9 @@ impl Args {
                     .value_parser(value_parser!(usize))
                     .default_value(format!("{}", default_thread_count))
                     .required(false),
+                arg!(--"max-bounces" <NUM> "Maximum bounces per path, no hard limit if omitted")
+                    .value_parser(value_parser!(usize))
+                    .required(false),
                 arg!(--"no-dispersion" "Disable dispersion"),
                 arg!(--"always-sample-wavelength" "Sample only one wavelength per path, even if it doesn't encounter any dispersive surfaces"),
                 arg!(-a --accel <NAME> "Name of acceleration structure to use (in snake_case)")
@@ -139,6 +142,7 @@ impl Args {
                 None
             },
             scene_version,
+            max_depth: matches.get_one::<usize>("max-bounces").map(|v| *v),
         };
 
         Args {
