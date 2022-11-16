@@ -234,7 +234,7 @@ impl Raytracer {
         let cam_model = self.camera.model;
         let cam_pos4 = cam_model * Vector4::new(0., 0., 0., 1.);
         let camera_pos = Point3::from_homogeneous(cam_pos4);
-        let image_settings = image.settings.clone();
+        let image_settings = &image.settings.clone();
         let image = Arc::new(Mutex::new(image));
 
         let tile_size = 100;
@@ -268,7 +268,6 @@ impl Raytracer {
         thread::scope(|s| {
             for i in 0..settings.thread_count {
                 let image = Arc::clone(&image);
-                let image_settings = image_settings.clone();
 
                 let work = move || {
                     'work: loop {
