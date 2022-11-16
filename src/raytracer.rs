@@ -30,7 +30,7 @@ use crate::{
     light::Light,
     material::Material,
     mesh::Vertex,
-    raytracer::file_formatting::Error,
+    raytracer::{file_formatting::Error, working_image::Pixel},
     render_settings::{ImageSettings, RenderSettings},
     scene::Scene,
     scene_version::SceneVersion,
@@ -267,7 +267,7 @@ impl Raytracer {
 
         thread::scope(|s| {
             for i in 0..settings.thread_count {
-                let buffer = Arc::clone(&image);
+                let image = Arc::clone(&image);
                 let image_settings = image_settings.clone();
 
                 let work = move || {
@@ -279,6 +279,14 @@ impl Raytracer {
                                 Steal::Retry => {}
                             }
                         };
+
+                        let mut buffer = vec![
+                            Pixel {
+                                samples: 0,
+                                spectrum: Spectrumf32::constant(0.0)
+                            };
+                            tile_size * tile_size
+                        ];
 
                         for y in tile.start.y..tile.end.y {
                             for x in tile.start.x..tile.end.x {
@@ -320,9 +328,24 @@ impl Raytracer {
                                     }
                                 }
 
-                                let mut image = buffer.lock().unwrap();
-                                image.pixels[image_size.x * y + x].spectrum += color;
-                                image.pixels[image_size.x * y + x].samples += samples as u32;
+                                let i = x - tile.start.x;
+                                let j = y - tile.start.y;
+                                let p = tile_size * j + i;
+
+                                buffer[p].spectrum += color;
+                                buffer[p].samples += samples as u32;
+                            }
+                        }
+
+                        let mut image = image.lock().unwrap();
+
+                        for y in tile.start.y..tile.end.y {
+                            for x in tile.start.x..tile.end.x {
+                                let i = x - tile.start.x;
+                                let j = y - tile.start.y;
+                                let pixel = &buffer[tile_size * j + i];
+                                image.pixels[image_size.x * y + x].spectrum += pixel.spectrum;
+                                image.pixels[image_size.x * y + x].samples += pixel.samples;
                             }
                         }
                     }
