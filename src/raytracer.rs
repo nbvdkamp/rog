@@ -265,8 +265,9 @@ impl Raytracer {
 
                         for y in tile.start.y..tile.end.y {
                             for x in tile.start.x..tile.end.x {
-                                let mut color = Spectrumf32::constant(0.0);
-                                let mut samples = 0;
+                                let i = x - tile.start.x;
+                                let j = y - tile.start.y;
+                                let pixel = &mut buffer[tile_size * j + i];
 
                                 for sample in 0..settings.samples_per_pixel {
                                     let mut offset = vec2(0.5, 0.5);
@@ -292,23 +293,16 @@ impl Raytracer {
 
                                     match self.radiance(ray, settings, &image_settings) {
                                         RadianceResult::Spectrum(spectrum) => {
-                                            color += spectrum;
-                                            samples += Spectrumf32::RESOLUTION;
+                                            pixel.spectrum += spectrum;
+                                            pixel.samples += Spectrumf32::RESOLUTION as u32;
                                         }
                                         RadianceResult::SingleValue { value, wavelength } => {
                                             // wavelength is sampled in range so no bounds checks necessary
-                                            color.add_at_wavelength_lerp(value, wavelength);
-                                            samples += 1;
+                                            pixel.spectrum.add_at_wavelength_lerp(value, wavelength);
+                                            pixel.samples += 1;
                                         }
                                     }
                                 }
-
-                                let i = x - tile.start.x;
-                                let j = y - tile.start.y;
-                                let p = tile_size * j + i;
-
-                                buffer[p].spectrum += color;
-                                buffer[p].samples += samples as u32;
                             }
                         }
 
