@@ -238,31 +238,7 @@ impl Raytracer {
         let image = Arc::new(Mutex::new(image));
 
         let tile_size = 100;
-
-        struct Tile {
-            start: Vector2<usize>,
-            end: Vector2<usize>,
-        }
-
-        let tiles = &{
-            let tiles: Injector<Tile> = Injector::new();
-
-            for x_start in (0..image_size.x).step_by(tile_size) {
-                let x_end = (x_start + tile_size).min(image_size.x);
-
-                for y_start in (0..image_size.y).step_by(tile_size) {
-                    let y_end = (y_start + tile_size).min(image_size.y);
-
-                    tiles.push(Tile {
-                        start: vec2(x_start, y_start),
-                        end: vec2(x_end, y_end),
-                    });
-                }
-            }
-
-            tiles
-        };
-
+        let tiles = &make_tile_queue(image_size, tile_size);
         let total_tiles = tiles.len();
 
         thread::scope(|s| {
@@ -771,4 +747,28 @@ fn bump_shading_factor(
 
     // Hermite interpolation
     -(g * g * g) + (g * g) + g
+}
+
+struct Tile {
+    start: Vector2<usize>,
+    end: Vector2<usize>,
+}
+
+fn make_tile_queue(image_size: Vector2<usize>, tile_size: usize) -> Injector<Tile> {
+    let tiles: Injector<Tile> = Injector::new();
+
+    for x_start in (0..image_size.x).step_by(tile_size) {
+        let x_end = (x_start + tile_size).min(image_size.x);
+
+        for y_start in (0..image_size.y).step_by(tile_size) {
+            let y_end = (y_start + tile_size).min(image_size.y);
+
+            tiles.push(Tile {
+                start: vec2(x_start, y_start),
+                end: vec2(x_end, y_end),
+            });
+        }
+    }
+
+    tiles
 }
