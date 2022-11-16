@@ -241,16 +241,23 @@ impl Raytracer {
         let tiles = &make_tile_queue(image_size, tile_size);
         let total_tiles = tiles.len();
 
+        let finished = Arc::new(Mutex::new(false));
+
         thread::scope(|s| {
             for i in 0..settings.thread_count {
                 let image = Arc::clone(&image);
+                let finished = Arc::clone(&finished);
 
                 let work = move || {
                     'work: loop {
                         let tile = loop {
+                            if *finished.lock().unwrap() {
+                                break 'work;
+                            }
+
                             match tiles.steal() {
                                 Steal::Success(tile) => break tile,
-                                Steal::Empty => break 'work,
+                                Steal::Empty => {}
                                 Steal::Retry => {}
                             }
                         };
@@ -329,12 +336,12 @@ impl Raytracer {
                 };
             }
 
-            if let Some(reporting) = reporting {
-                while !tiles.is_empty() {
-                    // We don't sleep for the progress report interval here to not wait needlessly once the render is done
-                    let sleep_duration = Duration::from_millis(10);
-                    thread::sleep(sleep_duration);
+            while !tiles.is_empty() {
+                // We don't sleep for the progress report interval here to not wait needlessly once the render is done
+                let sleep_duration = Duration::from_millis(10);
+                thread::sleep(sleep_duration);
 
+                if let Some(reporting) = &reporting {
                     if last_progress_report.elapsed() > reporting.report_interval {
                         let completed = total_tiles - tiles.len();
                         (reporting.report)(completed, total_tiles, start.elapsed().as_secs_f32() / completed as f32);
@@ -342,6 +349,8 @@ impl Raytracer {
                     }
                 }
             }
+
+            *finished.lock().unwrap() = true;
         });
 
         // Errors when the lock has multiple owners but the scope should guarantee that never happens
