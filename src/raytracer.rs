@@ -75,6 +75,12 @@ pub struct RenderProgressReporting {
     pub report: Box<dyn Fn(usize, usize, f32)>,
 }
 
+pub struct ImageUpdateReporting {
+    pub update_interval: Duration,
+    /// Image, samples completed
+    pub update: Box<dyn Fn(&WorkingImage, usize)>,
+}
+
 enum RadianceResult {
     Spectrum(Spectrumf32),
     SingleValue { value: f32, wavelength: f32 },
@@ -222,6 +228,7 @@ impl Raytracer {
         &self,
         settings: &RenderSettings,
         reporting: Option<RenderProgressReporting>,
+        image_reporting: Option<ImageUpdateReporting>,
         image: WorkingImage,
     ) -> (WorkingImage, f32) {
         let image_size = image.settings.size();
@@ -230,6 +237,7 @@ impl Raytracer {
 
         let start = Instant::now();
         let mut last_progress_report = start;
+        let mut last_image_update = start;
 
         let cam_model = self.camera.model;
         let cam_pos4 = cam_model * Vector4::new(0., 0., 0., 1.);
@@ -238,15 +246,26 @@ impl Raytracer {
         let image = Arc::new(Mutex::new(image));
 
         let tile_size = 100;
-        let tiles = &make_tile_queue(image_size, tile_size);
-        let total_tiles = tiles.len();
+        let tiles: &Injector<Tile> = &Injector::new();
+
+        add_tiles_to_queue(tiles, image_size, tile_size, 0);
+        let tiles_per_sample = tiles.len();
+        let total_tiles = tiles_per_sample * settings.samples_per_pixel;
+
+        for sample in 1..settings.samples_per_pixel {
+            add_tiles_to_queue(tiles, image_size, tile_size, sample);
+        }
 
         let finished = Arc::new(Mutex::new(false));
+        let current_sample = Arc::new(Mutex::new(0usize));
+        let tiles_completed_for_current_sample = Arc::new(Mutex::new(0usize));
 
         thread::scope(|s| {
             for i in 0..settings.thread_count {
                 let image = Arc::clone(&image);
                 let finished = Arc::clone(&finished);
+                let current_sample = Arc::clone(&current_sample);
+                let tiles_completed_for_current_sample = Arc::clone(&tiles_completed_for_current_sample);
 
                 let work = move || {
                     'work: loop {
@@ -276,41 +295,44 @@ impl Raytracer {
                                 let j = y - tile.start.y;
                                 let pixel = &mut buffer[tile_size * j + i];
 
-                                for sample in 0..settings.samples_per_pixel {
-                                    let mut offset = vec2(0.5, 0.5);
+                                let mut offset = vec2(0.5, 0.5);
 
-                                    if sample > 0 || settings.intermediate_read_path.is_some() {
-                                        offset += vec2(tent_sample(), tent_sample());
+                                if tile.sample > 0 || settings.intermediate_read_path.is_some() {
+                                    offset += vec2(tent_sample(), tent_sample());
+                                }
+
+                                let screen = self.pixel_to_screen(
+                                    Vector2::new(x, y),
+                                    offset,
+                                    image_size,
+                                    aspect_ratio,
+                                    fov_factor,
+                                );
+
+                                // Using w = 0 because this is a direction vector
+                                let dir4 = cam_model * Vector4::new(screen.x, screen.y, -1., 0.).normalize();
+                                let ray = Ray {
+                                    origin: camera_pos,
+                                    direction: dir4.truncate().normalize(),
+                                };
+
+                                match self.radiance(ray, settings, &image_settings) {
+                                    RadianceResult::Spectrum(spectrum) => {
+                                        pixel.spectrum += spectrum;
+                                        pixel.samples += Spectrumf32::RESOLUTION as u32;
                                     }
-
-                                    let screen = self.pixel_to_screen(
-                                        Vector2::new(x, y),
-                                        offset,
-                                        image_size,
-                                        aspect_ratio,
-                                        fov_factor,
-                                    );
-
-                                    // Using w = 0 because this is a direction vector
-                                    let dir4 = cam_model * Vector4::new(screen.x, screen.y, -1., 0.).normalize();
-                                    let ray = Ray {
-                                        origin: camera_pos,
-                                        direction: dir4.truncate().normalize(),
-                                    };
-
-                                    match self.radiance(ray, settings, &image_settings) {
-                                        RadianceResult::Spectrum(spectrum) => {
-                                            pixel.spectrum += spectrum;
-                                            pixel.samples += Spectrumf32::RESOLUTION as u32;
-                                        }
-                                        RadianceResult::SingleValue { value, wavelength } => {
-                                            // wavelength is sampled in range so no bounds checks necessary
-                                            pixel.spectrum.add_at_wavelength_lerp(value, wavelength);
-                                            pixel.samples += 1;
-                                        }
+                                    RadianceResult::SingleValue { value, wavelength } => {
+                                        // wavelength is sampled in range so no bounds checks necessary
+                                        pixel.spectrum.add_at_wavelength_lerp(value, wavelength);
+                                        pixel.samples += 1;
                                     }
                                 }
                             }
+                        }
+
+                        while *current_sample.lock().unwrap() < tile.sample {
+                            let sleep_duration = Duration::from_millis(10);
+                            thread::sleep(sleep_duration);
                         }
 
                         let mut image = image.lock().unwrap();
@@ -324,6 +346,8 @@ impl Raytracer {
                                 image.pixels[image_size.x * y + x].samples += pixel.samples;
                             }
                         }
+
+                        *tiles_completed_for_current_sample.lock().unwrap() += 1;
                     }
                 };
 
@@ -337,9 +361,13 @@ impl Raytracer {
             }
 
             while !tiles.is_empty() {
-                // We don't sleep for the progress report interval here to not wait needlessly once the render is done
-                let sleep_duration = Duration::from_millis(10);
+                let sleep_duration = Duration::from_millis(1);
                 thread::sleep(sleep_duration);
+
+                let mut completed = tiles_completed_for_current_sample.lock().unwrap();
+
+                let mut current_sample = current_sample.lock().unwrap();
+                let current_sample_finished = *completed == tiles_per_sample;
 
                 if let Some(reporting) = &reporting {
                     if last_progress_report.elapsed() > reporting.report_interval {
@@ -347,6 +375,18 @@ impl Raytracer {
                         (reporting.report)(completed, total_tiles, start.elapsed().as_secs_f32() / completed as f32);
                         last_progress_report = Instant::now();
                     }
+                }
+
+                if let Some(reporting) = &image_reporting {
+                    if current_sample_finished && last_image_update.elapsed() > reporting.update_interval {
+                        (reporting.update)(&image.lock().unwrap(), *current_sample);
+                        last_image_update = Instant::now();
+                    }
+                }
+
+                if current_sample_finished {
+                    *completed = 0;
+                    *current_sample += 1;
                 }
             }
 
@@ -722,7 +762,7 @@ where
         report: Box::new(report_progress),
     });
 
-    let (image, time_elapsed) = raytracer.render(&render_settings, progress, image);
+    let (image, time_elapsed) = raytracer.render(&render_settings, progress, None, image);
     println!("\r\x1b[2KFinished rendering in {time_elapsed} seconds");
 
     image.save_as_rgb(path);
@@ -755,11 +795,10 @@ fn bump_shading_factor(
 struct Tile {
     start: Vector2<usize>,
     end: Vector2<usize>,
+    sample: usize,
 }
 
-fn make_tile_queue(image_size: Vector2<usize>, tile_size: usize) -> Injector<Tile> {
-    let tiles: Injector<Tile> = Injector::new();
-
+fn add_tiles_to_queue(tiles: &Injector<Tile>, image_size: Vector2<usize>, tile_size: usize, sample: usize) {
     for x_start in (0..image_size.x).step_by(tile_size) {
         let x_end = (x_start + tile_size).min(image_size.x);
 
@@ -769,9 +808,8 @@ fn make_tile_queue(image_size: Vector2<usize>, tile_size: usize) -> Injector<Til
             tiles.push(Tile {
                 start: vec2(x_start, y_start),
                 end: vec2(x_end, y_end),
+                sample,
             });
         }
     }
-
-    tiles
 }
