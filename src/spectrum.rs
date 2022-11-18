@@ -8,7 +8,7 @@ use crate::{
 
 pub type Spectrumf32 = ArrSpectrumf32;
 
-const RESOLUTION: usize = 100;
+const RESOLUTION: usize = 60;
 
 impl Spectrumf32 {
     /// Converts to CIE 1931 XYZ color space
