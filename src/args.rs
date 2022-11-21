@@ -1,8 +1,8 @@
-use std::{path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr, time::Duration};
 
 use crate::{raytracer::acceleration::Accel, scene_version::SceneVersion};
 
-use super::render_settings::{ImageSettings, RenderSettings, VisibilitySettings};
+use super::render_settings::{ImageSettings, RenderSettings, TerminationCondition, VisibilitySettings};
 use clap::{arg, value_parser, Command};
 use image::ImageFormat;
 
@@ -30,7 +30,9 @@ impl Args {
                 arg!(-H --headless "Run without a window"),
                 arg!(--samples --spp <NUM> "Number of samples per pixel")
                     .value_parser(value_parser!(usize))
-                    .default_value("1")
+                    .required(false),
+                arg!(--time <NUM> "Number of seconds to render for")
+                    .value_parser(value_parser!(u64))
                     .required(false),
                 arg!(--width <NUM> "Image width")
                     .value_parser(value_parser!(usize))
@@ -78,6 +80,21 @@ impl Args {
             }
         };
 
+        let termination_condition = {
+            let samples = matches.get_one::<usize>("samples");
+            let time = matches.get_one::<u64>("time");
+
+            match (samples, time) {
+                (Some(_), Some(_)) => {
+                    eprintln!("Termination conditions are mutually exlusive.");
+                    std::process::exit(-1);
+                }
+                (Some(samples), None) => TerminationCondition::SampleCount(*samples),
+                (None, Some(seconds)) => TerminationCondition::Time(Duration::from_secs(*seconds)),
+                (None, None) => TerminationCondition::SampleCount(1),
+            }
+        };
+
         let scene_file = matches.get_one::<PathBuf>("file").expect("defaulted").clone();
         let output_file = matches.get_one::<PathBuf>("output").expect("defaulted").clone();
 
@@ -116,7 +133,7 @@ impl Args {
         }
 
         let render_settings = RenderSettings {
-            samples_per_pixel: read_usize("samples", 1),
+            termination_condition,
             thread_count: read_usize("threads", default_thread_count).clamp(1, 2048),
             accel_structure,
             intermediate_read_path,

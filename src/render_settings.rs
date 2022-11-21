@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 
 use cgmath::{vec2, Vector2};
 use serde::{Deserialize, Serialize};
@@ -46,8 +46,13 @@ impl ImageSettings {
     }
 }
 
+pub enum TerminationCondition {
+    SampleCount(usize),
+    Time(Duration),
+}
+
 pub struct RenderSettings {
-    pub samples_per_pixel: usize,
+    pub termination_condition: TerminationCondition,
     pub thread_count: usize,
     pub accel_structure: Accel,
     pub intermediate_read_path: Option<PathBuf>,

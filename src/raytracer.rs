@@ -31,7 +31,7 @@ use crate::{
     material::Material,
     mesh::Vertex,
     raytracer::{file_formatting::Error, working_image::Pixel},
-    render_settings::{ImageSettings, RenderSettings},
+    render_settings::{ImageSettings, RenderSettings, TerminationCondition},
     scene::Scene,
     scene_version::SceneVersion,
     spectrum::Spectrumf32,
@@ -71,8 +71,8 @@ pub struct Raytracer {
 
 pub struct RenderProgressReporting {
     pub report_interval: Duration,
-    /// Completed count, total count, seconds per completed item so far
-    pub report: Box<dyn Fn(usize, usize, f32)>,
+    /// Completion, time elapsed
+    pub report: Box<dyn Fn(f32, Duration)>,
 }
 
 pub struct ImageUpdateReporting {
@@ -250,10 +250,17 @@ impl Raytracer {
 
         add_tiles_to_queue(tiles, image_size, tile_size, 0);
         let tiles_per_sample = tiles.len();
-        let total_tiles = tiles_per_sample * settings.samples_per_pixel;
 
-        for sample in 1..settings.samples_per_pixel {
-            add_tiles_to_queue(tiles, image_size, tile_size, sample);
+        match settings.termination_condition {
+            TerminationCondition::SampleCount(samples) => {
+                for sample in 1..samples {
+                    add_tiles_to_queue(tiles, image_size, tile_size, sample);
+                }
+            }
+            TerminationCondition::Time(_) => {
+                // Always have one extra set of tiles in the queue to prevent threads being idle
+                add_tiles_to_queue(tiles, image_size, tile_size, 1);
+            }
         }
 
         let finished = Arc::new(Mutex::new(false));
@@ -270,13 +277,13 @@ impl Raytracer {
                 let work = move || {
                     'work: loop {
                         let tile = loop {
-                            if *finished.lock().unwrap() {
-                                break 'work;
-                            }
-
                             match tiles.steal() {
                                 Steal::Success(tile) => break tile,
-                                Steal::Empty => {}
+                                Steal::Empty => {
+                                    if *finished.lock().unwrap() {
+                                        break 'work;
+                                    }
+                                }
                                 Steal::Retry => {}
                             }
                         };
@@ -333,6 +340,10 @@ impl Raytracer {
                         while *current_sample.lock().unwrap() < tile.sample {
                             let sleep_duration = Duration::from_millis(10);
                             thread::sleep(sleep_duration);
+
+                            if *finished.lock().unwrap() {
+                                break 'work;
+                            }
                         }
 
                         let mut image = image.lock().unwrap();
@@ -360,7 +371,12 @@ impl Raytracer {
                 };
             }
 
-            while !tiles.is_empty() {
+            let terminate = || match settings.termination_condition {
+                TerminationCondition::SampleCount(_) => tiles.is_empty(),
+                TerminationCondition::Time(time_limit) => start.elapsed() >= time_limit,
+            };
+
+            while !terminate() {
                 let sleep_duration = Duration::from_millis(1);
                 thread::sleep(sleep_duration);
 
@@ -370,9 +386,18 @@ impl Raytracer {
                 let current_sample_finished = *completed == tiles_per_sample;
 
                 if let Some(reporting) = &reporting {
+                    let elapsed = start.elapsed();
+
                     if last_progress_report.elapsed() > reporting.report_interval {
-                        let completed = total_tiles - tiles.len();
-                        (reporting.report)(completed, total_tiles, start.elapsed().as_secs_f32() / completed as f32);
+                        let completion = match settings.termination_condition {
+                            TerminationCondition::SampleCount(samples) => {
+                                let total_tiles = tiles_per_sample * samples;
+                                let completed = total_tiles - tiles.len();
+                                completed as f32 / total_tiles as f32
+                            }
+                            TerminationCondition::Time(time_limit) => elapsed.as_secs_f32() / time_limit.as_secs_f32(),
+                        };
+                        (reporting.report)(completion, elapsed);
                         last_progress_report = Instant::now();
                     }
                 }
@@ -387,6 +412,10 @@ impl Raytracer {
                 if current_sample_finished {
                     *completed = 0;
                     *current_sample += 1;
+
+                    if let TerminationCondition::Time(_) = settings.termination_condition {
+                        add_tiles_to_queue(tiles, image_size, tile_size, *current_sample + 1);
+                    }
                 }
             }
 
@@ -751,14 +780,16 @@ pub fn render_and_save<P>(raytracer: &Raytracer, render_settings: &RenderSetting
 where
     P: AsRef<Path>,
 {
-    let report_progress = |completed, total, seconds_per_tile| {
-        let time_remaining = (total - completed) as f32 * seconds_per_tile;
-        print!("\r\x1b[2K Completed {completed}/{total} tiles. Approximately {time_remaining:.2} seconds remaining");
+    let report_progress = |completion, time_elapsed: Duration| {
+        let completion_percentage = 100.0 * completion;
+        let total_time = time_elapsed.as_secs_f32() / completion;
+        let time_remaining = total_time * (1.0 - completion);
+        print!("\r\x1b[2K Approximately {completion_percentage:.2}% complete, {time_remaining:.2} seconds remaining");
         std::io::stdout().flush().unwrap();
     };
 
     let progress = Some(RenderProgressReporting {
-        report_interval: Duration::from_secs(3),
+        report_interval: Duration::from_secs(1),
         report: Box::new(report_progress),
     });
 

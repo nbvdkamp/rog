@@ -2,7 +2,7 @@
 use renderer::raytracer::acceleration::statistics::Statistics;
 use renderer::{
     raytracer::{acceleration::Accel, working_image::WorkingImage, Raytracer},
-    render_settings::{ImageSettings, RenderSettings},
+    render_settings::{ImageSettings, RenderSettings, TerminationCondition},
     scene::Scene,
 };
 
@@ -21,7 +21,6 @@ fn main() {
     let resolution_factor = 15;
     let width = 16 * resolution_factor;
     let height = 9 * resolution_factor;
-    let samples = 1;
     let thread_count = (num_cpus::get() - 2).max(1);
     let accel_structures_to_construct = vec![Accel::Bvh, Accel::BvhRecursive, Accel::KdTree];
 
@@ -49,7 +48,7 @@ fn main() {
 
         for &structure in &accel_structures_to_construct {
             let settings = RenderSettings {
-                samples_per_pixel: samples,
+                termination_condition: TerminationCondition::SampleCount(1),
                 thread_count,
                 accel_structure: structure,
                 intermediate_read_path: None,
