@@ -398,6 +398,9 @@ impl Scene {
                 .map(|read_indices| read_indices.into_u32().collect::<Vec<_>>())
                 .unwrap_or_else(|| (0..positions.len() as u32).collect());
 
+            // Triangle meshes should always have an index count of a multiple of 3
+            assert_eq!(indices.len() % 3, 0);
+
             let normals: Vec<Vector3<f32>> = match reader.read_normals() {
                 Some(normals) => normals
                     .map(|normal| -> Vector3<f32> { normal_transform * Vector3::from(normal) })
