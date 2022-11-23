@@ -21,7 +21,7 @@ use cgmath::{
     Vector4,
     Zero,
 };
-use gltf::{camera::Projection, scene::Transform};
+use gltf::{camera::Projection, mesh::Mode, scene::Transform};
 use serde::Deserialize;
 
 use crate::{
@@ -298,6 +298,14 @@ impl Scene {
         let normal_transform = m.invert().unwrap().transpose();
 
         for primitive in mesh.primitives() {
+            if primitive.mode() != Mode::Triangles {
+                eprintln!(
+                    "Primitives with render mode {:?} are currently not supported",
+                    primitive.mode()
+                );
+                continue;
+            }
+
             let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
             let mat = primitive.material();
