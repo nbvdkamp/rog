@@ -373,17 +373,17 @@ impl Scene {
                 }),
             };
 
-            let positions: Vec<Point3<f32>> = reader
-                .read_positions()
-                .unwrap_or_else(|| {
-                    panic!(
-                        "Primitive does not have POSITION attribute (mesh: {}, primitive: {})",
-                        mesh.index(),
-                        primitive.index()
-                    )
-                })
-                .map(|pos| Point3::from_homogeneous(transform * Vector4::new(pos[0], pos[1], pos[2], 1.0)))
-                .collect();
+            let positions: Vec<Point3<f32>> = if let Some(iter) = reader.read_positions() {
+                iter.map(|pos| Point3::from_homogeneous(transform * Vector4::new(pos[0], pos[1], pos[2], 1.0)))
+                    .collect()
+            } else {
+                eprintln!(
+                    "Skipping primitive with missing POSITION attribute (mesh: {}, primitive: {})",
+                    mesh.index(),
+                    primitive.index()
+                );
+                continue;
+            };
 
             let indices = reader
                 .read_indices()
