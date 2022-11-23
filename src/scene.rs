@@ -388,16 +388,7 @@ impl Scene {
             let indices = reader
                 .read_indices()
                 .map(|read_indices| read_indices.into_u32().collect::<Vec<_>>())
-                .unwrap_or_else(|| {
-                    let count = positions.len();
-                    let mut v = Vec::with_capacity(count);
-
-                    for i in 0..count {
-                        v.push(i as u32);
-                    }
-
-                    v
-                });
+                .unwrap_or_else(|| (0..positions.len() as u32).collect());
 
             let normals: Vec<Vector3<f32>> = match reader.read_normals() {
                 Some(normals) => normals
