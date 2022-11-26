@@ -16,18 +16,19 @@ use luminance_front::{
         Uniform,
     },
     tess::{Interleaved, Tess},
-    texture::{Dim2, MagFilter, MinFilter, Sampler, TexelUpload, Texture, Wrap},
+    texture::{Dim2, MagFilter, MinFilter, Sampler, TexelUpload, Texture as LuminanceTexture, Wrap},
 };
 use luminance_glfw::{GlfwSurface, GlfwSurfaceError};
 
 use crate::{
     args::Args,
+    camera::PerspectiveCamera,
     material::Material,
     mesh::{LuminanceVertex, VertexIndex, VertexSemantics},
     raytracer::{render_and_save, working_image::WorkingImage, Raytracer},
     render_settings::{ImageSettings, RenderSettings},
     scene::Scene,
-    texture::Format,
+    texture::{Format, Texture},
     util::mat_to_shader_type,
 };
 
@@ -46,7 +47,8 @@ const FS_STR: &str = include_str!("fragment.fs");
 
 pub struct App {
     raytracer: Raytracer,
-    scene: Scene,
+    textures: Vec<Texture>,
+    camera: PerspectiveCamera,
     render_settings: RenderSettings,
     image_settings: ImageSettings,
     output_file: PathBuf,
@@ -69,8 +71,7 @@ impl App {
         };
 
         let raytracer = Raytracer::new(
-            &scene,
-            textures,
+            scene,
             &[args.render_settings.accel_structure],
             args.image_settings.use_visibility(),
             args.image_settings.scene_version.clone(),
@@ -81,8 +82,9 @@ impl App {
         }
 
         App {
+            camera: raytracer.scene.camera,
             raytracer,
-            scene,
+            textures,
             render_settings: args.render_settings,
             image_settings: args.image_settings,
             output_file: args.output_file,
@@ -100,7 +102,7 @@ impl App {
                     let (_, _, w, h) = monitor.get_workarea();
                     let max_width = 2 * w as u32 / 3;
                     let max_height = 4 * h as u32 / 5;
-                    let ratio = self.scene.camera.aspect_ratio;
+                    let ratio = self.raytracer.scene.camera.aspect_ratio;
 
                     if ratio * max_height as f32 <= max_width as f32 {
                         width = (ratio * max_height as f32) as u32;
@@ -125,20 +127,26 @@ impl App {
         .expect("Failed to create GLFW surface");
 
         let background_color = {
-            let c = self.scene.environment.color.linear_to_srgb();
+            let c = self.raytracer.scene.environment.color.linear_to_srgb();
             [c.r, c.g, c.b, 1.0]
         };
 
-        let light_position = self.scene.lights.first().map_or(Vec3::new(1.0, 1.0, 1.0), |p| {
-            let p = p.pos;
-            Vec3::new(p.x, p.y, p.z)
-        });
+        let light_position = self
+            .raytracer
+            .scene
+            .lights
+            .first()
+            .map_or(Vec3::new(1.0, 1.0, 1.0), |p| {
+                let p = p.pos;
+                Vec3::new(p.x, p.y, p.z)
+            });
 
         let mut context = surface.context;
         let events = surface.events_rx;
         let mut back_buffer = context.back_buffer().expect("back buffer");
 
         let tesses = self
+            .raytracer
             .scene
             .meshes
             .iter()
@@ -155,8 +163,8 @@ impl App {
         };
 
         enum Tex {
-            Rgb(Texture<Dim2, NormRGB8UI>),
-            Rgba(Texture<Dim2, NormRGBA8UI>),
+            Rgb(LuminanceTexture<Dim2, NormRGB8UI>),
+            Rgba(LuminanceTexture<Dim2, NormRGBA8UI>),
         }
 
         enum BoundTex<'a> {
@@ -165,7 +173,6 @@ impl App {
         }
 
         let mut textures: Vec<Option<Tex>> = self
-            .scene
             .textures
             .iter()
             .map(|texture| {
@@ -193,15 +200,13 @@ impl App {
             .collect();
 
         // The textures are now in GPU memory so no longer needed
-        self.scene.textures.clear();
+        self.textures.clear();
 
         let blending = Blending {
             equation: Equation::Additive,
             src: Factor::SrcAlpha,
             dst: Factor::SrcAlphaComplement,
         };
-
-        let mut projection = self.scene.camera.projection();
 
         let mut program = context
             .new_shader_program::<VertexSemantics, (), ShaderInterface>()
@@ -218,15 +223,12 @@ impl App {
                 match event {
                     WindowEvent::Close => break 'app,
                     WindowEvent::Size(width, height) => {
-                        self.scene.camera.aspect_ratio = width as f32 / height as f32;
-                        projection = self.scene.camera.projection();
+                        self.camera.aspect_ratio = width as f32 / height as f32;
                         back_buffer = context.back_buffer().expect("Unable to create new back buffer");
                     }
                     e => self.handle_event(e),
                 }
             }
-
-            let view = self.scene.camera.view;
 
             let render = context
                 .new_pipeline_gate()
@@ -244,8 +246,8 @@ impl App {
                             };
 
                             shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
-                                iface.set(&unif.u_projection, mat_to_shader_type(projection));
-                                iface.set(&unif.u_view, mat_to_shader_type(view));
+                                iface.set(&unif.u_projection, mat_to_shader_type(self.camera.projection()));
+                                iface.set(&unif.u_view, mat_to_shader_type(self.camera.view));
                                 iface.set(&unif.u_base_color, material.base_color.into());
                                 iface.set(&unif.u_light_position, light_position);
 
@@ -294,8 +296,8 @@ impl App {
             };
 
             let translation = Matrix4::from_translation(delta_time * self.movement.translation());
-            self.scene.camera.model = self.scene.camera.model * rotation * translation;
-            self.scene.camera.view = self.scene.camera.model.invert().unwrap();
+            self.camera.model = self.camera.model * rotation * translation;
+            self.camera.view = self.camera.model.invert().unwrap();
         }
 
         self.movement.mouse_delta = vec2(0.0, 0.0);
@@ -322,7 +324,7 @@ impl App {
         match action {
             Action::Press => match key {
                 Key::Enter => {
-                    self.raytracer.camera = self.scene.camera;
+                    self.raytracer.scene.camera = self.camera;
                     let image = WorkingImage::new(self.image_settings.clone());
                     render_and_save(&self.raytracer, &self.render_settings, image, &self.output_file);
                 }

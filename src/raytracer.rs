@@ -7,10 +7,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use cgmath::{point2, point3, vec2, vec3, EuclideanSpace, InnerSpace, Point3, Vector2, Vector3, Vector4};
+use cgmath::{point3, vec2, vec3, EuclideanSpace, InnerSpace, Point2, Point3, Vector2, Vector3, Vector4};
 use crossbeam_deque::{Injector, Steal};
 
-mod aabb;
+pub(crate) mod aabb;
 pub mod acceleration;
 mod axis;
 mod bsdf;
@@ -20,16 +20,11 @@ mod ray;
 mod sampling;
 mod scene_statistics;
 mod shadingframe;
-mod triangle;
+pub(crate) mod triangle;
 pub mod working_image;
 
 use crate::{
-    camera::PerspectiveCamera,
     cie_data as CIE,
-    environment::Environment,
-    light::Light,
-    material::Material,
-    mesh::Vertex,
     raytracer::{file_formatting::Error, working_image::Pixel},
     render_settings::{ImageSettings, RenderSettings, TerminationCondition},
     scene::Scene,
@@ -39,14 +34,13 @@ use crate::{
 };
 
 use aabb::BoundingBox;
-use acceleration::{structure::TraceResult, Accel, AccelerationStructures};
+use acceleration::{structure::TraceResultMesh, Accel, AccelerationStructures};
 use bsdf::{mis2, Evaluation, Sample};
 use geometry::{ensure_valid_reflection, orthogonal_vector};
 use ray::Ray;
 use sampling::{sample_item_from_cumulative_probabilities, tent_sample};
 use scene_statistics::SceneStatistics;
 use shadingframe::ShadingFrame;
-use triangle::Triangle;
 use working_image::WorkingImage;
 
 pub struct Textures {
@@ -58,15 +52,9 @@ pub struct Textures {
 }
 
 pub struct Raytracer {
-    verts: Vec<Vertex>,
-    triangles: Vec<Triangle>,
-    materials: Vec<Material>,
-    lights: Vec<Light>,
-    textures: Textures,
-    environment: Environment,
-    stats: Option<SceneStatistics>,
-    pub camera: PerspectiveCamera,
+    pub scene: Scene,
     pub accel_structures: AccelerationStructures,
+    stats: Option<SceneStatistics>,
 }
 
 pub struct RenderProgressReporting {
@@ -92,67 +80,31 @@ pub enum Wavelength {
 
 impl Raytracer {
     pub fn new(
-        scene: &Scene,
-        textures: Textures,
+        scene: Scene,
         accel_structures_to_construct: &[Accel],
         use_visibility: bool,
         scene_version: Option<SceneVersion>,
     ) -> Self {
-        let mut verts = Vec::new();
-        let mut triangles = Vec::new();
-        let mut triangle_bounds = Vec::new();
-        let mut materials = Vec::new();
+        let scene_bounds = {
+            let mut b = BoundingBox::new();
 
-        // TODO: Fix borrowing to prevent having to clone everything
-        for mesh in &scene.meshes {
-            let start_index = verts.len() as u32;
-            let material_index = materials.len() as u32;
-
-            verts.append(&mut mesh.vertices.clone());
-            materials.push(mesh.material.clone());
-
-            for i in (0..mesh.indices.len()).step_by(3) {
-                let index1 = mesh.indices[i] + start_index;
-                let index2 = mesh.indices[i + 1] + start_index;
-                let index3 = mesh.indices[i + 2] + start_index;
-
-                let mut bounds = BoundingBox::new();
-                bounds.add(verts[index1 as usize].position);
-                bounds.add(verts[index2 as usize].position);
-                bounds.add(verts[index3 as usize].position);
-
-                triangles.push(Triangle {
-                    index1,
-                    index2,
-                    index3,
-                    material_index,
-                });
-
-                triangle_bounds.push(bounds);
+            for mesh in &scene.meshes {
+                b = b.union(mesh.bounds);
             }
-        }
 
-        let scene_bounds = acceleration::helpers::compute_bounding_box(&verts);
+            b
+        };
 
         let mut result = Raytracer {
-            verts,
-            triangles,
-            materials,
-            lights: scene.lights.clone(),
-            textures,
-            environment: scene.environment.clone(),
+            scene,
             stats: None,
-            camera: scene.camera,
             accel_structures: AccelerationStructures::default(),
         };
 
         let start = Instant::now();
 
-        for accel in accel_structures_to_construct {
-            result
-                .accel_structures
-                .construct(*accel, &result.verts, &result.triangles, &triangle_bounds)
-                .unwrap();
+        for &accel in accel_structures_to_construct {
+            result.accel_structures.construct(accel, &result.scene.meshes).unwrap();
         }
 
         let l = accel_structures_to_construct.len();
@@ -190,7 +142,7 @@ impl Raytracer {
                 println!("Computed visibility map in {} seconds", start.elapsed().as_secs_f32());
 
                 let start = Instant::now();
-                stats.sample_materials(&result, &triangle_bounds);
+                stats.sample_materials(&result);
                 println!(
                     "Computed material averages in {} seconds",
                     start.elapsed().as_secs_f32()
@@ -233,13 +185,13 @@ impl Raytracer {
     ) -> (WorkingImage, f32) {
         let image_size = image.settings.size();
         let aspect_ratio = image_size.x as f32 / image_size.y as f32;
-        let fov_factor = (self.camera.y_fov / 2.).tan();
+        let fov_factor = (self.scene.camera.y_fov / 2.).tan();
 
         let start = Instant::now();
         let mut last_progress_report = start;
         let mut last_image_update = start;
 
-        let cam_model = self.camera.model;
+        let cam_model = self.scene.camera.model;
         let cam_pos4 = cam_model * Vector4::new(0., 0., 0., 1.);
         let camera_pos = Point3::from_homogeneous(cam_pos4);
         let image_settings = &image.settings.clone();
@@ -445,7 +397,7 @@ impl Raytracer {
     }
 
     pub fn get_num_tris(&self) -> usize {
-        self.triangles.len()
+        self.scene.meshes.iter().map(|m| m.vertices.positions.len()).sum()
     }
 
     fn radiance(&self, ray: Ray, settings: &RenderSettings, image_settings: &ImageSettings) -> RadianceResult {
@@ -455,29 +407,34 @@ impl Raytracer {
 
         let mut wavelength = Wavelength::Undecided;
 
-        let num_lights = self.lights.len();
+        let num_lights = self.scene.lights.len();
         let mut depth = 0;
 
         // Hard cap bounces to prevent endless bouncing inside perfectly reflective surfaces
         while !image_settings.max_depth_reached(depth) && depth < 100 {
-            let TraceResult::Hit {
-                triangle_index, u, v, ..
+            let TraceResultMesh::Hit {
+                mesh_index, triangle_index, u, v, ..
             } = self.trace(&ray, settings.accel_structure) else {
-                result += path_weight * self.environment.sample(ray.direction);
+                result += path_weight * self.scene.environment.sample(ray.direction);
                 break;
             };
 
-            let triangle = &self.triangles[triangle_index as usize];
-            let material = &self.materials[triangle.material_index as usize];
+            let intersected_mesh = &self.scene.meshes[mesh_index as usize];
+            let verts = &intersected_mesh.vertices;
 
-            let verts = [
-                &self.verts[triangle.index1 as usize],
-                &self.verts[triangle.index2 as usize],
-                &self.verts[triangle.index3 as usize],
+            let triangle = &intersected_mesh.triangles[triangle_index as usize];
+            let material = &intersected_mesh.material;
+
+            let indices = [
+                triangle.indices[0] as usize,
+                triangle.indices[1] as usize,
+                triangle.indices[2] as usize,
             ];
 
             let w = 1.0 - u - v;
-            let hit_pos = w * verts[0].position + u * verts[1].position.to_vec() + v * verts[2].position.to_vec();
+            let hit_pos = w * verts.positions[indices[0]]
+                + u * verts.positions[indices[1]].to_vec()
+                + v * verts.positions[indices[2]].to_vec();
 
             if let Wavelength::Undecided = wavelength {
                 if image_settings.always_sample_single_wavelength {
@@ -505,17 +462,14 @@ impl Raytracer {
                 }
             }
 
-            let has_texture_coords = verts[0].tex_coord.is_some();
+            let texture_coordinates = intersected_mesh
+                .vertices
+                .tex_coords
+                .iter()
+                .map(|t| w * t[indices[0]] + u * t[indices[1]].to_vec() + v * t[indices[2]].to_vec())
+                .collect();
 
-            let texture_coordinates = if has_texture_coords {
-                w * verts[0].tex_coord.unwrap()
-                    + u * verts[1].tex_coord.unwrap().to_vec()
-                    + v * verts[2].tex_coord.unwrap().to_vec()
-            } else {
-                point2(0.0, 0.0)
-            };
-
-            let mut mat_sample = material.sample(texture_coordinates, &self.textures);
+            let mut mat_sample = material.sample(texture_coordinates, &self.scene.textures);
 
             if thread_rng().gen::<f32>() > mat_sample.alpha {
                 // Offset to the back of the triangle
@@ -539,13 +493,17 @@ impl Raytracer {
                 mat_sample.ior = mat_sample.cauchy_coefficients.ior_for_wavelength(lambda);
             }
 
-            let edge1 = verts[0].position - verts[1].position;
-            let edge2 = verts[0].position - verts[2].position;
+            let edge1 = verts.positions[indices[0]] - verts.positions[indices[1]];
+            let edge2 = verts.positions[indices[0]] - verts.positions[indices[2]];
             let mut geom_normal = edge1.cross(edge2).normalize();
 
             // Interpolate the vertex normals
-            let mut normal = (w * verts[0].normal + u * verts[1].normal + v * verts[2].normal).normalize();
-            let mut tangent = (w * verts[0].tangent + u * verts[1].tangent + v * verts[2].tangent).normalize();
+            let mut normal =
+                (w * verts.normals[indices[0]] + u * verts.normals[indices[1]] + v * verts.normals[indices[2]])
+                    .normalize();
+            let mut tangent =
+                (w * verts.tangents[indices[0]] + u * verts.tangents[indices[1]] + v * verts.tangents[indices[2]])
+                    .normalize();
 
             // Handle the rare case where a bad tangent (linearly dependent with the normal) causes NaNs
             if normal == tangent || -normal == tangent {
@@ -582,7 +540,7 @@ impl Raytracer {
 
             // Next event estimation (directly sampling lights)
             if num_lights > 0 {
-                let light = &self.lights[rand::thread_rng().gen_range(0..num_lights)];
+                let light = &self.scene.lights[rand::thread_rng().gen_range(0..num_lights)];
                 let light_sample = light.sample(hit_pos);
 
                 let offset_direction = light_sample.direction.dot(geom_normal).signum() * geom_normal;
@@ -675,11 +633,12 @@ impl Raytracer {
         let mut distance = distance;
         let mut ray = ray;
 
-        while let TraceResult::Hit {
+        while let TraceResultMesh::Hit {
+            mesh_index,
+            triangle_index,
             t,
             u,
             v,
-            triangle_index,
         } = self.trace(&ray, accel)
         {
             // Never shadowed
@@ -687,38 +646,43 @@ impl Raytracer {
                 break;
             }
 
-            let triangle = &self.triangles[triangle_index as usize];
-            let material = &self.materials[triangle.material_index as usize];
+            let intersected_mesh = &self.scene.meshes[mesh_index as usize];
+            let verts = &intersected_mesh.vertices;
+
+            let triangle = &intersected_mesh.triangles[triangle_index as usize];
+            let material = &intersected_mesh.material;
 
             if let Some(tex_ref) = material.base_color_texture {
-                if !self.textures.base_color_coefficients[tex_ref.index].has_alpha {
+                if !self.scene.textures.base_color_coefficients[tex_ref.index].has_alpha {
                     return true;
                 }
             } else {
                 return true;
             }
 
-            let verts = [
-                &self.verts[triangle.index1 as usize],
-                &self.verts[triangle.index2 as usize],
-                &self.verts[triangle.index3 as usize],
+            let indices = [
+                triangle.indices[0] as usize,
+                triangle.indices[1] as usize,
+                triangle.indices[2] as usize,
             ];
-
-            let has_texture_coords = verts[0].tex_coord.is_some();
 
             let w = 1.0 - u - v;
 
-            let texture_coordinates = if has_texture_coords {
-                w * verts[0].tex_coord.unwrap()
-                    + u * verts[1].tex_coord.unwrap().to_vec()
-                    + v * verts[2].tex_coord.unwrap().to_vec()
-            } else {
-                point2(0.0, 0.0)
+            let alpha = match material.base_color_texture {
+                Some(tex) => {
+                    let t = &intersected_mesh.vertices.tex_coords[tex.texture_coordinate_set];
+                    let uv = w * t[indices[0]] + u * t[indices[1]].to_vec() + v * t[indices[2]].to_vec();
+                    let Point2 { x: u, y: v } = tex.transform_texture_coordinates(uv);
+                    self.scene.textures.base_color_coefficients[tex.index].sample_alpha(u, v)
+                }
+                None => 1.0,
             };
 
-            if thread_rng().gen::<f32>() > material.sample_alpha(texture_coordinates, &self.textures) {
+            if thread_rng().gen::<f32>() > alpha {
                 // Cast another ray from slightly further than where we hit
-                let hit_pos = w * verts[0].position + u * verts[1].position.to_vec() + v * verts[2].position.to_vec();
+                let hit_pos = w * verts.positions[indices[0]]
+                    + u * verts.positions[indices[1]].to_vec()
+                    + v * verts.positions[indices[2]].to_vec();
                 let offset = 0.0002;
                 ray.origin = hit_pos + offset * ray.direction;
                 distance -= t + offset;
@@ -730,10 +694,8 @@ impl Raytracer {
         false
     }
 
-    fn trace(&self, ray: &Ray, accel: Accel) -> TraceResult {
-        self.accel_structures
-            .get(accel)
-            .intersect(ray, &self.verts, &self.triangles)
+    fn trace(&self, ray: &Ray, accel: Accel) -> TraceResultMesh {
+        self.accel_structures.get(accel).intersect(ray, &self.scene.meshes)
     }
 
     /// From Ray Tracing Gems chapter 6: "A Fast and Robust Method for Avoiding Self-Intersection"

@@ -1,9 +1,8 @@
 use std::num::NonZeroU32;
 
-use crate::{
-    mesh::Vertex,
-    raytracer::{aabb::BoundingBox, axis::Axis, triangle::Triangle, Ray},
-};
+use cgmath::Point3;
+
+use crate::raytracer::{aabb::BoundingBox, axis::Axis, triangle::Triangle, Ray};
 
 use super::{
     helpers::{compute_bounding_box, compute_bounding_box_triangle_indexed, intersect_triangles_indexed},
@@ -47,11 +46,11 @@ impl Node {
 }
 
 impl BoundingVolumeHierarchy {
-    pub fn new(verts: &[Vertex], triangles: &[Triangle], triangle_bounds: &[BoundingBox]) -> Self {
+    pub fn new(positions: &[Point3<f32>], triangles: &[Triangle], triangle_bounds: &[BoundingBox]) -> Self {
         let mut nodes = Vec::new();
         let stats = Statistics::new();
 
-        let bounds = compute_bounding_box(verts);
+        let bounds = compute_bounding_box(positions);
         let mut triangle_indices = Vec::new();
 
         for i in 0..triangles.len() {
@@ -137,7 +136,7 @@ impl BoundingVolumeHierarchy {
 }
 
 impl AccelerationStructure for BoundingVolumeHierarchy {
-    fn intersect(&self, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+    fn intersect(&self, ray: &Ray, positions: &[Point3<f32>], triangles: &[Triangle]) -> TraceResult {
         self.stats.count_ray();
 
         let mut result = TraceResult::Miss;
@@ -166,7 +165,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                     bounds,
                 } => {
                     if !triangle_indices.is_empty() && bounds.intersects_ray(ray, &inv_dir) {
-                        let r = intersect_triangles_indexed(triangle_indices, ray, verts, triangles, &self.stats);
+                        let r = intersect_triangles_indexed(triangle_indices, ray, positions, triangles, &self.stats);
 
                         if r.is_closer_than(&result) {
                             result = r;
@@ -177,10 +176,6 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
         }
 
         result
-    }
-
-    fn get_name(&self) -> &str {
-        "BVH (iterative)"
     }
 
     fn get_statistics(&self) -> StatisticsStore {

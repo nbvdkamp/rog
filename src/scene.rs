@@ -5,6 +5,7 @@ use std::{
 };
 
 use cgmath::{
+    point2,
     vec3,
     vec4,
     InnerSpace,
@@ -30,7 +31,7 @@ use crate::{
     environment::Environment,
     light::{Kind, Light},
     material::{CauchyCoefficients, Material, TextureRef, TextureTransform},
-    mesh::{Mesh, Vertex},
+    mesh::{Mesh, Vertices},
     raytracer::Textures,
     spectrum::Spectrumf32,
     texture::{Format, Texture},
@@ -41,7 +42,7 @@ use rgb2spec::RGB2Spec;
 pub struct Scene {
     pub meshes: Vec<Mesh>,
     pub lights: Vec<Light>,
-    pub textures: Vec<Texture>,
+    pub textures: Textures,
     pub camera: PerspectiveCamera,
     pub environment: Environment,
 }
@@ -63,7 +64,7 @@ fn transform_to_mat(t: Transform) -> Matrix4<f32> {
 }
 
 impl Scene {
-    pub fn load<P>(path: P) -> Result<(Self, Textures), String>
+    pub fn load<P>(path: P) -> Result<(Self, Vec<Texture>), String>
     where
         P: AsRef<Path>,
     {
@@ -111,7 +112,13 @@ impl Scene {
                 let mut result_scene = Scene {
                     meshes: Vec::new(),
                     lights: Vec::new(),
-                    textures: Vec::new(),
+                    textures: Textures {
+                        base_color_coefficients: Vec::new(),
+                        metallic_roughness: Vec::new(),
+                        transimission: Vec::new(),
+                        emissive: Vec::new(),
+                        normal: Vec::new(),
+                    },
                     camera: PerspectiveCamera::default(),
                     environment,
                 };
@@ -119,6 +126,8 @@ impl Scene {
                 for scene in document.scenes() {
                     result_scene.parse_nodes(scene.nodes().collect(), &buffers, Matrix4::identity(), &rgb2spec);
                 }
+
+                let sorted_textures = &mut result_scene.textures;
 
                 let parse_time = start.elapsed().as_secs_f32();
                 let start = Instant::now();
@@ -159,13 +168,7 @@ impl Scene {
                     set_type!(mesh.material.normal_texture, TextureType::Normal);
                 }
 
-                let mut sorted_textures = Textures {
-                    base_color_coefficients: Vec::new(),
-                    metallic_roughness: Vec::new(),
-                    transimission: Vec::new(),
-                    emissive: Vec::new(),
-                    normal: Vec::new(),
-                };
+                let mut preview_textures = Vec::new();
 
                 textures
                     .into_iter()
@@ -186,7 +189,7 @@ impl Scene {
                                         .base_color_coefficients
                                         .push(texture.create_spectrum_coefficients(&rgb2spec));
 
-                                    result_scene.textures.push(texture);
+                                    preview_textures.push(texture);
                                 }
                                 TextureType::MetallicRoughness => sorted_textures.metallic_roughness.push(texture),
                                 TextureType::Transmission => sorted_textures.transimission.push(texture),
@@ -196,7 +199,7 @@ impl Scene {
 
                             let last_index = match texture_type {
                                 // The index for the result scene texture is the same as for the coefficient texture because they are inserted together
-                                TextureType::BaseColor => &result_scene.textures,
+                                TextureType::BaseColor => &preview_textures,
                                 TextureType::MetallicRoughness => &sorted_textures.metallic_roughness,
                                 TextureType::Transmission => &sorted_textures.transimission,
                                 TextureType::Emissive => &sorted_textures.emissive,
@@ -226,7 +229,7 @@ impl Scene {
                 result_scene.meshes.iter_mut().partition_in_place(|mesh| {
                     mesh.material
                         .base_color_texture
-                        .map_or(true, |tex| result_scene.textures[tex.index].format == Format::Rgb)
+                        .map_or(true, |tex| preview_textures[tex.index].format == Format::Rgb)
                 });
 
                 let textures_time = start.elapsed().as_secs_f32();
@@ -236,7 +239,7 @@ impl Scene {
                     total_time, lib_time, parse_time, textures_time,
                 );
 
-                Ok((result_scene, sorted_textures))
+                Ok((result_scene, preview_textures))
             }
             Err(e) => {
                 let hint = if let gltf::Error::Io(_) = e {
@@ -430,15 +433,13 @@ impl Scene {
                 }
             };
 
-            let has_tex_coords = reader.read_tex_coords(0).is_some();
+            let mut tex_coords: Vec<Vec<Point2<f32>>> = Vec::new();
+            let mut i = 0;
 
-            let tex_coords = match reader.read_tex_coords(0) {
-                Some(reader) => reader
-                    .into_f32()
-                    .map(|uv| Some(Point2::<f32>::new(uv[0], uv[1])))
-                    .collect(),
-                None => vec![None; positions.len()],
-            };
+            while let Some(reader) = reader.read_tex_coords(i) {
+                tex_coords.push(reader.into_f32().map(|uv| point2(uv[0], uv[1])).collect());
+                i += 1;
+            }
 
             let tangents: Vec<Vector3<f32>> = match reader.read_tangents() {
                 Some(reader) => reader
@@ -457,10 +458,10 @@ impl Scene {
                         let edge1 = p1 - p0;
                         let edge2 = p2 - p0;
 
-                        if has_tex_coords {
-                            let uv0 = tex_coords[i[0] as usize].unwrap();
-                            let uv1 = tex_coords[i[1] as usize].unwrap();
-                            let uv2 = tex_coords[i[2] as usize].unwrap();
+                        if let Some(tex_coords) = tex_coords.first() {
+                            let uv0 = tex_coords[i[0] as usize];
+                            let uv1 = tex_coords[i[1] as usize];
+                            let uv2 = tex_coords[i[2] as usize];
                             let uv_edge1 = uv1 - uv0;
                             let uv_edge2 = uv2 - uv0;
 
@@ -508,17 +509,12 @@ impl Scene {
                 }
             };
 
-            let vertices = positions
-                .into_iter()
-                .zip(normals)
-                .zip(tex_coords.into_iter().zip(tangents.into_iter()))
-                .map(|((position, normal), (tex_coord, tangent))| Vertex {
-                    position,
-                    normal,
-                    tangent,
-                    tex_coord,
-                })
-                .collect();
+            let vertices = Vertices {
+                positions,
+                normals,
+                tangents,
+                tex_coords,
+            };
 
             self.meshes.push(Mesh::new(vertices, indices, material));
         }

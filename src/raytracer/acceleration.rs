@@ -3,27 +3,22 @@ pub mod sah;
 pub mod statistics;
 pub mod structure;
 
+pub mod top_level;
+
 // pub mod bih;
 pub mod bvh;
 pub mod bvh_rec;
 pub mod kdtree;
 
-use crate::mesh::Vertex;
+use crate::mesh::Mesh;
 
-use self::{
-    bvh::BoundingVolumeHierarchy,
-    bvh_rec::BoundingVolumeHierarchyRec,
-    kdtree::KdTree,
-    structure::AccelerationStructure,
-};
-
-use super::{aabb::BoundingBox, triangle::Triangle};
+use self::top_level::TopLevelBVH;
 
 #[derive(Default)]
 pub struct AccelerationStructures {
-    bvh: Option<BoundingVolumeHierarchy>,
-    bvh_rec: Option<BoundingVolumeHierarchyRec>,
-    kdtree: Option<KdTree>,
+    bvh: Option<TopLevelBVH>,
+    bvh_rec: Option<TopLevelBVH>,
+    kdtree: Option<TopLevelBVH>,
 }
 
 #[derive(Debug, Default)]
@@ -38,41 +33,31 @@ impl std::fmt::Display for ConstructError {
 }
 
 impl AccelerationStructures {
-    pub fn construct(
-        &mut self,
-        accel: Accel,
-        verts: &[Vertex],
-        triangles: &[Triangle],
-        triangle_bounds: &[BoundingBox],
-    ) -> Result<(), ConstructError> {
+    pub fn construct(&mut self, accel: Accel, meshes: &[Mesh]) -> Result<(), ConstructError> {
         match accel {
             Accel::Bvh => {
                 if self.bvh.is_some() {
                     return Err(ConstructError::default());
                 }
-                let _ = self
-                    .bvh
-                    .insert(BoundingVolumeHierarchy::new(verts, triangles, triangle_bounds));
+                let _ = self.bvh.insert(TopLevelBVH::new(accel, meshes));
             }
             Accel::BvhRecursive => {
                 if self.bvh_rec.is_some() {
                     return Err(ConstructError::default());
                 }
-                let _ = self
-                    .bvh_rec
-                    .insert(BoundingVolumeHierarchyRec::new(triangles.len(), triangle_bounds));
+                let _ = self.bvh_rec.insert(TopLevelBVH::new(accel, meshes));
             }
             Accel::KdTree => {
                 if self.kdtree.is_some() {
                     return Err(ConstructError::default());
                 }
-                let _ = self.kdtree.insert(KdTree::new(verts, triangles, triangle_bounds));
+                let _ = self.kdtree.insert(TopLevelBVH::new(accel, meshes));
             }
         }
         Ok(())
     }
 
-    pub fn get(&self, accel: Accel) -> &dyn AccelerationStructure {
+    pub fn get(&self, accel: Accel) -> &TopLevelBVH {
         match accel {
             Accel::Bvh => self.bvh.as_ref().unwrap(),
             Accel::BvhRecursive => self.bvh_rec.as_ref().unwrap(),
@@ -86,6 +71,16 @@ pub enum Accel {
     Bvh,
     BvhRecursive,
     KdTree,
+}
+
+impl Accel {
+    pub fn name(&self) -> &str {
+        match self {
+            Accel::Bvh => "BVH (iterative)",
+            Accel::BvhRecursive => "BVH (recursive)",
+            Accel::KdTree => "KD Tree",
+        }
+    }
 }
 
 impl std::str::FromStr for Accel {

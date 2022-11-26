@@ -1,19 +1,18 @@
-use crate::{
-    mesh::Vertex,
-    raytracer::{
-        aabb::BoundingBox,
-        ray::{IntersectionResult, Ray},
-        triangle::Triangle,
-    },
+use cgmath::Point3;
+
+use crate::raytracer::{
+    aabb::BoundingBox,
+    ray::{IntersectionResult, Ray},
+    triangle::Triangle,
 };
 
 use super::{statistics::Statistics, structure::TraceResult};
 
-pub fn compute_bounding_box(vertices: &[Vertex]) -> BoundingBox {
+pub fn compute_bounding_box(positions: &[Point3<f32>]) -> BoundingBox {
     let mut bounds = BoundingBox::new();
 
-    for vertex in vertices {
-        bounds.add(vertex.position);
+    for p in positions {
+        bounds.add(*p);
     }
 
     bounds
@@ -35,7 +34,7 @@ pub fn compute_bounding_box_triangle_indexed(
 pub fn intersect_triangles_indexed(
     triangle_indices: &[usize],
     ray: &Ray,
-    verts: &[Vertex],
+    positions: &[Point3<f32>],
     triangles: &[Triangle],
     stats: &Statistics,
 ) -> TraceResult {
@@ -43,13 +42,13 @@ pub fn intersect_triangles_indexed(
 
     for triangle_index in triangle_indices {
         let triangle = &triangles[*triangle_index];
-        let p1 = &verts[triangle.index1 as usize];
-        let p2 = &verts[triangle.index2 as usize];
-        let p3 = &verts[triangle.index3 as usize];
+        let p1 = positions[triangle.indices[0] as usize];
+        let p2 = positions[triangle.indices[1] as usize];
+        let p3 = positions[triangle.indices[2] as usize];
 
         stats.count_intersection_test();
 
-        if let IntersectionResult::Hit { t, u, v } = ray.intersect_triangle(p1.position, p2.position, p3.position) {
+        if let IntersectionResult::Hit { t, u, v } = ray.intersect_triangle(p1, p2, p3) {
             stats.count_intersection_hit();
 
             if result.is_farther_than(t) {

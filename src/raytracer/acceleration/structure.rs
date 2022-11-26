@@ -1,12 +1,22 @@
+use cgmath::Point3;
+
 use super::statistics::StatisticsStore;
-use crate::{
-    mesh::Vertex,
-    raytracer::{triangle::Triangle, Ray},
-};
+use crate::raytracer::{triangle::Triangle, Ray};
 
 pub enum TraceResult {
     Miss,
     Hit {
+        triangle_index: u32,
+        t: f32,
+        u: f32,
+        v: f32,
+    },
+}
+
+pub enum TraceResultMesh {
+    Miss,
+    Hit {
+        mesh_index: u32,
         triangle_index: u32,
         t: f32,
         u: f32,
@@ -31,12 +41,28 @@ impl TraceResult {
             },
         }
     }
+
+    pub fn with_mesh_index(self, mesh_index: usize) -> TraceResultMesh {
+        match self {
+            TraceResult::Miss => TraceResultMesh::Miss,
+            TraceResult::Hit {
+                triangle_index,
+                t,
+                u,
+                v,
+            } => TraceResultMesh::Hit {
+                mesh_index: mesh_index as u32,
+                triangle_index,
+                t,
+                u,
+                v,
+            },
+        }
+    }
 }
 
 pub trait AccelerationStructure {
-    fn intersect(&self, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult;
-
-    fn get_name(&self) -> &str;
+    fn intersect(&self, ray: &Ray, verts: &[Point3<f32>], triangles: &[Triangle]) -> TraceResult;
 
     fn get_statistics(&self) -> StatisticsStore;
 }

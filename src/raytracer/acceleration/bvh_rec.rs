@@ -1,9 +1,6 @@
-use crate::{
-    mesh::Vertex,
-    raytracer::{axis::Axis, triangle::Triangle, Ray},
-};
+use crate::raytracer::{axis::Axis, triangle::Triangle, Ray};
 
-use cgmath::Vector3;
+use cgmath::{Point3, Vector3};
 
 use super::{
     super::aabb::BoundingBox,
@@ -32,20 +29,16 @@ enum Node {
 
 impl AccelerationStructure for BoundingVolumeHierarchyRec {
     #[allow(clippy::only_used_in_recursion)]
-    fn intersect(&self, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+    fn intersect(&self, ray: &Ray, positions: &[Point3<f32>], triangles: &[Triangle]) -> TraceResult {
         self.stats.count_ray();
 
         let inv_dir = 1.0 / ray.direction;
 
         if intersects_bounds(&self.root, ray, inv_dir) {
-            self.intersect(&self.root, ray, inv_dir, verts, triangles)
+            self.intersect(&self.root, ray, inv_dir, positions, triangles)
         } else {
             TraceResult::Miss
         }
-    }
-
-    fn get_name(&self) -> &str {
-        "BVH (recursive)"
     }
 
     fn get_statistics(&self) -> StatisticsStore {
@@ -68,7 +61,7 @@ impl BoundingVolumeHierarchyRec {
         node_opt: &Option<Box<Node>>,
         ray: &Ray,
         inv_dir: Vector3<f32>,
-        verts: &[Vertex],
+        positions: &[Point3<f32>],
         triangles: &[Triangle],
     ) -> TraceResult {
         match node_opt {
@@ -77,9 +70,9 @@ impl BoundingVolumeHierarchyRec {
                     left_child,
                     right_child,
                     ..
-                } => self.inner_intersect(left_child, right_child, ray, inv_dir, verts, triangles),
+                } => self.inner_intersect(left_child, right_child, ray, inv_dir, positions, triangles),
                 Node::Leaf { triangle_indices, .. } => {
-                    intersect_triangles_indexed(triangle_indices, ray, verts, triangles, &self.stats)
+                    intersect_triangles_indexed(triangle_indices, ray, positions, triangles, &self.stats)
                 }
             },
             None => TraceResult::Miss,
@@ -92,7 +85,7 @@ impl BoundingVolumeHierarchyRec {
         right: &Option<Box<Node>>,
         ray: &Ray,
         inv_dir: Vector3<f32>,
-        verts: &[Vertex],
+        positions: &[Point3<f32>],
         triangles: &[Triangle],
     ) -> TraceResult {
         self.stats.count_inner_node_traversal();
@@ -103,9 +96,9 @@ impl BoundingVolumeHierarchyRec {
         if !hit_l_box && !hit_r_box {
             return TraceResult::Miss;
         } else if hit_l_box && !hit_r_box {
-            return self.intersect(left, ray, inv_dir, verts, triangles);
+            return self.intersect(left, ray, inv_dir, positions, triangles);
         } else if !hit_l_box && hit_r_box {
-            return self.intersect(right, ray, inv_dir, verts, triangles);
+            return self.intersect(right, ray, inv_dir, positions, triangles);
         }
 
         // Both children are intersected
@@ -114,9 +107,9 @@ impl BoundingVolumeHierarchyRec {
         let dist_to_right_box = intersects_bounds_distance(right, ray, inv_dir);
 
         if dist_to_left_box < dist_to_right_box {
-            self.intersect_both_children_hit(left, right, dist_to_right_box, ray, inv_dir, verts, triangles)
+            self.intersect_both_children_hit(left, right, dist_to_right_box, ray, inv_dir, positions, triangles)
         } else {
-            self.intersect_both_children_hit(right, left, dist_to_left_box, ray, inv_dir, verts, triangles)
+            self.intersect_both_children_hit(right, left, dist_to_left_box, ray, inv_dir, positions, triangles)
         }
     }
 
@@ -127,19 +120,19 @@ impl BoundingVolumeHierarchyRec {
         dist_to_second_box: f32,
         ray: &Ray,
         inv_dir: Vector3<f32>,
-        verts: &[Vertex],
+        positions: &[Point3<f32>],
         triangles: &[Triangle],
     ) -> TraceResult {
-        let first_result = self.intersect(first_hit_child, ray, inv_dir, verts, triangles);
+        let first_result = self.intersect(first_hit_child, ray, inv_dir, positions, triangles);
 
         let TraceResult::Hit { t: t_first, .. } = first_result else {
-            return self.intersect(second_hit_child, ray, inv_dir, verts, triangles)
+            return self.intersect(second_hit_child, ray, inv_dir, positions, triangles)
         };
 
         if t_first < dist_to_second_box {
             first_result
         } else {
-            let second_result = self.intersect(second_hit_child, ray, inv_dir, verts, triangles);
+            let second_result = self.intersect(second_hit_child, ray, inv_dir, positions, triangles);
 
             if let TraceResult::Hit { t: t_second, .. } = second_result {
                 if t_second < t_first {

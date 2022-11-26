@@ -1,9 +1,6 @@
-use cgmath::Vector3;
+use cgmath::{Point3, Vector3};
 
-use crate::{
-    mesh::Vertex,
-    raytracer::{triangle::Triangle, Ray},
-};
+use crate::raytracer::{triangle::Triangle, Ray};
 
 use super::{
     super::{aabb::BoundingBox, axis::Axis},
@@ -33,7 +30,7 @@ enum Node {
 
 impl AccelerationStructure for KdTree {
     #[allow(clippy::only_used_in_recursion)]
-    fn intersect(&self, ray: &Ray, verts: &[Vertex], triangles: &[Triangle]) -> TraceResult {
+    fn intersect(&self, ray: &Ray, positions: &[Point3<f32>], triangles: &[Triangle]) -> TraceResult {
         self.stats.count_ray();
 
         let inv_dir = 1.0 / ray.direction;
@@ -42,11 +39,7 @@ impl AccelerationStructure for KdTree {
             return TraceResult::Miss;
         }
 
-        self.intersect(&self.root, ray, inv_dir, verts, triangles, self.scene_bounds)
-    }
-
-    fn get_name(&self) -> &str {
-        "K-d Tree"
+        self.intersect(&self.root, ray, inv_dir, positions, triangles, self.scene_bounds)
     }
 
     fn get_statistics(&self) -> StatisticsStore {
@@ -55,7 +48,7 @@ impl AccelerationStructure for KdTree {
 }
 
 impl KdTree {
-    pub fn new(verts: &[Vertex], triangles: &[Triangle], triangle_bounds: &[BoundingBox]) -> Self {
+    pub fn new(positions: &[Point3<f32>], triangles: &[Triangle], triangle_bounds: &[BoundingBox]) -> Self {
         let mut item_indices = Vec::new();
         let mut stats = Statistics::new();
 
@@ -63,7 +56,7 @@ impl KdTree {
             item_indices.push(i);
         }
 
-        let scene_bounds = compute_bounding_box(verts);
+        let scene_bounds = compute_bounding_box(positions);
 
         KdTree {
             root: create_node(triangle_bounds, item_indices, 0, &scene_bounds, &mut stats),
@@ -77,7 +70,7 @@ impl KdTree {
         node_opt: &Option<Box<Node>>,
         ray: &Ray,
         inv_dir: Vector3<f32>,
-        verts: &[Vertex],
+        positions: &[Point3<f32>],
         triangles: &[Triangle],
         bounds: BoundingBox,
     ) -> TraceResult {
@@ -96,10 +89,10 @@ impl KdTree {
                     *axis,
                     ray,
                     inv_dir,
-                    verts,
+                    positions,
                     triangles,
                 ),
-                Node::Leaf { items } => intersect_triangles_indexed(items, ray, verts, triangles, &self.stats),
+                Node::Leaf { items } => intersect_triangles_indexed(items, ray, positions, triangles, &self.stats),
             },
             None => TraceResult::Miss,
         }
@@ -114,7 +107,7 @@ impl KdTree {
         axis: Axis,
         ray: &Ray,
         inv_dir: Vector3<f32>,
-        verts: &[Vertex],
+        positions: &[Point3<f32>],
         triangles: &[Triangle],
     ) -> TraceResult {
         self.stats.count_inner_node_traversal();
@@ -130,9 +123,9 @@ impl KdTree {
         if !hit_l_box && !hit_r_box {
             return TraceResult::Miss;
         } else if hit_l_box && !hit_r_box {
-            return self.intersect(left, ray, inv_dir, verts, triangles, left_bounds);
+            return self.intersect(left, ray, inv_dir, positions, triangles, left_bounds);
         } else if !hit_l_box && hit_r_box {
-            return self.intersect(right, ray, inv_dir, verts, triangles, right_bounds);
+            return self.intersect(right, ray, inv_dir, positions, triangles, right_bounds);
         }
 
         // We hit both children's bounds, so check which is hit first
@@ -150,7 +143,7 @@ impl KdTree {
                 dist_to_right_box,
                 ray,
                 inv_dir,
-                verts,
+                positions,
                 triangles,
             )
         } else {
@@ -162,7 +155,7 @@ impl KdTree {
                 dist_to_left_box,
                 ray,
                 inv_dir,
-                verts,
+                positions,
                 triangles,
             )
         }
@@ -177,19 +170,19 @@ impl KdTree {
         dist_to_second_box: f32,
         ray: &Ray,
         inv_dir: Vector3<f32>,
-        verts: &[Vertex],
+        positions: &[Point3<f32>],
         triangles: &[Triangle],
     ) -> TraceResult {
-        let first_result = self.intersect(first_hit_child, ray, inv_dir, verts, triangles, first_bounds);
+        let first_result = self.intersect(first_hit_child, ray, inv_dir, positions, triangles, first_bounds);
 
         let TraceResult::Hit { t: t_first, .. } = first_result else {
-            return self.intersect(second_hit_child, ray, inv_dir, verts, triangles, second_bounds)
+            return self.intersect(second_hit_child, ray, inv_dir, positions, triangles, second_bounds)
         };
 
         if t_first < dist_to_second_box {
             first_result
         } else {
-            let second_result = self.intersect(second_hit_child, ray, inv_dir, verts, triangles, second_bounds);
+            let second_result = self.intersect(second_hit_child, ray, inv_dir, positions, triangles, second_bounds);
 
             if let TraceResult::Hit { t: t_second, .. } = second_result {
                 if t_second < t_first {

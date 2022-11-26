@@ -15,18 +15,38 @@ pub struct StatisticsStore {
     pub leaf_nodes: u32,
 }
 
+impl StatisticsStore {
+    pub fn new() -> Self {
+        StatisticsStore {
+            inner_node_traversals: 0,
+            intersection_tests: 0,
+            intersection_hits: 0,
+            rays: 0,
+            max_depth: 0,
+            inner_nodes: 0,
+            leaf_nodes: 0,
+        }
+    }
+}
+
+use std::ops;
+
+impl_op_ex!(+ |a: &StatisticsStore, b: &StatisticsStore| -> StatisticsStore {
+    StatisticsStore {
+        inner_node_traversals: a.inner_node_traversals + b.inner_node_traversals,
+        intersection_tests: a.intersection_tests + b.intersection_tests,
+        intersection_hits: a.intersection_hits + b.intersection_hits,
+        rays: a.rays + b.rays,
+        max_depth: a.max_depth.max(b.max_depth),
+        inner_nodes: a.inner_nodes + b.inner_nodes,
+        leaf_nodes: a.leaf_nodes + b.leaf_nodes,
+    }
+});
+
 impl Statistics {
     pub fn new() -> Self {
         Statistics {
-            store: Mutex::new(StatisticsStore {
-                inner_node_traversals: 0,
-                intersection_tests: 0,
-                intersection_hits: 0,
-                rays: 0,
-                max_depth: 0,
-                inner_nodes: 0,
-                leaf_nodes: 0,
-            }),
+            store: Mutex::new(StatisticsStore::new()),
         }
     }
 

@@ -25,7 +25,7 @@ fn main() {
     let accel_structures_to_construct = vec![Accel::Bvh, Accel::BvhRecursive, Accel::KdTree];
 
     for scene_name in test_scene_filenames {
-        let (scene, textures) = match Scene::load(format!("res/scenes/{scene_name}.glb")) {
+        let (scene, _) = match Scene::load(format!("res/scenes/{scene_name}.glb")) {
             Ok(result) => result,
             Err(e) => {
                 eprintln!("Couldn't open scene {scene_name}: {e}");
@@ -33,7 +33,7 @@ fn main() {
             }
         };
 
-        let raytracer = Raytracer::new(&scene, textures, &accel_structures_to_construct, false, None);
+        let raytracer = Raytracer::new(scene, &accel_structures_to_construct, false, None);
 
         println!("Filename: {scene_name}, tris: {}", raytracer.get_num_tris());
         #[cfg(feature = "stats")]
@@ -68,7 +68,7 @@ fn main() {
             let image = WorkingImage::new(image_settings);
 
             let (_, time_elapsed) = raytracer.render(&settings, None, None, image);
-            let name = raytracer.accel_structures.get(structure).get_name();
+            let name = structure.name();
 
             #[cfg(feature = "stats")]
             {

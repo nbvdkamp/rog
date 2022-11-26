@@ -7,7 +7,10 @@ use luminance_front::{
 
 use cgmath::{Point2, Point3, Vector3};
 
-use crate::material::Material;
+use crate::{
+    material::Material,
+    raytracer::{aabb::BoundingBox, triangle::Triangle},
+};
 
 #[derive(Copy, Clone, Debug, Semantics)]
 pub enum VertexSemantics {
@@ -28,27 +31,50 @@ pub struct LuminanceVertex {
     pub uv: VertexUV,
 }
 
-#[derive(Clone)]
-pub struct Vertex {
-    pub position: Point3<f32>,
-    pub normal: Vector3<f32>,
-    pub tangent: Vector3<f32>,
-    pub tex_coord: Option<Point2<f32>>,
+pub struct Vertices {
+    pub positions: Vec<Point3<f32>>,
+    pub normals: Vec<Vector3<f32>>,
+    pub tangents: Vec<Vector3<f32>>,
+    pub tex_coords: Vec<Vec<Point2<f32>>>,
+}
+
+impl Vertices {
+    pub fn len(&self) -> usize {
+        self.positions.len()
+    }
 }
 
 pub type VertexIndex = u32;
 
 pub struct Mesh {
-    pub vertices: Vec<Vertex>,
+    pub vertices: Vertices,
+    // TODO: Don't store this twice
     pub indices: Vec<VertexIndex>,
+    pub triangles: Vec<Triangle>,
+    pub bounds: BoundingBox,
     pub material: Material,
 }
 
 impl Mesh {
-    pub fn new(vertices: Vec<Vertex>, indices: Vec<VertexIndex>, material: Material) -> Self {
+    pub fn new(vertices: Vertices, indices: Vec<VertexIndex>, material: Material) -> Self {
+        let triangles = indices
+            .chunks(3)
+            .map(|v| Triangle {
+                indices: [v[0], v[1], v[2]],
+            })
+            .collect();
+
+        let mut bounds = BoundingBox::new();
+
+        for &p in &vertices.positions {
+            bounds.add(p);
+        }
+
         Mesh {
             vertices,
             indices,
+            triangles,
+            bounds,
             material,
         }
     }
@@ -57,21 +83,21 @@ impl Mesh {
     where
         C: GraphicsContext<Backend = Backend>,
     {
-        let luminance_vertices = self
-            .vertices
-            .iter()
-            .map(|v| {
-                let pos: [f32; 3] = v.position.into();
-                let norm: [f32; 3] = v.normal.into();
+        let luminance_vertices = (0..self.vertices.len())
+            .map(|i| {
+                let pos: [f32; 3] = self.vertices.positions[i].into();
+                let norm: [f32; 3] = self.vertices.normals[i].into();
                 LuminanceVertex {
                     position: pos.into(),
                     normal: norm.into(),
-                    uv: match (v.tex_coord, self.material.base_color_texture) {
-                        (Some(uv), Some(tex_ref)) => {
-                            let Point2 { x: u, y: v } = tex_ref.transform_texture_coordinates(uv);
-                            [u, v].into()
-                        }
-                        _ => [0.0, 0.0].into(),
+                    uv: if let (Some(tex_coords), Some(tex_ref)) =
+                        (self.vertices.tex_coords.first(), self.material.base_color_texture)
+                    {
+                        let uv = tex_coords[i];
+                        let Point2 { x: u, y: v } = tex_ref.transform_texture_coordinates(uv);
+                        [u, v].into()
+                    } else {
+                        [0.0, 0.0].into()
                     },
                 }
             })

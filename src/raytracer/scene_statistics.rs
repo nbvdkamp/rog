@@ -16,8 +16,8 @@ use rayon::prelude::IntoParallelIterator;
 
 use crate::{
     color::RGBf32,
-    mesh::Vertex,
     raytracer::{file_formatting::SectionHeader, geometry::triangle_area, sampling::sample_coordinates_on_triangle},
+    scene::Scene,
     scene_version::SceneVersion,
     spectrum::Spectrumf32,
     util::{align_to, save_image},
@@ -31,7 +31,6 @@ use super::{
     geometry::{interpolate_point_on_triangle, line_axis_plane_intersect},
     ray::Ray,
     sampling::{cumulative_probabilities_from_weights, sample_item_from_cumulative_probabilities},
-    triangle::Triangle,
     Raytracer,
 };
 
@@ -264,20 +263,15 @@ impl SceneStatistics {
             .collect::<Vec<_>>();
     }
 
-    pub fn sample_materials(&mut self, raytracer: &Raytracer, triangle_bounds: &[BoundingBox]) {
+    pub fn sample_materials(&mut self, raytracer: &Raytracer) {
         self.materials = self
-            .split_triangles_into_voxels(&raytracer.verts, &raytracer.triangles, triangle_bounds)
+            .split_triangles_into_voxels(&raytracer.scene)
             .into_iter()
             .map(|tris| sample_triangle_materials(tris, raytracer))
             .collect();
     }
 
-    fn split_triangles_into_voxels(
-        &self,
-        verts: &[Vertex],
-        triangles: &[Triangle],
-        triangle_bounds: &[BoundingBox],
-    ) -> Vec<Vec<ClippedTri>> {
+    fn split_triangles_into_voxels(&self, scene: &Scene) -> Vec<Vec<ClippedTri>> {
         let mut tris_per_voxel = Vec::new();
         tris_per_voxel.reserve(VOXEL_COUNT);
 
@@ -285,26 +279,39 @@ impl SceneStatistics {
             tris_per_voxel.push(Vec::new());
         }
 
-        let mut tris_to_sort = triangles
+        let mut tris_to_sort = scene
+            .meshes
             .iter()
             .enumerate()
-            .map(|(i, tri)| ClippedTri {
-                original_index: i,
-                verts: [
-                    Vert {
-                        position: verts[tri.index1 as usize].position,
-                        barycentric: point2(0.0, 0.0),
-                    },
-                    Vert {
-                        position: verts[tri.index2 as usize].position,
-                        barycentric: point2(1.0, 0.0),
-                    },
-                    Vert {
-                        position: verts[tri.index3 as usize].position,
-                        barycentric: point2(0.0, 1.0),
-                    },
-                ],
-                bounds: triangle_bounds[i],
+            .flat_map(|(mesh_index, mesh)| {
+                mesh.triangles.iter().enumerate().map(move |(tri_index, tri)| {
+                    let verts = [
+                        Vert {
+                            position: mesh.vertices.positions[tri.indices[0] as usize],
+                            barycentric: point2(0.0, 0.0),
+                        },
+                        Vert {
+                            position: mesh.vertices.positions[tri.indices[1] as usize],
+                            barycentric: point2(1.0, 0.0),
+                        },
+                        Vert {
+                            position: mesh.vertices.positions[tri.indices[2] as usize],
+                            barycentric: point2(0.0, 1.0),
+                        },
+                    ];
+
+                    let mut bounds = BoundingBox::new();
+                    bounds.add(verts[0].position);
+                    bounds.add(verts[1].position);
+                    bounds.add(verts[2].position);
+
+                    ClippedTri {
+                        mesh_index,
+                        tri_index,
+                        verts,
+                        bounds,
+                    }
+                })
             })
             .collect::<Vec<_>>();
 
@@ -466,7 +473,8 @@ struct Vert {
 
 #[derive(Clone, Copy)]
 struct ClippedTri {
-    original_index: usize,
+    mesh_index: usize,
+    tri_index: usize,
     verts: [Vert; 3],
     bounds: BoundingBox,
 }
@@ -596,14 +604,14 @@ fn sample_triangle_materials(tris: Vec<ClippedTri>, raytracer: &Raytracer) -> Op
 
     let cumulative_probabilities = cumulative_probabilities_from_weights(surface_areas);
     let mut spectrum = Spectrumf32::constant(0.0);
+    let mut samples = 0.0;
 
     for _ in 0..MATERIAL_SAMPLES {
         let triangle = tris[sample_item_from_cumulative_probabilities(&cumulative_probabilities).unwrap()];
-        let original_tri = &raytracer.triangles[triangle.original_index];
-        let material = &raytracer.materials[original_tri.material_index as usize];
-        let has_tex_coords = raytracer.verts[original_tri.index1 as usize].tex_coord.is_some();
+        let mesh = &raytracer.scene.meshes[triangle.mesh_index];
+        let original_tri = &mesh.triangles[triangle.tri_index];
 
-        if has_tex_coords {
+        if let Some(texture_ref) = mesh.material.base_color_texture {
             let point = sample_coordinates_on_triangle();
 
             let barycentric = interpolate_point_on_triangle(
@@ -613,19 +621,31 @@ fn sample_triangle_materials(tris: Vec<ClippedTri>, raytracer: &Raytracer) -> Op
                 triangle.verts[2].barycentric,
             );
 
-            let v0 = raytracer.verts[original_tri.index1 as usize].tex_coord.unwrap();
-            let v1 = raytracer.verts[original_tri.index2 as usize].tex_coord.unwrap();
-            let v2 = raytracer.verts[original_tri.index3 as usize].tex_coord.unwrap();
+            let tex_coords = &mesh.vertices.tex_coords[texture_ref.texture_coordinate_set];
 
-            let texture_coordinates = interpolate_point_on_triangle(barycentric, v0, v1, v2);
-            let sample = material.sample(texture_coordinates, &raytracer.textures);
-            spectrum += sample.base_color_spectrum;
+            let v0 = tex_coords[original_tri.indices[0] as usize];
+            let v1 = tex_coords[original_tri.indices[1] as usize];
+            let v2 = tex_coords[original_tri.indices[2] as usize];
+
+            let uv = interpolate_point_on_triangle(barycentric, v0, v1, v2);
+            let Point2 { x: u, y: v } = texture_ref.transform_texture_coordinates(uv);
+            let coeffs_sample = raytracer.scene.textures.base_color_coefficients[texture_ref.index].sample(u, v);
+
+            let alpha = coeffs_sample.a;
+
+            let base_color_spectrum = alpha
+                * Spectrumf32::from_coefficients(mesh.material.base_color_coefficients)
+                * Spectrumf32::from_coefficients(coeffs_sample.rgb().into());
+
+            spectrum += base_color_spectrum;
+            samples += alpha;
         } else {
-            spectrum += Spectrumf32::from_coefficients(material.base_color_coefficients);
+            spectrum += Spectrumf32::from_coefficients(mesh.material.base_color_coefficients);
+            samples += 1.0;
         }
     }
 
-    Some(spectrum / MATERIAL_SAMPLES as f32)
+    Some(spectrum / samples)
 }
 
 struct FileHeader {

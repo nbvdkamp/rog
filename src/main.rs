@@ -30,7 +30,7 @@ fn headless_render(args: Args) {
         WorkingImage::new(args.image_settings.clone())
     };
 
-    let (scene, textures) = match Scene::load(args.scene_file) {
+    let (scene, _) = match Scene::load(args.scene_file) {
         Ok(scene) => scene,
         Err(message) => {
             eprintln!("{message}");
@@ -39,8 +39,7 @@ fn headless_render(args: Args) {
     };
 
     let raytracer = Raytracer::new(
-        &scene,
-        textures,
+        scene,
         &[args.render_settings.accel_structure],
         args.image_settings.use_visibility(),
         args.image_settings.scene_version.clone(),
