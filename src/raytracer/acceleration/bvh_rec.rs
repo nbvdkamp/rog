@@ -1,4 +1,4 @@
-use crate::raytracer::{axis::Axis, triangle::Triangle, Ray};
+use crate::raytracer::{aabb::Intersects, axis::Axis, triangle::Triangle, Ray};
 
 use cgmath::{Point3, Vector3};
 
@@ -34,7 +34,7 @@ impl AccelerationStructure for BoundingVolumeHierarchyRec {
 
         let inv_dir = 1.0 / ray.direction;
 
-        if intersects_bounds(&self.root, ray, inv_dir) {
+        if let Intersects::Yes { .. } = intersects_bounds(&self.root, ray, inv_dir) {
             self.intersect(&self.root, ray, inv_dir, positions, triangles)
         } else {
             TraceResult::Miss
@@ -93,23 +93,17 @@ impl BoundingVolumeHierarchyRec {
         let hit_l_box = intersects_bounds(left, ray, inv_dir);
         let hit_r_box = intersects_bounds(right, ray, inv_dir);
 
-        if !hit_l_box && !hit_r_box {
-            return TraceResult::Miss;
-        } else if hit_l_box && !hit_r_box {
-            return self.intersect(left, ray, inv_dir, positions, triangles);
-        } else if !hit_l_box && hit_r_box {
-            return self.intersect(right, ray, inv_dir, positions, triangles);
-        }
-
-        // Both children are intersected
-
-        let dist_to_left_box = intersects_bounds_distance(left, ray, inv_dir);
-        let dist_to_right_box = intersects_bounds_distance(right, ray, inv_dir);
-
-        if dist_to_left_box < dist_to_right_box {
-            self.intersect_both_children_hit(left, right, dist_to_right_box, ray, inv_dir, positions, triangles)
-        } else {
-            self.intersect_both_children_hit(right, left, dist_to_left_box, ray, inv_dir, positions, triangles)
+        match (hit_l_box, hit_r_box) {
+            (Intersects::No, Intersects::No) => TraceResult::Miss,
+            (Intersects::Yes { .. }, Intersects::No) => self.intersect(left, ray, inv_dir, positions, triangles),
+            (Intersects::No, Intersects::Yes { .. }) => self.intersect(right, ray, inv_dir, positions, triangles),
+            (Intersects::Yes { distance: l_distance }, Intersects::Yes { distance: r_distance }) => {
+                if l_distance < r_distance {
+                    self.intersect_both_children_hit(left, right, r_distance, ray, inv_dir, positions, triangles)
+                } else {
+                    self.intersect_both_children_hit(right, left, l_distance, ray, inv_dir, positions, triangles)
+                }
+            }
         }
     }
 
@@ -123,6 +117,8 @@ impl BoundingVolumeHierarchyRec {
         positions: &[Point3<f32>],
         triangles: &[Triangle],
     ) -> TraceResult {
+        // We hit both children's bounds, so check which is hit first
+        // If there is an intersection in that one that is closer than the other child's bounds we can stop
         let first_result = self.intersect(first_hit_child, ray, inv_dir, positions, triangles);
 
         let TraceResult::Hit { t: t_first, .. } = first_result else {
@@ -147,31 +143,16 @@ impl BoundingVolumeHierarchyRec {
     }
 }
 
-fn intersects_bounds(node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: Vector3<f32>) -> bool {
+fn intersects_bounds(node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: Vector3<f32>) -> Intersects {
     match node_opt {
         Some(node) => {
             let node = node.as_ref();
             match node {
-                Node::Inner { bounds, .. } => bounds.intersects_ray(ray, &inv_dir),
-                Node::Leaf { bounds, .. } => bounds.intersects_ray(ray, &inv_dir),
+                Node::Inner { bounds, .. } => bounds.intersects_ray_not_inlined(ray, &inv_dir),
+                Node::Leaf { bounds, .. } => bounds.intersects_ray_not_inlined(ray, &inv_dir),
             }
         }
-        None => false,
-    }
-}
-
-fn intersects_bounds_distance(node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: Vector3<f32>) -> f32 {
-    match node_opt {
-        Some(node) => {
-            let node = node.as_ref();
-            match node {
-                Node::Inner { bounds, .. } => bounds.t_distance_from_ray(ray, &inv_dir),
-                Node::Leaf { bounds, .. } => bounds.t_distance_from_ray(ray, &inv_dir),
-            }
-        }
-        None => {
-            unreachable!()
-        }
+        None => Intersects::No,
     }
 }
 

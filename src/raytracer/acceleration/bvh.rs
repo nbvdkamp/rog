@@ -2,7 +2,12 @@ use std::num::NonZeroU32;
 
 use cgmath::Point3;
 
-use crate::raytracer::{aabb::BoundingBox, axis::Axis, triangle::Triangle, Ray};
+use crate::raytracer::{
+    aabb::{BoundingBox, Intersects},
+    axis::Axis,
+    triangle::Triangle,
+    Ray,
+};
 
 use super::{
     helpers::{compute_bounding_box, compute_bounding_box_triangle_indexed, intersect_triangles_indexed},
@@ -154,7 +159,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                     right_child,
                     bounds,
                 } => {
-                    if bounds.intersects_ray(ray, &inv_dir) {
+                    if let Intersects::Yes { .. } = bounds.intersects_ray(ray, &inv_dir) {
                         self.stats.count_inner_node_traversal();
                         stack.push(left_child.unwrap().get() as usize);
                         stack.push(right_child.unwrap().get() as usize);
@@ -164,11 +169,14 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                     triangle_indices,
                     bounds,
                 } => {
-                    if !triangle_indices.is_empty() && bounds.intersects_ray(ray, &inv_dir) {
-                        let r = intersect_triangles_indexed(triangle_indices, ray, positions, triangles, &self.stats);
+                    if !triangle_indices.is_empty() {
+                        if let Intersects::Yes { .. } = bounds.intersects_ray(ray, &inv_dir) {
+                            let r =
+                                intersect_triangles_indexed(triangle_indices, ray, positions, triangles, &self.stats);
 
-                        if r.is_closer_than(&result) {
-                            result = r;
+                            if r.is_closer_than(&result) {
+                                result = r;
+                            }
                         }
                     }
                 }
