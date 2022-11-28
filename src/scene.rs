@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{hash_map::Entry, HashMap, HashSet},
     path::Path,
     time::Instant,
 };
@@ -32,7 +32,7 @@ use crate::{
     light::{Kind, Light},
     material::{CauchyCoefficients, Material, TextureRef, TextureTransform},
     mesh::{Mesh, Vertices},
-    raytracer::Textures,
+    raytracer::{aabb::BoundingBox, triangle::Triangle, Textures},
     spectrum::Spectrumf32,
     texture::{Format, Texture},
 };
@@ -509,6 +509,13 @@ impl Scene {
                 }
             };
 
+            let triangles: Vec<Triangle> = indices
+                .chunks(3)
+                .map(|v| Triangle {
+                    indices: [v[0], v[1], v[2]],
+                })
+                .collect();
+
             let vertices = Vertices {
                 positions,
                 normals,
@@ -516,7 +523,73 @@ impl Scene {
                 tex_coords,
             };
 
-            self.meshes.push(Mesh::new(vertices, indices, material));
+            // Split topologically and spatially separated parts of the mesh into separate meshes
+            // to improve acceleration structure performance.
+            let mut assigned = vec![false; triangles.len()];
+
+            while let Some(first_unassigned) = assigned.iter().position(|&v| !v) {
+                let mut visited = HashSet::<u32>::new();
+                let mut new_triangles = Vec::new();
+                let mut new_tri_added = true;
+                let mut new_bounds = BoundingBox::new();
+
+                let tri = &triangles[first_unassigned];
+                visited.extend(tri.indices.iter());
+                new_triangles.push(triangles[first_unassigned]);
+                new_bounds.add(vertices.positions[tri.indices[0] as usize]);
+                new_bounds.add(vertices.positions[tri.indices[1] as usize]);
+                new_bounds.add(vertices.positions[tri.indices[2] as usize]);
+                assigned[first_unassigned] = true;
+
+                while new_tri_added {
+                    new_tri_added = false;
+                    for tri_index in 0..triangles.len() {
+                        let tri = &triangles[tri_index];
+                        if !assigned[tri_index]
+                            && (visited.contains(&tri.indices[0])
+                                || visited.contains(&tri.indices[1])
+                                || visited.contains(&tri.indices[2])
+                                || new_bounds.contains(vertices.positions[tri.indices[0] as usize])
+                                || new_bounds.contains(vertices.positions[tri.indices[1] as usize])
+                                || new_bounds.contains(vertices.positions[tri.indices[2] as usize]))
+                        {
+                            visited.extend(triangles[tri_index].indices.iter());
+                            new_triangles.push(triangles[tri_index]);
+                            new_bounds.add(vertices.positions[tri.indices[0] as usize]);
+                            new_bounds.add(vertices.positions[tri.indices[1] as usize]);
+                            new_bounds.add(vertices.positions[tri.indices[2] as usize]);
+                            assigned[tri_index] = true;
+                            new_tri_added = true;
+                        }
+                    }
+                }
+
+                let indices: Vec<u32> = visited.into_iter().collect();
+                let new_triangles = new_triangles
+                    .into_iter()
+                    .map(|tri| Triangle {
+                        indices: [
+                            indices.iter().position(|&i| i == tri.indices[0]).unwrap() as u32,
+                            indices.iter().position(|&i| i == tri.indices[1]).unwrap() as u32,
+                            indices.iter().position(|&i| i == tri.indices[2]).unwrap() as u32,
+                        ],
+                    })
+                    .collect();
+
+                let vertices = Vertices {
+                    positions: indices.iter().map(|&i| vertices.positions[i as usize]).collect(),
+                    normals: indices.iter().map(|&i| vertices.normals[i as usize]).collect(),
+                    tangents: indices.iter().map(|&i| vertices.tangents[i as usize]).collect(),
+                    tex_coords: vertices
+                        .tex_coords
+                        .iter()
+                        .map(|t| indices.iter().map(|&i| t[i as usize]).collect())
+                        .collect(),
+                };
+
+                self.meshes
+                    .push(Mesh::new(vertices, new_triangles, material.clone(), new_bounds));
+            }
         }
     }
 }

@@ -35,6 +35,16 @@ impl BoundingBox {
         }
     }
 
+    pub fn contains(&self, point: Point3<f32>) -> bool {
+        for i in 0..3 {
+            if point[i] < self.min[i] || point[i] > self.max[i] {
+                return false;
+            }
+        }
+
+        true
+    }
+
     pub fn set_min(&mut self, axis: Axis, value: f32) {
         match axis {
             Axis::X => self.min.x = value,

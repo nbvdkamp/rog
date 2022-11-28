@@ -54,20 +54,7 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub fn new(vertices: Vertices, indices: Vec<VertexIndex>, material: Material) -> Self {
-        let triangles = indices
-            .chunks(3)
-            .map(|v| Triangle {
-                indices: [v[0], v[1], v[2]],
-            })
-            .collect();
-
-        let mut bounds = BoundingBox::new();
-
-        for &p in &vertices.positions {
-            bounds.add(p);
-        }
-
+    pub fn new(vertices: Vertices, triangles: Vec<Triangle>, material: Material, bounds: BoundingBox) -> Self {
         Mesh {
             vertices,
             triangles,
