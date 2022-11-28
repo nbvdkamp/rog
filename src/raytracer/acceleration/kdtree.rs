@@ -12,7 +12,7 @@ use super::{
 
 pub struct KdTree {
     root: Option<Box<Node>>,
-    scene_bounds: BoundingBox,
+    bounds: BoundingBox,
     stats: Statistics,
 }
 
@@ -35,8 +35,8 @@ impl AccelerationStructure for KdTree {
 
         let inv_dir = 1.0 / ray.direction;
 
-        if let Intersects::Yes { .. } = self.scene_bounds.intersects_ray(ray, &inv_dir) {
-            self.intersect(&self.root, ray, inv_dir, positions, triangles, self.scene_bounds)
+        if let Intersects::Yes { .. } = self.bounds.intersects_ray(ray, &inv_dir) {
+            self.intersect(&self.root, ray, inv_dir, positions, triangles, self.bounds)
         } else {
             TraceResult::Miss
         }
@@ -44,6 +44,10 @@ impl AccelerationStructure for KdTree {
 
     fn get_statistics(&self) -> StatisticsStore {
         self.stats.get_copy()
+    }
+
+    fn bounds(&self) -> BoundingBox {
+        self.bounds
     }
 }
 
@@ -56,11 +60,11 @@ impl KdTree {
             item_indices.push(i);
         }
 
-        let scene_bounds = compute_bounding_box(positions);
+        let bounds = compute_bounding_box(positions);
 
         KdTree {
-            root: create_node(triangle_bounds, item_indices, 0, &scene_bounds, &mut stats),
-            scene_bounds,
+            root: create_node(triangle_bounds, item_indices, 0, &bounds, &mut stats),
+            bounds,
             stats,
         }
     }

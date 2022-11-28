@@ -10,7 +10,7 @@ use crate::raytracer::{
 };
 
 use super::{
-    helpers::{compute_bounding_box, compute_bounding_box_triangle_indexed, intersect_triangles_indexed},
+    helpers::{compute_bounding_box, compute_bounding_box_item_indexed, intersect_triangles_indexed},
     sah::{surface_area_heuristic_bvh, SurfaceAreaHeuristicResultBvh},
     statistics::{Statistics, StatisticsStore},
     structure::{AccelerationStructure, TraceResult},
@@ -18,6 +18,7 @@ use super::{
 
 pub struct BoundingVolumeHierarchy {
     nodes: Vec<Node>,
+    bounds: BoundingBox,
     stats: Statistics,
 }
 
@@ -93,7 +94,15 @@ impl BoundingVolumeHierarchy {
             };
 
             let axes_to_search = [Axis::from_index(depth)];
-            match surface_area_heuristic_bvh(triangle_bounds, triangle_indices, *bounds, &axes_to_search) {
+            let relative_traversal_cost = 1.2;
+
+            match surface_area_heuristic_bvh(
+                triangle_bounds,
+                triangle_indices,
+                *bounds,
+                &axes_to_search,
+                relative_traversal_cost,
+            ) {
                 SurfaceAreaHeuristicResultBvh::MakeLeaf { mut indices } => {
                     left_indices = indices.split_off(indices.len() / 2);
                     right_indices = indices;
@@ -111,8 +120,8 @@ impl BoundingVolumeHierarchy {
                 }
             };
 
-            left_bounds = compute_bounding_box_triangle_indexed(triangle_bounds, &left_indices);
-            right_bounds = compute_bounding_box_triangle_indexed(triangle_bounds, &right_indices);
+            left_bounds = compute_bounding_box_item_indexed(triangle_bounds, &left_indices);
+            right_bounds = compute_bounding_box_item_indexed(triangle_bounds, &right_indices);
 
             *left_child = NonZeroU32::new(new_left_index as u32);
             *right_child = NonZeroU32::new(new_right_index as u32);
@@ -136,7 +145,7 @@ impl BoundingVolumeHierarchy {
             }
         }
 
-        BoundingVolumeHierarchy { nodes, stats }
+        BoundingVolumeHierarchy { nodes, bounds, stats }
     }
 }
 
@@ -188,5 +197,9 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
 
     fn get_statistics(&self) -> StatisticsStore {
         self.stats.get_copy()
+    }
+
+    fn bounds(&self) -> BoundingBox {
+        self.bounds
     }
 }

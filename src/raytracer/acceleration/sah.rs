@@ -22,15 +22,16 @@ struct Bucket {
 }
 
 pub fn surface_area_heuristic_bvh(
-    triangle_bounds: &[BoundingBox],
-    triangle_indices: Vec<usize>,
+    item_bounds: &[BoundingBox],
+    item_indices: Vec<usize>,
     bounds: BoundingBox,
     axes_to_search: &[Axis],
+    relative_traversal_cost: f32,
 ) -> SurfaceAreaHeuristicResultBvh {
     let mut centroid_bounds = BoundingBox::new();
 
-    for index in &triangle_indices {
-        centroid_bounds.add(triangle_bounds[*index].center());
+    for index in &item_indices {
+        centroid_bounds.add(item_bounds[*index].center());
     }
 
     let centroid_bounds_extent = centroid_bounds.max - centroid_bounds.min;
@@ -53,8 +54,8 @@ pub fn surface_area_heuristic_bvh(
             bounds: BoundingBox::new(),
         }; BUCKET_COUNT];
 
-        for index in &triangle_indices {
-            let bounds = triangle_bounds[*index];
+        for index in &item_indices {
+            let bounds = item_bounds[*index];
 
             let center = bounds.center()[axis_index];
             let bucket = &mut buckets[bucket_index(center, axis_index)];
@@ -83,7 +84,7 @@ pub fn surface_area_heuristic_bvh(
 
             let approx_children_cost =
                 (count0 as f32 * b0.surface_area() + count1 as f32 * b1.surface_area()) / bounds.surface_area();
-            costs[i] = RELATIVE_TRAVERSAL_COST + approx_children_cost;
+            costs[i] = relative_traversal_cost + approx_children_cost;
         }
 
         for (i, cost) in costs.into_iter().enumerate() {
@@ -95,19 +96,17 @@ pub fn surface_area_heuristic_bvh(
         }
     }
 
-    let should_make_leaf = triangle_indices.len() < MAX_TRIS_IN_LEAF && min_cost > triangle_indices.len() as f32;
+    let should_make_leaf = item_indices.len() < MAX_TRIS_IN_LEAF && min_cost > item_indices.len() as f32;
 
     if should_make_leaf {
-        return SurfaceAreaHeuristicResultBvh::MakeLeaf {
-            indices: triangle_indices,
-        };
+        return SurfaceAreaHeuristicResultBvh::MakeLeaf { indices: item_indices };
     }
 
     let axis_index = min_axis.index();
 
-    let (left_indices, right_indices) = triangle_indices
+    let (left_indices, right_indices) = item_indices
         .into_iter()
-        .partition(|i| bucket_index(triangle_bounds[*i].center()[axis_index], axis_index) <= min_index);
+        .partition(|i| bucket_index(item_bounds[*i].center()[axis_index], axis_index) <= min_index);
 
     SurfaceAreaHeuristicResultBvh::MakeInner {
         left_indices,

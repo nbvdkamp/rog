@@ -18,14 +18,11 @@ pub fn compute_bounding_box(positions: &[Point3<f32>]) -> BoundingBox {
     bounds
 }
 
-pub fn compute_bounding_box_triangle_indexed(
-    triangle_bounds: &[BoundingBox],
-    triangle_indices: &[usize],
-) -> BoundingBox {
+pub fn compute_bounding_box_item_indexed(item_bounds: &[BoundingBox], indices: &[usize]) -> BoundingBox {
     let mut bounds = BoundingBox::new();
 
-    for i in triangle_indices {
-        bounds = bounds.union(triangle_bounds[*i]);
+    for &i in indices {
+        bounds = bounds.union(item_bounds[i]);
     }
 
     bounds

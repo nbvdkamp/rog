@@ -4,7 +4,7 @@ use cgmath::{Point3, Vector3};
 
 use super::{
     super::aabb::BoundingBox,
-    helpers::{compute_bounding_box_triangle_indexed, intersect_triangles_indexed},
+    helpers::{compute_bounding_box_item_indexed, intersect_triangles_indexed},
     sah::{surface_area_heuristic_bvh, SurfaceAreaHeuristicResultBvh},
     statistics::{Statistics, StatisticsStore},
     structure::{AccelerationStructure, TraceResult},
@@ -12,6 +12,7 @@ use super::{
 
 pub struct BoundingVolumeHierarchyRec {
     root: Option<Box<Node>>,
+    bounds: BoundingBox,
     stats: Statistics,
 }
 
@@ -44,14 +45,24 @@ impl AccelerationStructure for BoundingVolumeHierarchyRec {
     fn get_statistics(&self) -> StatisticsStore {
         self.stats.get_copy()
     }
+
+    fn bounds(&self) -> BoundingBox {
+        self.bounds
+    }
 }
 
 impl BoundingVolumeHierarchyRec {
     pub fn new(triangle_count: usize, triangle_bounds: &[BoundingBox]) -> Self {
         let mut stats = Statistics::new();
+        let mut bounds = BoundingBox::new();
+
+        for &b in triangle_bounds {
+            bounds = bounds.union(b);
+        }
 
         BoundingVolumeHierarchyRec {
             root: create_node(triangle_bounds, (0..triangle_count).collect(), 0, &mut stats),
+            bounds,
             stats,
         }
     }
@@ -168,10 +179,17 @@ fn create_node(
 
     stats.count_max_depth(depth);
 
-    let bounds = compute_bounding_box_triangle_indexed(triangle_bounds, &triangle_indices);
+    let bounds = compute_bounding_box_item_indexed(triangle_bounds, &triangle_indices);
     let axes_to_search = [Axis::X, Axis::Y, Axis::Z];
+    let relative_traversal_cost = 1.2;
 
-    match surface_area_heuristic_bvh(triangle_bounds, triangle_indices, bounds, &axes_to_search) {
+    match surface_area_heuristic_bvh(
+        triangle_bounds,
+        triangle_indices,
+        bounds,
+        &axes_to_search,
+        relative_traversal_cost,
+    ) {
         SurfaceAreaHeuristicResultBvh::MakeLeaf { indices } => {
             stats.count_leaf_node();
 
