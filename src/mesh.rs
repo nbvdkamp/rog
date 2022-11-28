@@ -48,8 +48,6 @@ pub type VertexIndex = u32;
 
 pub struct Mesh {
     pub vertices: Vertices,
-    // TODO: Don't store this twice
-    pub indices: Vec<VertexIndex>,
     pub triangles: Vec<Triangle>,
     pub bounds: BoundingBox,
     pub material: Material,
@@ -72,7 +70,6 @@ impl Mesh {
 
         Mesh {
             vertices,
-            indices,
             triangles,
             bounds,
             material,
@@ -83,7 +80,13 @@ impl Mesh {
     where
         C: GraphicsContext<Backend = Backend>,
     {
-        let luminance_vertices = (0..self.vertices.len())
+        let indices: Vec<_> = self
+            .triangles
+            .iter()
+            .flat_map(|tri| [tri.indices[0], tri.indices[1], tri.indices[2]])
+            .collect();
+
+        let luminance_vertices: Vec<_> = (0..self.vertices.len())
             .map(|i| {
                 let pos: [f32; 3] = self.vertices.positions[i].into();
                 let norm: [f32; 3] = self.vertices.normals[i].into();
@@ -101,13 +104,13 @@ impl Mesh {
                     },
                 }
             })
-            .collect::<Vec<_>>();
+            .collect();
 
         context
             .new_tess()
             .set_mode(Mode::Triangle)
             .set_vertices(luminance_vertices)
-            .set_indices(self.indices.clone())
+            .set_indices(indices)
             .build()
     }
 }
