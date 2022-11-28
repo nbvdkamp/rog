@@ -397,7 +397,7 @@ impl Raytracer {
     }
 
     pub fn get_num_tris(&self) -> usize {
-        self.scene.meshes.iter().map(|m| m.vertices.positions.len()).sum()
+        self.scene.meshes.iter().map(|m| m.triangles.len()).sum()
     }
 
     fn radiance(&self, ray: Ray, settings: &RenderSettings, image_settings: &ImageSettings) -> RadianceResult {
