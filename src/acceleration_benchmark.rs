@@ -72,8 +72,10 @@ fn main() {
 
             #[cfg(feature = "stats")]
             {
-                let stats = raytracer.accel_structures.get(structure).get_statistics();
+                let mut stats = raytracer.accel_structures.get(structure).get_statistics();
+                let top_level_stats = raytracer.accel_structures.get(structure).get_top_level_statistics();
                 println!("{name: <25} | {time_elapsed: <10} | {stats}");
+                println!("{:<25} | {:10} | {top_level_stats}", "Top Level:", "");
             }
             #[cfg(not(feature = "stats"))]
             println!("{name: <25} | {time_elapsed: <10}");
