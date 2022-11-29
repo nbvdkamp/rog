@@ -53,17 +53,11 @@ impl AccelerationStructure for KdTree {
 
 impl KdTree {
     pub fn new(positions: &[Point3<f32>], triangles: &[Triangle], triangle_bounds: &[BoundingBox]) -> Self {
-        let mut item_indices = Vec::new();
         let mut stats = Statistics::new();
-
-        for i in 0..triangles.len() {
-            item_indices.push(i);
-        }
-
         let bounds = compute_bounding_box(positions);
 
         KdTree {
-            root: create_node(triangle_bounds, item_indices, 0, &bounds, &mut stats),
+            root: create_node(triangle_bounds, (0..triangles.len()).collect(), 0, &bounds, &mut stats),
             bounds,
             stats,
         }

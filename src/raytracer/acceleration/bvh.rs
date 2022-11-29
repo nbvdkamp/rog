@@ -57,16 +57,11 @@ impl BoundingVolumeHierarchy {
         let stats = Statistics::new();
 
         let bounds = compute_bounding_box(positions);
-        let mut triangle_indices = Vec::new();
-
-        for i in 0..triangles.len() {
-            triangle_indices.push(i);
-        }
 
         stats.count_inner_node();
         nodes.push(Node::new_inner(bounds));
 
-        let mut stack = vec![(0, triangle_indices, 1)];
+        let mut stack = vec![(0, (0..triangles.len()).collect(), 1)];
 
         while let Some((index, triangle_indices, depth)) = stack.pop() {
             let new_left_index = nodes.len();
