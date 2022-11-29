@@ -12,7 +12,6 @@ use super::{
 
 pub struct BoundingVolumeHierarchyRec {
     root: Option<Box<Node>>,
-    bounds: BoundingBox,
     stats: Statistics,
 }
 
@@ -45,24 +44,14 @@ impl AccelerationStructure for BoundingVolumeHierarchyRec {
     fn get_statistics(&self) -> StatisticsStore {
         self.stats.get_copy()
     }
-
-    fn bounds(&self) -> BoundingBox {
-        self.bounds
-    }
 }
 
 impl BoundingVolumeHierarchyRec {
     pub fn new(triangle_count: usize, triangle_bounds: &[BoundingBox]) -> Self {
         let mut stats = Statistics::new();
-        let mut bounds = BoundingBox::new();
-
-        for b in triangle_bounds {
-            bounds = bounds.union(b);
-        }
 
         BoundingVolumeHierarchyRec {
             root: create_node(triangle_bounds, (0..triangle_count).collect(), 0, &mut stats),
-            bounds,
             stats,
         }
     }

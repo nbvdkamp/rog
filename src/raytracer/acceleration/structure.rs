@@ -1,7 +1,7 @@
 use cgmath::Point3;
 
 use super::statistics::StatisticsStore;
-use crate::raytracer::{aabb::BoundingBox, triangle::Triangle, Ray};
+use crate::raytracer::{triangle::Triangle, Ray};
 
 pub enum TraceResult {
     Miss,
@@ -63,8 +63,6 @@ impl TraceResult {
 
 pub trait AccelerationStructure {
     fn intersect(&self, ray: &Ray, verts: &[Point3<f32>], triangles: &[Triangle]) -> TraceResult;
-
-    fn bounds(&self) -> BoundingBox;
 
     fn get_statistics(&self) -> StatisticsStore;
 }

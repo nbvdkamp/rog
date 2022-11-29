@@ -45,10 +45,6 @@ impl AccelerationStructure for KdTree {
     fn get_statistics(&self) -> StatisticsStore {
         self.stats.get_copy()
     }
-
-    fn bounds(&self) -> BoundingBox {
-        self.bounds
-    }
 }
 
 impl KdTree {

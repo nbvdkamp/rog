@@ -18,7 +18,6 @@ use super::{
 
 pub struct BoundingVolumeHierarchy {
     nodes: Vec<Node>,
-    bounds: BoundingBox,
     stats: Statistics,
 }
 
@@ -140,7 +139,7 @@ impl BoundingVolumeHierarchy {
             }
         }
 
-        BoundingVolumeHierarchy { nodes, bounds, stats }
+        BoundingVolumeHierarchy { nodes, stats }
     }
 }
 
@@ -192,9 +191,5 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
 
     fn get_statistics(&self) -> StatisticsStore {
         self.stats.get_copy()
-    }
-
-    fn bounds(&self) -> BoundingBox {
-        self.bounds
     }
 }
