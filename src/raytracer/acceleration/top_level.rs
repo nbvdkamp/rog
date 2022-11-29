@@ -1,11 +1,9 @@
-use arrayvec::ArrayVec;
 use cgmath::Vector3;
 
 use crate::{
     mesh::Mesh,
     raytracer::{
         aabb::{BoundingBox, Intersects},
-        axis::Axis,
         ray::Ray,
     },
 };
@@ -13,9 +11,7 @@ use crate::{
 use super::{
     bvh::BoundingVolumeHierarchy,
     bvh_rec::BoundingVolumeHierarchyRec,
-    helpers::compute_bounding_box_item_indexed,
     kdtree::KdTree,
-    sah::{surface_area_heuristic_bvh, SurfaceAreaHeuristicResultBvh},
     statistics::{Statistics, StatisticsStore},
     structure::{AccelerationStructure, TraceResult, TraceResultMesh},
     Accel,
@@ -23,25 +19,36 @@ use super::{
 
 pub struct TopLevelBVH {
     children: Vec<Box<dyn AccelerationStructure + Sync>>,
-    tree_root: Option<Box<Node>>,
+    tree_root: Box<Node>,
     stats: Statistics,
 }
 
 enum Node {
     Inner {
-        left: Option<Box<Node>>,
-        right: Option<Box<Node>>,
+        left: Box<Node>,
+        right: Box<Node>,
         bounds: BoundingBox,
     },
     Leaf {
-        mesh_indices: ArrayVec<usize, 10>,
+        mesh_index: usize,
         bounds: BoundingBox,
     },
+}
+
+impl Node {
+    fn bounds(&self) -> &BoundingBox {
+        match self {
+            Node::Inner { bounds, .. } => bounds,
+            Node::Leaf { bounds, .. } => bounds,
+        }
+    }
 }
 
 impl TopLevelBVH {
     pub fn new(accel_type: Accel, meshes: &[Mesh]) -> Self {
         let mut children: Vec<Box<dyn AccelerationStructure + Sync>> = Vec::new();
+        let mut nodes = Vec::new();
+        let stats = Statistics::new();
 
         for mesh in meshes {
             let triangle_bounds = mesh
@@ -78,15 +85,50 @@ impl TopLevelBVH {
                     )));
                 }
             }
+
+            stats.count_leaf_node();
+
+            nodes.push(Box::new(Node::Leaf {
+                mesh_index: children.len() - 1,
+                bounds: mesh.bounds,
+            }));
         }
 
-        let mesh_bounds = meshes.iter().map(|mesh| mesh.bounds).collect::<Vec<_>>();
-        let mut stats = Statistics::new();
-        let tree_root = create_node(&mesh_bounds, (0..meshes.len()).collect(), 0, &mut stats);
+        // From Walter et al. 2008: Fast Agglomerative Clustering for Rendering
+        let mut a = 0;
+        let mut b = find_best_match(a, &nodes);
+
+        while nodes.len() > 1 {
+            let c = find_best_match(b, &nodes);
+
+            if a == c {
+                // If a is before b in the vec we need to remove b first so we swap them
+                if a < b {
+                    (a, b) = (b, a);
+                }
+
+                let node_a = nodes.remove(a);
+                let node_b = nodes.remove(b);
+                let bounds = node_a.as_ref().bounds().union(node_b.as_ref().bounds());
+                stats.count_inner_node();
+
+                let new_node = Node::Inner {
+                    left: node_a,
+                    right: node_b,
+                    bounds,
+                };
+                nodes.push(Box::new(new_node));
+                a = nodes.len() - 1;
+                b = find_best_match(a, &nodes);
+            } else {
+                a = b;
+                b = c;
+            }
+        }
 
         Self {
             children,
-            tree_root,
+            tree_root: nodes.pop().unwrap(),
             stats,
         }
     }
@@ -111,54 +153,36 @@ impl TopLevelBVH {
         self.stats.get_copy()
     }
 
-    fn intersect_node(
-        &self,
-        node_opt: &Option<Box<Node>>,
-        ray: &Ray,
-        inv_dir: Vector3<f32>,
-        meshes: &[Mesh],
-    ) -> TraceResultMesh {
-        match node_opt {
-            Some(node) => match node.as_ref() {
-                Node::Inner { left, right, .. } => self.inner_intersect(left, right, ray, inv_dir, meshes),
-                Node::Leaf { mesh_indices, .. } => {
-                    let mut result = TraceResult::Miss;
-                    let mut mesh_index = 0;
+    fn intersect_node(&self, node: &Box<Node>, ray: &Ray, inv_dir: Vector3<f32>, meshes: &[Mesh]) -> TraceResultMesh {
+        match node.as_ref() {
+            Node::Inner { left, right, .. } => self.inner_intersect(left, right, ray, inv_dir, meshes),
+            Node::Leaf { mesh_index, .. } => {
+                let i = *mesh_index;
+                self.stats.count_intersection_test();
+                let mesh = &meshes[i];
+                let t = self.children[i].intersect(ray, &mesh.vertices.positions, &mesh.triangles);
 
-                    for &i in mesh_indices {
-                        self.stats.count_intersection_test();
-                        let mesh = &meshes[i];
-                        let t = self.children[i].intersect(ray, &mesh.vertices.positions, &mesh.triangles);
-
-                        if let TraceResult::Hit { .. } = t {
-                            self.stats.count_intersection_hit();
-                        }
-
-                        if t.is_closer_than(&result) {
-                            result = t;
-                            mesh_index = i;
-                        }
-                    }
-
-                    result.with_mesh_index(mesh_index)
+                if let TraceResult::Hit { .. } = t {
+                    self.stats.count_intersection_hit();
                 }
-            },
-            None => TraceResultMesh::Miss,
+
+                t.with_mesh_index(i)
+            }
         }
     }
 
     fn inner_intersect(
         &self,
-        left: &Option<Box<Node>>,
-        right: &Option<Box<Node>>,
+        left: &Box<Node>,
+        right: &Box<Node>,
         ray: &Ray,
         inv_dir: Vector3<f32>,
         meshes: &[Mesh],
     ) -> TraceResultMesh {
         self.stats.count_inner_node_traversal();
 
-        let hit_l_box = intersects_bounds(left, ray, inv_dir);
-        let hit_r_box = intersects_bounds(right, ray, inv_dir);
+        let hit_l_box = left.bounds().intersects_ray(ray, &inv_dir);
+        let hit_r_box = right.bounds().intersects_ray(ray, &inv_dir);
 
         match (hit_l_box, hit_r_box) {
             (Intersects::No, Intersects::No) => TraceResultMesh::Miss,
@@ -176,8 +200,8 @@ impl TopLevelBVH {
 
     fn intersect_both_children_hit(
         &self,
-        first_hit_child: &Option<Box<Node>>,
-        second_hit_child: &Option<Box<Node>>,
+        first_hit_child: &Box<Node>,
+        second_hit_child: &Box<Node>,
         dist_to_second_box: f32,
         ray: &Ray,
         inv_dir: Vector3<f32>,
@@ -207,53 +231,23 @@ impl TopLevelBVH {
     }
 }
 
-fn intersects_bounds(node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: Vector3<f32>) -> Intersects {
-    match node_opt {
-        Some(node) => {
-            let node = node.as_ref();
-            match node {
-                Node::Inner { bounds, .. } => bounds.intersects_ray(ray, &inv_dir),
-                Node::Leaf { bounds, .. } => bounds.intersects_ray(ray, &inv_dir),
-            }
+fn find_best_match(i: usize, nodes: &Vec<Box<Node>>) -> usize {
+    let node = &nodes[i];
+    let mut best = 0;
+    let mut best_surface_area = f32::MAX;
+
+    for j in 0..nodes.len() {
+        if i == j {
+            continue;
         }
-        None => Intersects::No,
-    }
-}
 
-fn create_node(
-    item_bounds: &[BoundingBox],
-    item_indices: Vec<usize>,
-    depth: usize,
-    stats: &mut Statistics,
-) -> Option<Box<Node>> {
-    if item_indices.is_empty() {
-        return None;
-    }
+        let area = node.as_ref().bounds().union(nodes[j].as_ref().bounds()).surface_area();
 
-    stats.count_max_depth(depth);
-
-    let bounds = compute_bounding_box_item_indexed(item_bounds, &item_indices);
-    let axes_to_search = [Axis::X, Axis::Y, Axis::Z];
-
-    match surface_area_heuristic_bvh(&item_bounds, item_indices, bounds, &axes_to_search, 1.1) {
-        SurfaceAreaHeuristicResultBvh::MakeLeaf { indices } => {
-            stats.count_leaf_node();
-
-            Some(Box::new(Node::Leaf {
-                mesh_indices: indices.into_iter().collect(),
-                bounds,
-            }))
-        }
-        SurfaceAreaHeuristicResultBvh::MakeInner {
-            left_indices,
-            right_indices,
-        } => {
-            stats.count_inner_node();
-
-            let left = create_node(item_bounds, left_indices, depth + 1, stats);
-            let right = create_node(item_bounds, right_indices, depth + 1, stats);
-
-            Some(Box::new(Node::Inner { left, right, bounds }))
+        if area < best_surface_area {
+            best = j;
+            best_surface_area = area;
         }
     }
+
+    best
 }

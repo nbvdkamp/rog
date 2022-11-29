@@ -89,7 +89,7 @@ impl Raytracer {
             let mut b = BoundingBox::new();
 
             for mesh in &scene.meshes {
-                b = b.union(mesh.bounds);
+                b = b.union(&mesh.bounds);
             }
 
             b

@@ -60,7 +60,7 @@ pub fn surface_area_heuristic_bvh(
             let center = bounds.center()[axis_index];
             let bucket = &mut buckets[bucket_index(center, axis_index)];
             bucket.count += 1;
-            bucket.bounds = bucket.bounds.union(bounds);
+            bucket.bounds = bucket.bounds.union(&bounds);
         }
 
         let mut costs = [0.0; POTENTIAL_SPLIT_COUNT];
@@ -74,11 +74,11 @@ pub fn surface_area_heuristic_bvh(
             let mut count1 = 0;
 
             for j in 0..=i {
-                b0 = b0.union(buckets[j].bounds);
+                b0 = b0.union(&buckets[j].bounds);
                 count0 += buckets[j].count;
             }
             for j in i + 1..BUCKET_COUNT {
-                b1 = b1.union(buckets[j].bounds);
+                b1 = b1.union(&buckets[j].bounds);
                 count1 += buckets[j].count;
             }
 

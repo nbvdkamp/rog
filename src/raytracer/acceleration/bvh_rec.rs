@@ -56,7 +56,7 @@ impl BoundingVolumeHierarchyRec {
         let mut stats = Statistics::new();
         let mut bounds = BoundingBox::new();
 
-        for &b in triangle_bounds {
+        for b in triangle_bounds {
             bounds = bounds.union(b);
         }
 

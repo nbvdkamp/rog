@@ -28,7 +28,7 @@ impl BoundingBox {
         self.max = self.max.elementwise_max(p);
     }
 
-    pub fn union(&mut self, other: Self) -> Self {
+    pub fn union(&self, other: &Self) -> Self {
         Self {
             min: self.min.elementwise_min(other.min),
             max: self.max.elementwise_max(other.max),

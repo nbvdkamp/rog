@@ -22,7 +22,7 @@ pub fn compute_bounding_box_item_indexed(item_bounds: &[BoundingBox], indices: &
     let mut bounds = BoundingBox::new();
 
     for &i in indices {
-        bounds = bounds.union(item_bounds[i]);
+        bounds = bounds.union(&item_bounds[i]);
     }
 
     bounds
