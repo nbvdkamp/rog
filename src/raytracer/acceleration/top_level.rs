@@ -109,7 +109,7 @@ impl TopLevelBVH {
 
                 let node_a = nodes.remove(a);
                 let node_b = nodes.remove(b);
-                let bounds = node_a.as_ref().bounds().union(node_b.as_ref().bounds());
+                let bounds = node_a.bounds().union(node_b.bounds());
                 stats.count_inner_node();
 
                 let new_node = Node::Inner {
@@ -241,7 +241,7 @@ fn find_best_match(i: usize, nodes: &Vec<Box<Node>>) -> usize {
             continue;
         }
 
-        let area = node.as_ref().bounds().union(nodes[j].as_ref().bounds()).surface_area();
+        let area = node.bounds().union(nodes[j].bounds()).surface_area();
 
         if area < best_surface_area {
             best = j;
