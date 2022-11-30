@@ -564,6 +564,12 @@ impl Scene {
                     }
                 }
 
+                // Fast path if the whole mesh is one piece
+                if visited.len() == vertices.positions.len() {
+                    self.meshes.push(Mesh::new(vertices, triangles, material, new_bounds));
+                    break;
+                }
+
                 let indices: Vec<u32> = visited.into_iter().collect();
                 let new_triangles = new_triangles
                     .into_iter()
