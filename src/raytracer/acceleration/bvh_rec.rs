@@ -11,7 +11,7 @@ use super::{
 };
 
 pub struct BoundingVolumeHierarchyRec {
-    root: Option<Box<Node>>,
+    root: Box<Node>,
     stats: Statistics,
 }
 
@@ -21,10 +21,19 @@ enum Node {
         bounds: BoundingBox,
     },
     Inner {
-        left_child: Option<Box<Node>>,
-        right_child: Option<Box<Node>>,
+        left_child: Box<Node>,
+        right_child: Box<Node>,
         bounds: BoundingBox,
     },
+}
+
+impl Node {
+    fn bounds(&self) -> &BoundingBox {
+        match self {
+            Node::Inner { bounds, .. } => bounds,
+            Node::Leaf { bounds, .. } => bounds,
+        }
+    }
 }
 
 impl AccelerationStructure for BoundingVolumeHierarchyRec {
@@ -34,11 +43,7 @@ impl AccelerationStructure for BoundingVolumeHierarchyRec {
 
         let inv_dir = 1.0 / ray.direction;
 
-        if let Intersects::Yes { .. } = intersects_bounds(&self.root, ray, inv_dir) {
-            self.intersect(&self.root, ray, inv_dir, positions, triangles)
-        } else {
-            TraceResult::Miss
-        }
+        self.intersect(&self.root, ray, inv_dir, positions, triangles)
     }
 
     fn get_statistics(&self) -> StatisticsStore {
@@ -58,31 +63,28 @@ impl BoundingVolumeHierarchyRec {
 
     fn intersect(
         &self,
-        node_opt: &Option<Box<Node>>,
+        node: &Box<Node>,
         ray: &Ray,
         inv_dir: Vector3<f32>,
         positions: &[Point3<f32>],
         triangles: &[Triangle],
     ) -> TraceResult {
-        match node_opt {
-            Some(node) => match node.as_ref() {
-                Node::Inner {
-                    left_child,
-                    right_child,
-                    ..
-                } => self.inner_intersect(left_child, right_child, ray, inv_dir, positions, triangles),
-                Node::Leaf { triangle_indices, .. } => {
-                    intersect_triangles_indexed(triangle_indices, ray, positions, triangles, &self.stats)
-                }
-            },
-            None => TraceResult::Miss,
+        match node.as_ref() {
+            Node::Inner {
+                left_child,
+                right_child,
+                ..
+            } => self.inner_intersect(left_child, right_child, ray, inv_dir, positions, triangles),
+            Node::Leaf { triangle_indices, .. } => {
+                intersect_triangles_indexed(triangle_indices, ray, positions, triangles, &self.stats)
+            }
         }
     }
 
     fn inner_intersect(
         &self,
-        left: &Option<Box<Node>>,
-        right: &Option<Box<Node>>,
+        left: &Box<Node>,
+        right: &Box<Node>,
         ray: &Ray,
         inv_dir: Vector3<f32>,
         positions: &[Point3<f32>],
@@ -90,8 +92,8 @@ impl BoundingVolumeHierarchyRec {
     ) -> TraceResult {
         self.stats.count_inner_node_traversal();
 
-        let hit_l_box = intersects_bounds(left, ray, inv_dir);
-        let hit_r_box = intersects_bounds(right, ray, inv_dir);
+        let hit_l_box = left.bounds().intersects_ray(ray, &inv_dir);
+        let hit_r_box = right.bounds().intersects_ray(ray, &inv_dir);
 
         match (hit_l_box, hit_r_box) {
             (Intersects::No, Intersects::No) => TraceResult::Miss,
@@ -109,8 +111,8 @@ impl BoundingVolumeHierarchyRec {
 
     fn intersect_both_children_hit(
         &self,
-        first_hit_child: &Option<Box<Node>>,
-        second_hit_child: &Option<Box<Node>>,
+        first_hit_child: &Box<Node>,
+        second_hit_child: &Box<Node>,
         dist_to_second_box: f32,
         ray: &Ray,
         inv_dir: Vector3<f32>,
@@ -143,29 +145,12 @@ impl BoundingVolumeHierarchyRec {
     }
 }
 
-fn intersects_bounds(node_opt: &Option<Box<Node>>, ray: &Ray, inv_dir: Vector3<f32>) -> Intersects {
-    match node_opt {
-        Some(node) => {
-            let node = node.as_ref();
-            match node {
-                Node::Inner { bounds, .. } => bounds.intersects_ray_not_inlined(ray, &inv_dir),
-                Node::Leaf { bounds, .. } => bounds.intersects_ray_not_inlined(ray, &inv_dir),
-            }
-        }
-        None => Intersects::No,
-    }
-}
-
 fn create_node(
     triangle_bounds: &[BoundingBox],
     triangle_indices: Vec<usize>,
     depth: usize,
     stats: &mut Statistics,
-) -> Option<Box<Node>> {
-    if triangle_indices.is_empty() {
-        return None;
-    }
-
+) -> Box<Node> {
     stats.count_max_depth(depth);
 
     let bounds = compute_bounding_box_item_indexed(triangle_bounds, &triangle_indices);
@@ -182,10 +167,10 @@ fn create_node(
         SurfaceAreaHeuristicResultBvh::MakeLeaf { indices } => {
             stats.count_leaf_node();
 
-            Some(Box::new(Node::Leaf {
+            Box::new(Node::Leaf {
                 triangle_indices: indices,
                 bounds,
-            }))
+            })
         }
         SurfaceAreaHeuristicResultBvh::MakeInner {
             left_indices,
@@ -196,11 +181,11 @@ fn create_node(
 
             stats.count_inner_node();
 
-            Some(Box::new(Node::Inner {
+            Box::new(Node::Inner {
                 left_child: left,
                 right_child: right,
                 bounds,
-            }))
+            })
         }
     }
 }
