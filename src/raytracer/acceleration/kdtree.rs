@@ -11,7 +11,7 @@ use super::{
 };
 
 pub struct KdTree {
-    root: Option<Box<Node>>,
+    root: Node,
     bounds: BoundingBox,
     stats: Statistics,
 }
@@ -21,8 +21,8 @@ enum Node {
         items: Vec<usize>,
     },
     Inner {
-        left_child: Option<Box<Node>>,
-        right_child: Option<Box<Node>>,
+        left_child: Box<Node>,
+        right_child: Box<Node>,
         plane: f32,
         axis: Axis,
     },
@@ -34,12 +34,7 @@ impl AccelerationStructure for KdTree {
         self.stats.count_ray();
 
         let inv_dir = 1.0 / ray.direction;
-
-        if let Intersects::Yes { .. } = self.bounds.intersects_ray(ray, &inv_dir) {
-            self.intersect(&self.root, ray, inv_dir, positions, triangles, self.bounds)
-        } else {
-            TraceResult::Miss
-        }
+        self.intersect(&self.root, ray, inv_dir, positions, triangles, self.bounds)
     }
 
     fn get_statistics(&self) -> StatisticsStore {
@@ -61,41 +56,38 @@ impl KdTree {
 
     fn intersect(
         &self,
-        node_opt: &Option<Box<Node>>,
+        node: &Node,
         ray: &Ray,
         inv_dir: Vector3<f32>,
         positions: &[Point3<f32>],
         triangles: &[Triangle],
         bounds: BoundingBox,
     ) -> TraceResult {
-        match node_opt {
-            Some(node) => match node.as_ref() {
-                Node::Inner {
-                    left_child,
-                    right_child,
-                    plane,
-                    axis,
-                } => self.inner_intersect(
-                    left_child,
-                    right_child,
-                    bounds,
-                    *plane,
-                    *axis,
-                    ray,
-                    inv_dir,
-                    positions,
-                    triangles,
-                ),
-                Node::Leaf { items } => intersect_triangles_indexed(items, ray, positions, triangles, &self.stats),
-            },
-            None => TraceResult::Miss,
+        match node {
+            Node::Inner {
+                left_child,
+                right_child,
+                plane,
+                axis,
+            } => self.inner_intersect(
+                left_child,
+                right_child,
+                bounds,
+                *plane,
+                *axis,
+                ray,
+                inv_dir,
+                positions,
+                triangles,
+            ),
+            Node::Leaf { items } => intersect_triangles_indexed(items, ray, positions, triangles, &self.stats),
         }
     }
 
     fn inner_intersect(
         &self,
-        left: &Option<Box<Node>>,
-        right: &Option<Box<Node>>,
+        left: &Node,
+        right: &Node,
         bounds: BoundingBox,
         plane: f32,
         axis: Axis,
@@ -155,9 +147,9 @@ impl KdTree {
     #[inline(always)]
     fn intersect_both_children_hit(
         &self,
-        first_hit_child: &Option<Box<Node>>,
+        first_hit_child: &Node,
         first_bounds: BoundingBox,
-        second_hit_child: &Option<Box<Node>>,
+        second_hit_child: &Node,
         second_bounds: BoundingBox,
         dist_to_second_box: f32,
         ray: &Ray,
@@ -197,17 +189,13 @@ fn create_node(
     depth: usize,
     bounds: &BoundingBox,
     stats: &mut Statistics,
-) -> Option<Box<Node>> {
-    if triangle_indices.is_empty() {
-        return None;
-    }
-
+) -> Node {
     stats.count_max_depth(depth);
 
     match surface_area_heuristic_kd_tree(triangle_bounds, triangle_indices, *bounds) {
         SurfaceAreaHeuristicResultKdTree::MakeLeaf { indices } => {
             stats.count_leaf_node();
-            Some(Box::new(Node::Leaf { items: indices }))
+            Node::Leaf { items: indices }
         }
         SurfaceAreaHeuristicResultKdTree::MakeInner {
             split_axis,
@@ -225,12 +213,12 @@ fn create_node(
 
             stats.count_inner_node();
 
-            Some(Box::new(Node::Inner {
-                left_child: left,
-                right_child: right,
+            Node::Inner {
+                left_child: Box::new(left),
+                right_child: Box::new(right),
                 plane: split_position,
                 axis: split_axis,
-            }))
+            }
         }
     }
 }
