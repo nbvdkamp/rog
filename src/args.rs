@@ -107,11 +107,11 @@ impl Args {
             if let Ok(accel) = Accel::from_str(name) {
                 accel
             } else {
-                eprintln!("Can't parse \"{name}\" as an acceleration structure name, using KD tree instead");
-                Accel::KdTree
+                eprintln!("Can't parse \"{name}\" as an acceleration structure name, using recursive BVH instead");
+                Accel::BvhRecursive
             }
         } else {
-            Accel::KdTree
+            Accel::BvhRecursive
         };
 
         let use_visibility = matches.get_flag("visibility");
