@@ -11,7 +11,7 @@ use super::{
 };
 
 pub struct BoundingVolumeHierarchyRec {
-    root: Box<Node>,
+    root: Node,
     stats: Statistics,
 }
 
@@ -63,13 +63,13 @@ impl BoundingVolumeHierarchyRec {
 
     fn intersect(
         &self,
-        node: &Box<Node>,
+        node: &Node,
         ray: &Ray,
         inv_dir: Vector3<f32>,
         positions: &[Point3<f32>],
         triangles: &[Triangle],
     ) -> TraceResult {
-        match node.as_ref() {
+        match node {
             Node::Inner {
                 left_child,
                 right_child,
@@ -83,8 +83,8 @@ impl BoundingVolumeHierarchyRec {
 
     fn inner_intersect(
         &self,
-        left: &Box<Node>,
-        right: &Box<Node>,
+        left: &Node,
+        right: &Node,
         ray: &Ray,
         inv_dir: Vector3<f32>,
         positions: &[Point3<f32>],
@@ -111,8 +111,8 @@ impl BoundingVolumeHierarchyRec {
 
     fn intersect_both_children_hit(
         &self,
-        first_hit_child: &Box<Node>,
-        second_hit_child: &Box<Node>,
+        first_hit_child: &Node,
+        second_hit_child: &Node,
         dist_to_second_box: f32,
         ray: &Ray,
         inv_dir: Vector3<f32>,
@@ -150,7 +150,7 @@ fn create_node(
     triangle_indices: Vec<usize>,
     depth: usize,
     stats: &mut Statistics,
-) -> Box<Node> {
+) -> Node {
     stats.count_max_depth(depth);
 
     let bounds = compute_bounding_box_item_indexed(triangle_bounds, &triangle_indices);
@@ -167,10 +167,10 @@ fn create_node(
         SurfaceAreaHeuristicResultBvh::MakeLeaf { indices } => {
             stats.count_leaf_node();
 
-            Box::new(Node::Leaf {
+            Node::Leaf {
                 triangle_indices: indices,
                 bounds,
-            })
+            }
         }
         SurfaceAreaHeuristicResultBvh::MakeInner {
             left_indices,
@@ -181,11 +181,11 @@ fn create_node(
 
             stats.count_inner_node();
 
-            Box::new(Node::Inner {
-                left_child: left,
-                right_child: right,
+            Node::Inner {
+                left_child: Box::new(left),
+                right_child: Box::new(right),
                 bounds,
-            })
+            }
         }
     }
 }

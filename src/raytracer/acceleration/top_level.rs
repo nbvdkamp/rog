@@ -19,7 +19,7 @@ use super::{
 
 pub struct TopLevelBVH {
     children: Vec<Box<dyn AccelerationStructure + Sync>>,
-    tree_root: Box<Node>,
+    tree_root: Node,
     stats: Statistics,
 }
 
@@ -88,10 +88,10 @@ impl TopLevelBVH {
 
             stats.count_leaf_node();
 
-            nodes.push(Box::new(Node::Leaf {
+            nodes.push(Node::Leaf {
                 mesh_index: children.len() - 1,
                 bounds: mesh.bounds,
-            }));
+            });
         }
 
         // From Walter et al. 2008: Fast Agglomerative Clustering for Rendering
@@ -113,11 +113,11 @@ impl TopLevelBVH {
                 stats.count_inner_node();
 
                 let new_node = Node::Inner {
-                    left: node_a,
-                    right: node_b,
+                    left: Box::new(node_a),
+                    right: Box::new(node_b),
                     bounds,
                 };
-                nodes.push(Box::new(new_node));
+                nodes.push(new_node);
                 a = nodes.len() - 1;
                 b = find_best_match(a, &nodes);
             } else {
@@ -153,8 +153,8 @@ impl TopLevelBVH {
         self.stats.get_copy()
     }
 
-    fn intersect_node(&self, node: &Box<Node>, ray: &Ray, inv_dir: Vector3<f32>, meshes: &[Mesh]) -> TraceResultMesh {
-        match node.as_ref() {
+    fn intersect_node(&self, node: &Node, ray: &Ray, inv_dir: Vector3<f32>, meshes: &[Mesh]) -> TraceResultMesh {
+        match node {
             Node::Inner { left, right, .. } => self.inner_intersect(left, right, ray, inv_dir, meshes),
             Node::Leaf { mesh_index, .. } => {
                 let i = *mesh_index;
@@ -173,8 +173,8 @@ impl TopLevelBVH {
 
     fn inner_intersect(
         &self,
-        left: &Box<Node>,
-        right: &Box<Node>,
+        left: &Node,
+        right: &Node,
         ray: &Ray,
         inv_dir: Vector3<f32>,
         meshes: &[Mesh],
@@ -200,8 +200,8 @@ impl TopLevelBVH {
 
     fn intersect_both_children_hit(
         &self,
-        first_hit_child: &Box<Node>,
-        second_hit_child: &Box<Node>,
+        first_hit_child: &Node,
+        second_hit_child: &Node,
         dist_to_second_box: f32,
         ray: &Ray,
         inv_dir: Vector3<f32>,
@@ -231,7 +231,7 @@ impl TopLevelBVH {
     }
 }
 
-fn find_best_match(i: usize, nodes: &Vec<Box<Node>>) -> usize {
+fn find_best_match(i: usize, nodes: &Vec<Node>) -> usize {
     let node = &nodes[i];
     let mut best = 0;
     let mut best_surface_area = f32::MAX;
