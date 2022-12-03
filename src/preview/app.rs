@@ -25,6 +25,7 @@ use crate::{
     camera::PerspectiveCamera,
     material::Material,
     mesh::{LuminanceVertex, VertexIndex, VertexSemantics},
+    preview::full_screen_quad::FullScreenQuad,
     raytracer::{render_and_save, working_image::WorkingImage, Raytracer},
     render_settings::{ImageSettings, RenderSettings},
     scene::Scene,
@@ -53,6 +54,7 @@ pub struct App {
     image_settings: ImageSettings,
     output_file: PathBuf,
     movement: Movement,
+    rendering: bool,
 }
 
 #[derive(Debug)]
@@ -89,6 +91,7 @@ impl App {
             image_settings: args.image_settings,
             output_file: args.output_file,
             movement: Movement::new(),
+            rendering: false,
         }
     }
 
@@ -102,7 +105,7 @@ impl App {
                     let (_, _, w, h) = monitor.get_workarea();
                     let max_width = 2 * w as u32 / 3;
                     let max_height = 4 * h as u32 / 5;
-                    let ratio = self.raytracer.scene.camera.aspect_ratio;
+                    let ratio = self.camera.aspect_ratio;
 
                     if ratio * max_height as f32 <= max_width as f32 {
                         width = (ratio * max_height as f32) as u32;
@@ -153,6 +156,8 @@ impl App {
             .map(|mesh| (mesh.to_tess(&mut context).unwrap(), mesh.material.clone()))
             .collect::<Vec<(Tess<LuminanceVertex, VertexIndex, (), Interleaved>, Material)>>();
 
+        let mut progress_display_quad = FullScreenQuad::create(&mut context).unwrap();
+
         let sampler = Sampler {
             wrap_r: Wrap::Repeat,
             wrap_s: Wrap::Repeat,
@@ -199,6 +204,29 @@ impl App {
             })
             .collect();
 
+        let mut progress_texture = {
+            let sampler = Sampler {
+                wrap_r: Wrap::ClampToEdge,
+                wrap_s: Wrap::ClampToEdge,
+                wrap_t: Wrap::ClampToEdge,
+                min_filter: MinFilter::LinearMipmapLinear,
+                mag_filter: MagFilter::Linear,
+                depth_comparison: None,
+            };
+
+            let size = [1u32, 1];
+            let img = [0, 0, 0];
+            let upload = TexelUpload::base_level(img.as_slice(), 0);
+
+            match context.new_texture_raw(size, sampler, upload) {
+                Ok(texture) => texture,
+                Err(e) => {
+                    println!("An error occured while uploading textures: {e}");
+                    panic!("Temp");
+                }
+            }
+        };
+
         // The textures are now in GPU memory so no longer needed
         self.textures.clear();
 
@@ -236,32 +264,36 @@ impl App {
                     &back_buffer,
                     &PipelineState::default().set_clear_color(background_color),
                     |pipeline, mut shd_gate| {
-                        for (tess, material) in &tesses {
-                            let tex = material.base_color_texture.and_then(|tex| textures[tex.index].as_mut());
+                        if !self.rendering {
+                            for (tess, material) in &tesses {
+                                let tex = material.base_color_texture.and_then(|tex| textures[tex.index].as_mut());
 
-                            let bound_tex = match tex {
-                                Some(Tex::Rgb(rgb)) => Some(BoundTex::Rgb(pipeline.bind_texture(rgb)?)),
-                                Some(Tex::Rgba(rgba)) => Some(BoundTex::Rgba(pipeline.bind_texture(rgba)?)),
-                                None => None,
-                            };
+                                let bound_tex = match tex {
+                                    Some(Tex::Rgb(rgb)) => Some(BoundTex::Rgb(pipeline.bind_texture(rgb)?)),
+                                    Some(Tex::Rgba(rgba)) => Some(BoundTex::Rgba(pipeline.bind_texture(rgba)?)),
+                                    None => None,
+                                };
 
-                            shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
-                                iface.set(&unif.u_projection, mat_to_shader_type(self.camera.projection()));
-                                iface.set(&unif.u_view, mat_to_shader_type(self.camera.view));
-                                iface.set(&unif.u_base_color, material.base_color.into());
-                                iface.set(&unif.u_light_position, light_position);
+                                shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
+                                    iface.set(&unif.u_projection, mat_to_shader_type(self.camera.projection()));
+                                    iface.set(&unif.u_view, mat_to_shader_type(self.camera.view));
+                                    iface.set(&unif.u_base_color, material.base_color.into());
+                                    iface.set(&unif.u_light_position, light_position);
 
-                                bound_tex.iter().for_each(|tex| match tex {
-                                    BoundTex::Rgb(t) => iface.set(&unif.u_base_color_texture, t.binding()),
-                                    BoundTex::Rgba(t) => iface.set(&unif.u_base_color_texture, t.binding()),
-                                });
+                                    bound_tex.iter().for_each(|tex| match tex {
+                                        BoundTex::Rgb(t) => iface.set(&unif.u_base_color_texture, t.binding()),
+                                        BoundTex::Rgba(t) => iface.set(&unif.u_base_color_texture, t.binding()),
+                                    });
 
-                                iface.set(&unif.u_use_texture, bound_tex.is_some());
+                                    iface.set(&unif.u_use_texture, bound_tex.is_some());
 
-                                let render_state = RenderState::default().set_blending(blending);
+                                    let render_state = RenderState::default().set_blending(blending);
 
-                                rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(tess))
-                            })?;
+                                    rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(tess))
+                                })?;
+                            }
+                        } else {
+                            progress_display_quad.render(&mut shd_gate, pipeline, &mut progress_texture)?;
                         }
 
                         Ok(())
@@ -284,7 +316,7 @@ impl App {
     }
 
     fn do_movement(&mut self, delta_time: f32) -> bool {
-        let moving = self.movement.moving();
+        let moving = !self.rendering && self.movement.moving();
 
         if moving {
             let rotation = if self.movement.turning {
@@ -336,6 +368,7 @@ impl App {
                 Key::LeftShift => self.movement.up_down.set(-1),
                 Key::Q => self.movement.roll.set(1),
                 Key::E => self.movement.roll.set(-1),
+                Key::R => self.rendering = !self.rendering,
                 _ => (),
             },
             Action::Release => match key {
