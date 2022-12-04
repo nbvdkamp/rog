@@ -1,9 +1,9 @@
-use luminance::{pipeline::PipelineError, tess::TessViewError};
+use luminance::pipeline::PipelineError;
 use luminance_derive::{Semantics, UniformInterface, Vertex};
 use luminance_front::{
     blending::{Blending, Equation, Factor},
     context::GraphicsContext,
-    pipeline::{BoundTexture, Pipeline, TextureBinding},
+    pipeline::{Pipeline, TextureBinding},
     pixel::{NormRGB8UI, NormUnsigned},
     render_state::RenderState,
     shader::{Program, Uniform},
@@ -23,7 +23,7 @@ pub enum VertexSemantics {
 
 #[derive(Copy, Clone, Vertex)]
 #[vertex(sem = "VertexSemantics")]
-struct Vertex {
+pub struct Vertex {
     pub position: VertexPosition,
     pub uv: VertexUV,
 }
@@ -42,6 +42,7 @@ pub struct FullScreenQuad {
     tess: Tess<Vertex, VertexIndex, (), Interleaved>,
     shader: Program<VertexSemantics, (), ShaderInterface>,
     blending: Blending,
+    texture: LuminanceTexture<Dim2, NormRGB8UI>,
 }
 
 impl FullScreenQuad {
@@ -82,22 +83,24 @@ impl FullScreenQuad {
             .unwrap()
             .ignore_warnings();
 
+        let texture = make_texture(context, [1, 1], &[0, 0, 0]);
+
         let blending = Blending {
             equation: Equation::Additive,
             src: Factor::SrcAlpha,
             dst: Factor::SrcAlphaComplement,
         };
 
-        Ok(Self { tess, shader, blending })
+        Ok(Self {
+            tess,
+            shader,
+            blending,
+            texture,
+        })
     }
 
-    pub fn render(
-        &mut self,
-        shd_gate: &mut ShadingGate,
-        pipeline: Pipeline,
-        texture: &mut LuminanceTexture<Dim2, NormRGB8UI>,
-    ) -> Result<(), PipelineError> {
-        let tex = pipeline.bind_texture(texture)?;
+    pub fn render(&mut self, shd_gate: &mut ShadingGate, pipeline: Pipeline) -> Result<(), PipelineError> {
+        let tex = pipeline.bind_texture(&mut self.texture)?;
 
         shd_gate.shade(&mut self.shader, |mut iface, unif, mut rdr_gate| {
             iface.set(&unif.u_texture, tex.binding());
@@ -106,4 +109,24 @@ impl FullScreenQuad {
             rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(&self.tess))
         })
     }
+}
+
+fn make_texture<C>(context: &mut C, size: [u32; 2], image_buffer: &[u8]) -> LuminanceTexture<Dim2, NormRGB8UI>
+where
+    C: GraphicsContext<Backend = Backend>,
+{
+    let sampler = Sampler {
+        wrap_r: Wrap::ClampToEdge,
+        wrap_s: Wrap::ClampToEdge,
+        wrap_t: Wrap::ClampToEdge,
+        min_filter: MinFilter::LinearMipmapLinear,
+        mag_filter: MagFilter::Linear,
+        depth_comparison: None,
+    };
+
+    let upload = TexelUpload::base_level(image_buffer, 0);
+
+    context
+        .new_texture_raw(size, sampler, upload)
+        .expect("unable to upload preview texture")
 }

@@ -204,29 +204,6 @@ impl App {
             })
             .collect();
 
-        let mut progress_texture = {
-            let sampler = Sampler {
-                wrap_r: Wrap::ClampToEdge,
-                wrap_s: Wrap::ClampToEdge,
-                wrap_t: Wrap::ClampToEdge,
-                min_filter: MinFilter::LinearMipmapLinear,
-                mag_filter: MagFilter::Linear,
-                depth_comparison: None,
-            };
-
-            let size = [1u32, 1];
-            let img = [0, 0, 0];
-            let upload = TexelUpload::base_level(img.as_slice(), 0);
-
-            match context.new_texture_raw(size, sampler, upload) {
-                Ok(texture) => texture,
-                Err(e) => {
-                    println!("An error occured while uploading textures: {e}");
-                    panic!("Temp");
-                }
-            }
-        };
-
         // The textures are now in GPU memory so no longer needed
         self.textures.clear();
 
@@ -293,7 +270,7 @@ impl App {
                                 })?;
                             }
                         } else {
-                            progress_display_quad.render(&mut shd_gate, pipeline, &mut progress_texture)?;
+                            progress_display_quad.render(&mut shd_gate, pipeline)?;
                         }
 
                         Ok(())
