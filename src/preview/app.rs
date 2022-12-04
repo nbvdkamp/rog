@@ -58,7 +58,7 @@ pub struct App {
     image_settings: ImageSettings,
     output_file: PathBuf,
     movement: Movement,
-    rendering: bool,
+    rendering: Arc<Mutex<bool>>,
 }
 
 #[derive(Debug)]
@@ -95,7 +95,7 @@ impl App {
             image_settings: args.image_settings,
             output_file: args.output_file,
             movement: Movement::new(),
-            rendering: false,
+            rendering: Arc::new(Mutex::new(false)),
         }
     }
 
@@ -244,7 +244,7 @@ impl App {
                     &back_buffer,
                     &PipelineState::default().set_clear_color(background_color),
                     |pipeline, mut shd_gate| {
-                        if !self.rendering {
+                        if !*self.rendering.lock().unwrap() {
                             for (tess, material) in &tesses {
                                 let tex = material.base_color_texture.and_then(|tex| textures[tex.index].as_mut());
 
@@ -296,7 +296,7 @@ impl App {
     }
 
     fn do_movement(&mut self, delta_time: f32) -> bool {
-        let moving = !self.rendering && self.movement.moving();
+        let moving = !*self.rendering.lock().unwrap() && self.movement.moving();
 
         if moving {
             let rotation = if self.movement.turning {
@@ -339,16 +339,19 @@ impl App {
                     let mut raytracer = self.raytracer.lock().unwrap();
                     raytracer.scene.camera = self.camera;
                     drop(raytracer);
+                    *self.rendering.lock().unwrap() = true;
                     let image = WorkingImage::new(self.image_settings.clone());
                     let render_settings = self.render_settings.clone();
                     let output_file = self.output_file.clone();
                     let raytracer = self.raytracer.clone();
+                    let rendering = self.rendering.clone();
 
                     if let Err(e) = thread::Builder::new()
                         .name("Main render thread".to_string())
                         .spawn_scoped(scope, move || {
                             let raytracer = raytracer.lock().unwrap();
                             render_and_save(&raytracer, &render_settings, image, output_file);
+                            *rendering.lock().unwrap() = false;
                         })
                     {
                         eprintln!("Unable to spawn main render thread: {e}");
@@ -363,7 +366,6 @@ impl App {
                 Key::LeftShift => self.movement.up_down.set(-1),
                 Key::Q => self.movement.roll.set(1),
                 Key::E => self.movement.roll.set(-1),
-                Key::R => self.rendering = !self.rendering,
                 _ => (),
             },
             Action::Release => match key {
