@@ -46,11 +46,13 @@ impl ImageSettings {
     }
 }
 
+#[derive(Clone)]
 pub enum TerminationCondition {
     SampleCount(usize),
     Time(Duration),
 }
 
+#[derive(Clone)]
 pub struct RenderSettings {
     pub termination_condition: TerminationCondition,
     pub thread_count: usize,

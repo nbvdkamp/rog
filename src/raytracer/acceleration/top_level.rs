@@ -18,7 +18,7 @@ use super::{
 };
 
 pub struct TopLevelBVH {
-    children: Vec<Box<dyn AccelerationStructure + Sync>>,
+    children: Vec<Box<dyn AccelerationStructure + Send + Sync>>,
     tree_root: Node,
     stats: Statistics,
 }
@@ -46,7 +46,7 @@ impl Node {
 
 impl TopLevelBVH {
     pub fn new(accel_type: Accel, meshes: &[Mesh]) -> Self {
-        let mut children: Vec<Box<dyn AccelerationStructure + Sync>> = Vec::new();
+        let mut children: Vec<Box<dyn AccelerationStructure + Send + Sync>> = Vec::new();
         let mut nodes = Vec::new();
         let stats = Statistics::new();
 

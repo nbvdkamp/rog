@@ -1,4 +1,8 @@
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    thread::{self, Scope},
+};
 
 use cgmath::{vec2, vec3, Matrix4, Rad, SquareMatrix, Vector2, Vector3};
 
@@ -47,7 +51,7 @@ const VS_STR: &str = include_str!("vertex.vs");
 const FS_STR: &str = include_str!("fragment.fs");
 
 pub struct App {
-    raytracer: Raytracer,
+    raytracer: Arc<Mutex<Raytracer>>,
     textures: Vec<Texture>,
     camera: PerspectiveCamera,
     render_settings: RenderSettings,
@@ -85,7 +89,7 @@ impl App {
 
         App {
             camera: raytracer.scene.camera,
-            raytracer,
+            raytracer: Arc::new(Mutex::new(raytracer)),
             textures,
             render_settings: args.render_settings,
             image_settings: args.image_settings,
@@ -129,32 +133,31 @@ impl App {
         })
         .expect("Failed to create GLFW surface");
 
+        let raytracer = self.raytracer.lock().unwrap();
+
         let background_color = {
-            let c = self.raytracer.scene.environment.color.linear_to_srgb();
+            let c = raytracer.scene.environment.color.linear_to_srgb();
             [c.r, c.g, c.b, 1.0]
         };
 
-        let light_position = self
-            .raytracer
-            .scene
-            .lights
-            .first()
-            .map_or(Vec3::new(1.0, 1.0, 1.0), |p| {
-                let p = p.pos;
-                Vec3::new(p.x, p.y, p.z)
-            });
+        let light_position = raytracer.scene.lights.first().map_or(Vec3::new(1.0, 1.0, 1.0), |p| {
+            let p = p.pos;
+            Vec3::new(p.x, p.y, p.z)
+        });
 
         let mut context = surface.context;
         let events = surface.events_rx;
         let mut back_buffer = context.back_buffer().expect("back buffer");
 
-        let tesses = self
-            .raytracer
+        let tesses = raytracer
             .scene
             .meshes
             .iter()
             .map(|mesh| (mesh.to_tess(&mut context).unwrap(), mesh.material.clone()))
             .collect::<Vec<(Tess<LuminanceVertex, VertexIndex, (), Interleaved>, Material)>>();
+
+        // Unlock it again
+        drop(raytracer);
 
         let mut progress_display_quad = FullScreenQuad::create(&mut context).unwrap();
 
@@ -221,7 +224,7 @@ impl App {
 
         let mut frame_start = context.window.glfw.get_time();
 
-        'app: loop {
+        thread::scope(move |scope| 'app: loop {
             context.window.glfw.poll_events();
 
             for (_, event) in glfw::flush_messages(&events) {
@@ -231,7 +234,7 @@ impl App {
                         self.camera.aspect_ratio = width as f32 / height as f32;
                         back_buffer = context.back_buffer().expect("Unable to create new back buffer");
                     }
-                    e => self.handle_event(e),
+                    e => self.handle_event(e, scope),
                 }
             }
 
@@ -289,7 +292,7 @@ impl App {
             self.do_movement(frame_time);
 
             context.window.swap_buffers();
-        }
+        });
     }
 
     fn do_movement(&mut self, delta_time: f32) -> bool {
@@ -313,9 +316,9 @@ impl App {
         moving
     }
 
-    fn handle_event(&mut self, event: WindowEvent) {
+    fn handle_event<'a, 'b, 'c>(&'a mut self, event: WindowEvent, scope: &'b Scope<'b, 'c>) {
         match event {
-            WindowEvent::Key(key, _, action, _) => self.handle_key_event(key, action),
+            WindowEvent::Key(key, _, action, _) => self.handle_key_event(key, action, scope),
             WindowEvent::MouseButton(button, action, _) => self.handle_mousebutton_event(button, action),
             WindowEvent::CursorPos(x, y) => {
                 let pos = vec2(x, y);
@@ -329,13 +332,28 @@ impl App {
         }
     }
 
-    fn handle_key_event(&mut self, key: Key, action: Action) {
+    fn handle_key_event<'a, 'b, 'c>(&'a mut self, key: Key, action: Action, scope: &'b Scope<'b, 'c>) {
         match action {
             Action::Press => match key {
                 Key::Enter => {
-                    self.raytracer.scene.camera = self.camera;
+                    let mut raytracer = self.raytracer.lock().unwrap();
+                    raytracer.scene.camera = self.camera;
+                    drop(raytracer);
                     let image = WorkingImage::new(self.image_settings.clone());
-                    render_and_save(&self.raytracer, &self.render_settings, image, &self.output_file);
+                    let render_settings = self.render_settings.clone();
+                    let output_file = self.output_file.clone();
+                    let raytracer = self.raytracer.clone();
+
+                    if let Err(e) = thread::Builder::new()
+                        .name("Main render thread".to_string())
+                        .spawn_scoped(scope, move || {
+                            let raytracer = raytracer.lock().unwrap();
+                            render_and_save(&raytracer, &render_settings, image, output_file);
+                        })
+                    {
+                        eprintln!("Unable to spawn main render thread: {e}");
+                        std::process::exit(-1);
+                    };
                 }
                 Key::W => self.movement.forward_backward.set(1),
                 Key::S => self.movement.forward_backward.set(-1),
