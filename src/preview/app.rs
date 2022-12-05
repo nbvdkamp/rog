@@ -1,7 +1,12 @@
 use std::{
     path::PathBuf,
-    sync::{Arc, Mutex},
-    thread::{self, Scope},
+    sync::{
+        mpsc::{channel, Sender, TryRecvError},
+        Arc,
+        Mutex,
+    },
+    thread,
+    time::Duration,
 };
 
 use cgmath::{vec2, vec3, Matrix4, Rad, SquareMatrix, Vector2, Vector3};
@@ -27,10 +32,11 @@ use luminance_glfw::{GlfwSurface, GlfwSurfaceError};
 use crate::{
     args::Args,
     camera::PerspectiveCamera,
+    color::RGBu8,
     material::Material,
     mesh::{LuminanceVertex, VertexIndex, VertexSemantics},
     preview::full_screen_quad::FullScreenQuad,
-    raytracer::{render_and_save, working_image::WorkingImage, Raytracer},
+    raytracer::{render_and_save, working_image::WorkingImage, ImageUpdateReporting, Raytracer, RenderMessage},
     render_settings::{ImageSettings, RenderSettings},
     scene::Scene,
     texture::{Format, Texture},
@@ -64,6 +70,11 @@ pub struct App {
 #[derive(Debug)]
 pub enum PlatformError {
     CannotCreateWindow,
+}
+
+struct RGBImage {
+    pixels: Vec<RGBu8>,
+    size: Vector2<usize>,
 }
 
 impl App {
@@ -223,18 +234,93 @@ impl App {
             .ignore_warnings();
 
         let mut frame_start = context.window.glfw.get_time();
+        let (progress_sender, progress_receiver) = channel();
+        let mut cancel_sender: Option<Sender<RenderMessage>> = None;
 
         thread::scope(move |scope| 'app: loop {
             context.window.glfw.poll_events();
 
             for (_, event) in glfw::flush_messages(&events) {
                 match event {
-                    WindowEvent::Close => break 'app,
+                    WindowEvent::Close => {
+                        if let Some(sender) = cancel_sender {
+                            let _ = sender.send(RenderMessage::Cancel);
+                        }
+
+                        break 'app;
+                    }
                     WindowEvent::Size(width, height) => {
                         self.camera.aspect_ratio = width as f32 / height as f32;
                         back_buffer = context.back_buffer().expect("Unable to create new back buffer");
                     }
-                    e => self.handle_event(e, scope),
+                    WindowEvent::Key(Key::Enter, _, Action::Press, _) => {
+                        let mut rendering = self.rendering.lock().unwrap();
+                        if *rendering {
+                            continue;
+                        }
+                        *rendering = true;
+
+                        let (sender, cancel_receiver) = channel();
+                        cancel_sender = Some(sender);
+
+                        let mut raytracer = self.raytracer.lock().unwrap();
+                        raytracer.scene.camera = self.camera;
+
+                        let image_settings = self.image_settings.clone();
+                        let render_settings = self.render_settings.clone();
+                        let output_file = self.output_file.clone();
+                        let raytracer = self.raytracer.clone();
+                        let rendering = self.rendering.clone();
+                        let progress_sender = progress_sender.clone();
+
+                        if let Err(e) = thread::Builder::new()
+                            .name("Main render thread".to_string())
+                            .spawn_scoped(scope, move || {
+                                let raytracer = raytracer.lock().unwrap();
+
+                                let image_update = ImageUpdateReporting {
+                                    update: Box::new(move |image, _| {
+                                        let _ = progress_sender.send(RGBImage {
+                                            pixels: image
+                                                .to_rgb_buffer()
+                                                .iter()
+                                                .map(|c| c.normalized())
+                                                .collect::<Vec<_>>(),
+                                            size: image.settings.size(),
+                                        });
+                                    }),
+                                    update_interval: Duration::from_secs(10),
+                                };
+
+                                let image = WorkingImage::new(image_settings);
+
+                                render_and_save(
+                                    &raytracer,
+                                    &render_settings,
+                                    image,
+                                    output_file,
+                                    Some(image_update),
+                                    Some(cancel_receiver),
+                                );
+                                *rendering.lock().unwrap() = false;
+                            })
+                        {
+                            eprintln!("Unable to spawn main render thread: {e}");
+                            std::process::exit(-1);
+                        };
+                    }
+                    e => self.handle_event(e),
+                }
+            }
+
+            match progress_receiver.try_recv() {
+                Ok(image) => {
+                    let size = [image.size.x as u32, image.size.y as u32];
+                    progress_display_quad.update_texture(&mut context, size, &image.pixels)
+                }
+                Err(TryRecvError::Empty) => (),
+                Err(TryRecvError::Disconnected) => {
+                    panic!("Receiver disconnected");
                 }
             }
 
@@ -316,9 +402,9 @@ impl App {
         moving
     }
 
-    fn handle_event<'a, 'b, 'c>(&'a mut self, event: WindowEvent, scope: &'b Scope<'b, 'c>) {
+    fn handle_event(&mut self, event: WindowEvent) {
         match event {
-            WindowEvent::Key(key, _, action, _) => self.handle_key_event(key, action, scope),
+            WindowEvent::Key(key, _, action, _) => self.handle_key_event(key, action),
             WindowEvent::MouseButton(button, action, _) => self.handle_mousebutton_event(button, action),
             WindowEvent::CursorPos(x, y) => {
                 let pos = vec2(x, y);
@@ -332,32 +418,9 @@ impl App {
         }
     }
 
-    fn handle_key_event<'a, 'b, 'c>(&'a mut self, key: Key, action: Action, scope: &'b Scope<'b, 'c>) {
+    fn handle_key_event(&mut self, key: Key, action: Action) {
         match action {
             Action::Press => match key {
-                Key::Enter => {
-                    let mut raytracer = self.raytracer.lock().unwrap();
-                    raytracer.scene.camera = self.camera;
-                    drop(raytracer);
-                    *self.rendering.lock().unwrap() = true;
-                    let image = WorkingImage::new(self.image_settings.clone());
-                    let render_settings = self.render_settings.clone();
-                    let output_file = self.output_file.clone();
-                    let raytracer = self.raytracer.clone();
-                    let rendering = self.rendering.clone();
-
-                    if let Err(e) = thread::Builder::new()
-                        .name("Main render thread".to_string())
-                        .spawn_scoped(scope, move || {
-                            let raytracer = raytracer.lock().unwrap();
-                            render_and_save(&raytracer, &render_settings, image, output_file);
-                            *rendering.lock().unwrap() = false;
-                        })
-                    {
-                        eprintln!("Unable to spawn main render thread: {e}");
-                        std::process::exit(-1);
-                    };
-                }
                 Key::W => self.movement.forward_backward.set(1),
                 Key::S => self.movement.forward_backward.set(-1),
                 Key::A => self.movement.left_right.set(1),

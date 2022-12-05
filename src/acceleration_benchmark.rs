@@ -67,7 +67,7 @@ fn main() {
 
             let image = WorkingImage::new(image_settings);
 
-            let (_, time_elapsed) = raytracer.render(&settings, None, None, image);
+            let (_, time_elapsed) = raytracer.render(&settings, None, None, None, image);
             let name = structure.name();
 
             #[cfg(feature = "stats")]

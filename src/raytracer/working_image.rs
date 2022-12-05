@@ -57,8 +57,12 @@ impl WorkingImage {
     where
         P: AsRef<Path>,
     {
-        let buffer = self
-            .pixels
+        let buffer = self.to_rgb_buffer();
+        save_image(&buffer, self.settings.size(), path)
+    }
+
+    pub fn to_rgb_buffer(&self) -> Vec<RGBf32> {
+        self.pixels
             .par_iter()
             .map(|pixel| {
                 if pixel.spectrum.data.iter().any(|v| v.is_nan()) {
@@ -73,9 +77,7 @@ impl WorkingImage {
                     c
                 }
             })
-            .collect::<Vec<_>>();
-
-        save_image(&buffer, self.settings.size(), path)
+            .collect()
     }
 
     pub fn write_to_file<P>(&self, path: P) -> Result<(), Error>

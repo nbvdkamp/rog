@@ -13,6 +13,8 @@ use luminance_front::{
     Backend,
 };
 
+use crate::color::RGBu8;
+
 #[derive(Copy, Clone, Debug, Semantics)]
 pub enum VertexSemantics {
     #[sem(name = "position", repr = "[f32; 2]", wrapper = "VertexPosition")]
@@ -54,19 +56,19 @@ impl FullScreenQuad {
         let vertices = vec![
             Vertex {
                 position: [-1.0, -1.0].into(),
-                uv: [0.0, 0.0].into(),
-            },
-            Vertex {
-                position: [1.0, -1.0].into(),
-                uv: [1.0, 0.0].into(),
-            },
-            Vertex {
-                position: [-1.0, 1.0].into(),
                 uv: [0.0, 1.0].into(),
             },
             Vertex {
-                position: [1.0, 1.0].into(),
+                position: [1.0, -1.0].into(),
                 uv: [1.0, 1.0].into(),
+            },
+            Vertex {
+                position: [-1.0, 1.0].into(),
+                uv: [0.0, 0.0].into(),
+            },
+            Vertex {
+                position: [1.0, 1.0].into(),
+                uv: [1.0, 0.0].into(),
             },
         ];
 
@@ -108,6 +110,17 @@ impl FullScreenQuad {
 
             rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(&self.tess))
         })
+    }
+
+    pub fn update_texture<C>(&mut self, context: &mut C, size: [u32; 2], image_buffer: &[RGBu8])
+    where
+        C: GraphicsContext<Backend = Backend>,
+    {
+        let data = image_buffer.as_ptr() as *const u8;
+        let len = image_buffer.len() * std::mem::size_of::<RGBu8>();
+
+        let image_buffer = unsafe { std::slice::from_raw_parts(data, len) };
+        self.texture = make_texture(context, size, image_buffer);
     }
 }
 

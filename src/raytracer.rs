@@ -2,7 +2,11 @@ use rand::{thread_rng, Rng};
 use std::{
     io::Write,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{
+        mpsc::{Receiver, TryRecvError},
+        Arc,
+        Mutex,
+    },
     thread,
     time::{Duration, Instant},
 };
@@ -67,6 +71,10 @@ pub struct ImageUpdateReporting {
     pub update_interval: Duration,
     /// Image, samples completed
     pub update: Box<dyn Fn(&WorkingImage, usize)>,
+}
+
+pub enum RenderMessage {
+    Cancel,
 }
 
 enum RadianceResult {
@@ -181,6 +189,7 @@ impl Raytracer {
         settings: &RenderSettings,
         reporting: Option<RenderProgressReporting>,
         image_reporting: Option<ImageUpdateReporting>,
+        message_receiver: Option<Receiver<RenderMessage>>,
         image: WorkingImage,
     ) -> (WorkingImage, f32) {
         let image_size = image.settings.size();
@@ -323,10 +332,24 @@ impl Raytracer {
                 };
             }
 
-            let terminate = || match settings.termination_condition {
+            let termination_condition_met = || match settings.termination_condition {
                 TerminationCondition::SampleCount(_) => tiles.is_empty(),
                 TerminationCondition::Time(time_limit) => start.elapsed() >= time_limit,
             };
+
+            let cancel_received = || {
+                if let Some(receiver) = &message_receiver {
+                    match receiver.try_recv() {
+                        Ok(RenderMessage::Cancel) => true,
+                        Err(TryRecvError::Disconnected) => true,
+                        Err(TryRecvError::Empty) => false,
+                    }
+                } else {
+                    false
+                }
+            };
+
+            let terminate = || termination_condition_met() || cancel_received();
 
             while !terminate() {
                 let sleep_duration = Duration::from_millis(1);
@@ -738,8 +761,14 @@ impl Raytracer {
     }
 }
 
-pub fn render_and_save<P>(raytracer: &Raytracer, render_settings: &RenderSettings, image: WorkingImage, path: P)
-where
+pub fn render_and_save<P>(
+    raytracer: &Raytracer,
+    render_settings: &RenderSettings,
+    image: WorkingImage,
+    path: P,
+    image_reporting: Option<ImageUpdateReporting>,
+    message_receiver: Option<Receiver<RenderMessage>>,
+) where
     P: AsRef<Path>,
 {
     let report_progress = |completion, time_elapsed: Duration| {
@@ -755,7 +784,7 @@ where
         report: Box::new(report_progress),
     });
 
-    let (image, time_elapsed) = raytracer.render(&render_settings, progress, None, image);
+    let (image, time_elapsed) = raytracer.render(&render_settings, progress, image_reporting, message_receiver, image);
     println!("\r\x1b[2KFinished rendering in {time_elapsed} seconds");
 
     image.save_as_rgb(path);
