@@ -197,8 +197,8 @@ impl Raytracer {
         let fov_factor = (self.scene.camera.y_fov / 2.).tan();
 
         let start = Instant::now();
-        let mut last_progress_report = start;
-        let mut last_image_update = start;
+        let mut last_progress_update: Option<Instant> = None;
+        let mut last_image_update: Option<Instant> = None;
 
         let cam_model = self.scene.camera.model;
         let cam_pos4 = cam_model * Vector4::new(0., 0., 0., 1.);
@@ -362,8 +362,12 @@ impl Raytracer {
 
                 if let Some(reporting) = &reporting {
                     let elapsed = start.elapsed();
+                    let should_update = match last_progress_update {
+                        None => true,
+                        Some(i) => i.elapsed() > reporting.report_interval,
+                    };
 
-                    if last_progress_report.elapsed() > reporting.report_interval {
+                    if should_update {
                         let completion = match settings.termination_condition {
                             TerminationCondition::SampleCount(samples) => {
                                 let total_tiles = tiles_per_sample * samples;
@@ -373,14 +377,21 @@ impl Raytracer {
                             TerminationCondition::Time(time_limit) => elapsed.as_secs_f32() / time_limit.as_secs_f32(),
                         };
                         (reporting.report)(completion, elapsed);
-                        last_progress_report = Instant::now();
+                        last_progress_update = Some(Instant::now());
                     }
                 }
 
                 if let Some(reporting) = &image_reporting {
-                    if current_sample_finished && last_image_update.elapsed() > reporting.update_interval {
-                        (reporting.update)(&image.lock().unwrap(), *current_sample);
-                        last_image_update = Instant::now();
+                    if current_sample_finished {
+                        let should_update = match last_image_update {
+                            None => true,
+                            Some(i) => i.elapsed() > reporting.update_interval,
+                        };
+
+                        if should_update {
+                            (reporting.update)(&image.lock().unwrap(), *current_sample);
+                            last_image_update = Some(Instant::now());
+                        }
                     }
                 }
 
