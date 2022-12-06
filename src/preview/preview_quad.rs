@@ -97,8 +97,8 @@ impl PreviewQuad {
             .unwrap()
             .ignore_warnings();
 
-        let texture = make_texture(context, [1, 1], &[0, 0, 0], MagFilter::Linear);
-        let zoomed_texture = make_texture(context, [1, 1], &[0, 0, 0], MagFilter::Nearest);
+        let texture = make_placeholder_texture(context, MagFilter::Linear);
+        let zoomed_texture = make_placeholder_texture(context, MagFilter::Nearest);
 
         let blending = Blending {
             equation: Equation::Additive,
@@ -201,4 +201,11 @@ where
     context
         .new_texture_raw(size, sampler, upload)
         .expect("unable to upload preview texture")
+}
+
+fn make_placeholder_texture<C>(context: &mut C, mag_filter: MagFilter) -> LuminanceTexture<Dim2, NormRGB8UI>
+where
+    C: GraphicsContext<Backend = Backend>,
+{
+    make_texture(context, [1, 1], &[0, 0, 0], mag_filter)
 }
