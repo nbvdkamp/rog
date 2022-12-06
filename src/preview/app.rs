@@ -261,6 +261,8 @@ impl App {
                         *rendering = true;
 
                         self.movement = Movement::new();
+                        // Reset the preview every render
+                        progress_display_quad = PreviewQuad::create(&mut context).unwrap();
 
                         let (sender, cancel_receiver) = channel();
                         cancel_sender = Some(sender);
