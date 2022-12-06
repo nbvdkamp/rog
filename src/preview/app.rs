@@ -260,6 +260,8 @@ impl App {
                         }
                         *rendering = true;
 
+                        self.movement = Movement::new();
+
                         let (sender, cancel_receiver) = channel();
                         cancel_sender = Some(sender);
 
@@ -313,7 +315,7 @@ impl App {
                         if *self.rendering.lock().unwrap() {
                             progress_display_quad.handle_event(e);
                         } else {
-                            self.handle_event(e);
+                            self.movement.handle_event(e);
                         }
                     }
                 }
@@ -407,61 +409,6 @@ impl App {
         self.movement.mouse_delta = vec2(0.0, 0.0);
         moving
     }
-
-    fn handle_event(&mut self, event: WindowEvent) {
-        match event {
-            WindowEvent::Key(key, _, action, _) => self.handle_key_event(key, action),
-            WindowEvent::MouseButton(button, action, _) => self.handle_mousebutton_event(button, action),
-            WindowEvent::CursorPos(x, y) => {
-                let pos = vec2(x, y);
-                self.movement.mouse_delta = pos - self.movement.mouse_position;
-                self.movement.mouse_position = pos;
-            }
-            WindowEvent::Scroll(_, y_offset) => {
-                self.movement.speed *= if y_offset > 0.0 { 1.2 } else { 0.8 };
-            }
-            _ => (),
-        }
-    }
-
-    fn handle_key_event(&mut self, key: Key, action: Action) {
-        match action {
-            Action::Press => match key {
-                Key::W => self.movement.forward_backward.set(1),
-                Key::S => self.movement.forward_backward.set(-1),
-                Key::A => self.movement.left_right.set(1),
-                Key::D => self.movement.left_right.set(-1),
-                Key::Space => self.movement.up_down.set(1),
-                Key::LeftShift => self.movement.up_down.set(-1),
-                Key::Q => self.movement.roll.set(1),
-                Key::E => self.movement.roll.set(-1),
-                _ => (),
-            },
-            Action::Release => match key {
-                Key::W => self.movement.forward_backward.reset(1),
-                Key::S => self.movement.forward_backward.reset(-1),
-                Key::A => self.movement.left_right.reset(1),
-                Key::D => self.movement.left_right.reset(-1),
-                Key::Space => self.movement.up_down.reset(1),
-                Key::LeftShift => self.movement.up_down.reset(-1),
-                Key::Q => self.movement.roll.reset(1),
-                Key::E => self.movement.roll.reset(-1),
-                _ => (),
-            },
-            Action::Repeat => (),
-        }
-    }
-
-    fn handle_mousebutton_event(&mut self, button: MouseButton, action: Action) {
-        match button {
-            MouseButton::Button1 => match action {
-                Action::Press => self.movement.turning = true,
-                Action::Release => self.movement.turning = false,
-                Action::Repeat => (),
-            },
-            _ => (),
-        }
-    }
 }
 
 struct MovementDirection {
@@ -524,5 +471,60 @@ impl Movement {
             || self.left_right.value() != 0
             || self.up_down.value() != 0
             || self.roll.value() != 0
+    }
+
+    fn handle_event(&mut self, event: WindowEvent) {
+        match event {
+            WindowEvent::Key(key, _, action, _) => self.handle_key_event(key, action),
+            WindowEvent::MouseButton(button, action, _) => self.handle_mousebutton_event(button, action),
+            WindowEvent::CursorPos(x, y) => {
+                let pos = vec2(x, y);
+                self.mouse_delta = pos - self.mouse_position;
+                self.mouse_position = pos;
+            }
+            WindowEvent::Scroll(_, y_offset) => {
+                self.speed *= if y_offset > 0.0 { 1.2 } else { 0.8 };
+            }
+            _ => (),
+        }
+    }
+
+    fn handle_key_event(&mut self, key: Key, action: Action) {
+        match action {
+            Action::Press => match key {
+                Key::W => self.forward_backward.set(1),
+                Key::S => self.forward_backward.set(-1),
+                Key::A => self.left_right.set(1),
+                Key::D => self.left_right.set(-1),
+                Key::Space => self.up_down.set(1),
+                Key::LeftShift => self.up_down.set(-1),
+                Key::Q => self.roll.set(1),
+                Key::E => self.roll.set(-1),
+                _ => (),
+            },
+            Action::Release => match key {
+                Key::W => self.forward_backward.reset(1),
+                Key::S => self.forward_backward.reset(-1),
+                Key::A => self.left_right.reset(1),
+                Key::D => self.left_right.reset(-1),
+                Key::Space => self.up_down.reset(1),
+                Key::LeftShift => self.up_down.reset(-1),
+                Key::Q => self.roll.reset(1),
+                Key::E => self.roll.reset(-1),
+                _ => (),
+            },
+            Action::Repeat => (),
+        }
+    }
+
+    fn handle_mousebutton_event(&mut self, button: MouseButton, action: Action) {
+        match button {
+            MouseButton::Button1 => match action {
+                Action::Press => self.turning = true,
+                Action::Release => self.turning = false,
+                Action::Repeat => (),
+            },
+            _ => (),
+        }
     }
 }
