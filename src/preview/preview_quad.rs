@@ -48,7 +48,10 @@ pub struct PreviewQuad {
     tess: Tess<Vertex, VertexIndex, (), Interleaved>,
     shader: Program<VertexSemantics, (), ShaderInterface>,
     blending: Blending,
+    // Having two copies of the texture is not an efficient way of changing
+    // the magnification filter but Luminance doesn't seem to have a better way.
     texture: LuminanceTexture<Dim2, NormRGB8UI>,
+    zoomed_texture: LuminanceTexture<Dim2, NormRGB8UI>,
     scale: f32,
     translation: Vector2<f32>,
     mouse_delta: Vector2<f32>,
@@ -94,7 +97,8 @@ impl PreviewQuad {
             .unwrap()
             .ignore_warnings();
 
-        let texture = make_texture(context, [1, 1], &[0, 0, 0]);
+        let texture = make_texture(context, [1, 1], &[0, 0, 0], MagFilter::Linear);
+        let zoomed_texture = make_texture(context, [1, 1], &[0, 0, 0], MagFilter::Nearest);
 
         let blending = Blending {
             equation: Equation::Additive,
@@ -107,6 +111,7 @@ impl PreviewQuad {
             shader,
             blending,
             texture,
+            zoomed_texture,
             scale: 1.0,
             translation: vec2(0.0, 0.0),
             mouse_position: vec2(0.0, 0.0),
@@ -116,7 +121,11 @@ impl PreviewQuad {
     }
 
     pub fn render(&mut self, shd_gate: &mut ShadingGate, pipeline: Pipeline) -> Result<(), PipelineError> {
-        let tex = pipeline.bind_texture(&mut self.texture)?;
+        let tex = if self.scale < 4.0 {
+            pipeline.bind_texture(&mut self.texture)?
+        } else {
+            pipeline.bind_texture(&mut self.zoomed_texture)?
+        };
 
         shd_gate.shade(&mut self.shader, |mut iface, unif, mut rdr_gate| {
             iface.set(&unif.u_texture, tex.binding());
@@ -137,7 +146,8 @@ impl PreviewQuad {
         let len = image_buffer.len() * std::mem::size_of::<RGBu8>();
 
         let image_buffer = unsafe { std::slice::from_raw_parts(data, len) };
-        self.texture = make_texture(context, size, image_buffer);
+        self.texture = make_texture(context, size, image_buffer, MagFilter::Linear);
+        self.zoomed_texture = make_texture(context, size, image_buffer, MagFilter::Nearest);
     }
 
     pub fn handle_event(&mut self, event: WindowEvent) {
@@ -168,7 +178,12 @@ impl PreviewQuad {
     }
 }
 
-fn make_texture<C>(context: &mut C, size: [u32; 2], image_buffer: &[u8]) -> LuminanceTexture<Dim2, NormRGB8UI>
+fn make_texture<C>(
+    context: &mut C,
+    size: [u32; 2],
+    image_buffer: &[u8],
+    mag_filter: MagFilter,
+) -> LuminanceTexture<Dim2, NormRGB8UI>
 where
     C: GraphicsContext<Backend = Backend>,
 {
@@ -177,7 +192,7 @@ where
         wrap_s: Wrap::ClampToEdge,
         wrap_t: Wrap::ClampToEdge,
         min_filter: MinFilter::LinearMipmapLinear,
-        mag_filter: MagFilter::Linear,
+        mag_filter,
         depth_comparison: None,
     };
 
