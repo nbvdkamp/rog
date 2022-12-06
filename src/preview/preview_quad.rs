@@ -1,4 +1,6 @@
-use luminance::pipeline::PipelineError;
+use cgmath::{vec2, Vector2};
+use glfw::{Action, Key, MouseButton, WindowEvent};
+use luminance::{pipeline::PipelineError, shader::types::Vec2};
 use luminance_derive::{Semantics, UniformInterface, Vertex};
 use luminance_front::{
     blending::{Blending, Equation, Factor},
@@ -38,16 +40,23 @@ const FS_STR: &str = include_str!("full_screen_quad/fragment.fs");
 #[derive(Debug, UniformInterface)]
 struct ShaderInterface {
     u_texture: Uniform<TextureBinding<Dim2, NormUnsigned>>,
+    u_scale: Uniform<Vec2<f32>>,
+    u_translation: Uniform<Vec2<f32>>,
 }
 
-pub struct FullScreenQuad {
+pub struct PreviewQuad {
     tess: Tess<Vertex, VertexIndex, (), Interleaved>,
     shader: Program<VertexSemantics, (), ShaderInterface>,
     blending: Blending,
     texture: LuminanceTexture<Dim2, NormRGB8UI>,
+    scale: f32,
+    translation: Vector2<f32>,
+    mouse_delta: Vector2<f32>,
+    mouse_position: Vector2<f32>,
+    dragging: bool,
 }
 
-impl FullScreenQuad {
+impl PreviewQuad {
     pub fn create<C>(context: &mut C) -> Result<Self, TessError>
     where
         C: GraphicsContext<Backend = Backend>,
@@ -98,6 +107,11 @@ impl FullScreenQuad {
             shader,
             blending,
             texture,
+            scale: 1.0,
+            translation: vec2(0.0, 0.0),
+            mouse_position: vec2(0.0, 0.0),
+            mouse_delta: vec2(0.0, 0.0),
+            dragging: false,
         })
     }
 
@@ -106,6 +120,9 @@ impl FullScreenQuad {
 
         shd_gate.shade(&mut self.shader, |mut iface, unif, mut rdr_gate| {
             iface.set(&unif.u_texture, tex.binding());
+            iface.set(&unif.u_scale, [self.scale, self.scale].into());
+            let translation: [f32; 2] = self.translation.into();
+            iface.set(&unif.u_translation, translation.into());
             let render_state = RenderState::default().set_blending(self.blending);
 
             rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(&self.tess))
@@ -121,6 +138,33 @@ impl FullScreenQuad {
 
         let image_buffer = unsafe { std::slice::from_raw_parts(data, len) };
         self.texture = make_texture(context, size, image_buffer);
+    }
+
+    pub fn handle_event(&mut self, event: WindowEvent) {
+        match event {
+            WindowEvent::MouseButton(MouseButton::Button1, action, _) => match action {
+                Action::Press => self.dragging = true,
+                Action::Release => self.dragging = false,
+                Action::Repeat => (),
+            },
+            WindowEvent::CursorPos(x, y) => {
+                let pos = vec2(x as f32, y as f32);
+                self.mouse_delta = pos - self.mouse_position;
+                self.mouse_position = pos;
+
+                if self.dragging {
+                    self.translation += 0.002 * vec2(self.mouse_delta.x, -self.mouse_delta.y);
+                }
+            }
+            WindowEvent::Scroll(_, y_offset) => {
+                self.scale *= if y_offset > 0.0 { 1.2 } else { 0.8 };
+            }
+            WindowEvent::Key(Key::Space, _, Action::Press, _) => {
+                self.scale = 1.0;
+                self.translation = vec2(0.0, 0.0);
+            }
+            _ => (),
+        }
     }
 }
 

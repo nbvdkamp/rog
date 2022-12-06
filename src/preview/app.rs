@@ -35,7 +35,7 @@ use crate::{
     color::RGBu8,
     material::Material,
     mesh::{LuminanceVertex, VertexIndex, VertexSemantics},
-    preview::full_screen_quad::FullScreenQuad,
+    preview::preview_quad::PreviewQuad,
     raytracer::{render_and_save, working_image::WorkingImage, ImageUpdateReporting, Raytracer, RenderMessage},
     render_settings::{ImageSettings, RenderSettings},
     scene::Scene,
@@ -170,7 +170,7 @@ impl App {
         // Unlock it again
         drop(raytracer);
 
-        let mut progress_display_quad = FullScreenQuad::create(&mut context).unwrap();
+        let mut progress_display_quad = PreviewQuad::create(&mut context).unwrap();
 
         let sampler = Sampler {
             wrap_r: Wrap::Repeat,
@@ -309,7 +309,13 @@ impl App {
                             std::process::exit(-1);
                         };
                     }
-                    e => self.handle_event(e),
+                    e => {
+                        if *self.rendering.lock().unwrap() {
+                            progress_display_quad.handle_event(e);
+                        } else {
+                            self.handle_event(e);
+                        }
+                    }
                 }
             }
 

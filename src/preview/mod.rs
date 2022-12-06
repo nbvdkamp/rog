@@ -1,2 +1,2 @@
 pub mod app;
-mod full_screen_quad;
+mod preview_quad;
