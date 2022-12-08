@@ -170,7 +170,8 @@ impl App {
         // Unlock it again
         drop(raytracer);
 
-        let mut progress_display_quad = PreviewQuad::create(&mut context).unwrap();
+        let (width, height) = context.window.get_size();
+        let mut progress_display_quad = PreviewQuad::create(&mut context, width as f32 / height as f32).unwrap();
 
         let sampler = Sampler {
             wrap_r: Wrap::Repeat,
@@ -250,7 +251,9 @@ impl App {
                         break 'app;
                     }
                     WindowEvent::Size(width, height) => {
-                        self.camera.aspect_ratio = width as f32 / height as f32;
+                        let ratio = width as f32 / height as f32;
+                        self.camera.aspect_ratio = ratio;
+                        progress_display_quad.window_aspect_ratio = ratio;
                         back_buffer = context.back_buffer().expect("Unable to create new back buffer");
                     }
                     WindowEvent::Key(Key::Enter, _, Action::Press, _) => {
@@ -261,8 +264,7 @@ impl App {
                         *rendering = true;
 
                         self.movement = Movement::new();
-                        // Reset the preview every render
-                        progress_display_quad = PreviewQuad::create(&mut context).unwrap();
+                        progress_display_quad.reset();
 
                         let (sender, cancel_receiver) = channel();
                         cancel_sender = Some(sender);
@@ -326,7 +328,7 @@ impl App {
             match progress_receiver.try_recv() {
                 Ok(image) => {
                     let size = [image.size.x as u32, image.size.y as u32];
-                    progress_display_quad.update_texture(&mut context, size, &image.pixels)
+                    progress_display_quad.update_texture(&mut context, size, &image.pixels);
                 }
                 Err(TryRecvError::Empty) => (),
                 Err(TryRecvError::Disconnected) => {

@@ -11,7 +11,7 @@ use luminance_front::{
     shader::{Program, Uniform},
     shading_gate::ShadingGate,
     tess::{Interleaved, Mode, Tess, TessError},
-    texture::{Dim2, MagFilter, MinFilter, Sampler, TexelUpload, Texture as LuminanceTexture, Wrap},
+    texture::{Dim2, MagFilter, MinFilter, Sampler, TexelUpload, Texture, Wrap},
     Backend,
 };
 
@@ -50,17 +50,21 @@ pub struct PreviewQuad {
     blending: Blending,
     // Having two copies of the texture is not an efficient way of changing
     // the magnification filter but Luminance doesn't seem to have a better way.
-    texture: LuminanceTexture<Dim2, NormRGB8UI>,
-    zoomed_texture: LuminanceTexture<Dim2, NormRGB8UI>,
+    texture: Option<Texture<Dim2, NormRGB8UI>>,
+    zoomed_texture: Option<Texture<Dim2, NormRGB8UI>>,
+    texture_aspect_ratio: f32,
+    pub window_aspect_ratio: f32,
     scale: f32,
     translation: Vector2<f32>,
     mouse_delta: Vector2<f32>,
     mouse_position: Vector2<f32>,
     dragging: bool,
+    /// Workaround to prevent new preview texture not working due to an AMD GPU driver bug after the last texture is deleted
+    dummy_texture: Texture<Dim2, NormRGB8UI>,
 }
 
 impl PreviewQuad {
-    pub fn create<C>(context: &mut C) -> Result<Self, TessError>
+    pub fn create<C>(context: &mut C, window_aspect_ratio: f32) -> Result<Self, TessError>
     where
         C: GraphicsContext<Backend = Backend>,
     {
@@ -97,45 +101,67 @@ impl PreviewQuad {
             .unwrap()
             .ignore_warnings();
 
-        let texture = make_placeholder_texture(context, MagFilter::Linear);
-        let zoomed_texture = make_placeholder_texture(context, MagFilter::Nearest);
-
         let blending = Blending {
             equation: Equation::Additive,
             src: Factor::SrcAlpha,
             dst: Factor::SrcAlphaComplement,
         };
 
+        let dummy_texture = make_texture(context, [1, 1], &[0, 0, 0], MagFilter::Linear);
+
         Ok(Self {
             tess,
             shader,
             blending,
-            texture,
-            zoomed_texture,
+            texture: None,
+            zoomed_texture: None,
+            texture_aspect_ratio: 1.0,
+            window_aspect_ratio,
             scale: 1.0,
             translation: vec2(0.0, 0.0),
             mouse_position: vec2(0.0, 0.0),
             mouse_delta: vec2(0.0, 0.0),
             dragging: false,
+            dummy_texture,
         })
     }
 
+    pub fn reset(&mut self) {
+        self.scale = 1.0;
+        self.translation = vec2(0.0, 0.0);
+        self.texture = None;
+        self.zoomed_texture = None;
+    }
+
     pub fn render(&mut self, shd_gate: &mut ShadingGate, pipeline: Pipeline) -> Result<(), PipelineError> {
+        let scale = self.render_scale();
+
+        let (Some(texture), Some(zoomed_texture)) = (&mut self.texture, &mut self.zoomed_texture) else {
+            pipeline.bind_texture(&mut self.dummy_texture)?;
+            return Ok(());
+        };
+
         let tex = if self.scale < 4.0 {
-            pipeline.bind_texture(&mut self.texture)?
+            pipeline.bind_texture(texture)?
         } else {
-            pipeline.bind_texture(&mut self.zoomed_texture)?
+            pipeline.bind_texture(zoomed_texture)?
         };
 
         shd_gate.shade(&mut self.shader, |mut iface, unif, mut rdr_gate| {
             iface.set(&unif.u_texture, tex.binding());
-            iface.set(&unif.u_scale, [self.scale, self.scale].into());
+            iface.set(&unif.u_scale, scale.into());
             let translation: [f32; 2] = self.translation.into();
             iface.set(&unif.u_translation, translation.into());
             let render_state = RenderState::default().set_blending(self.blending);
 
             rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(&self.tess))
         })
+    }
+
+    fn render_scale(&self) -> [f32; 2] {
+        let s = vec2(self.texture_aspect_ratio / self.window_aspect_ratio, 1.0);
+        let s = self.scale * s / if s.x > 1.0 { s.x } else { 1.0 };
+        [s.x, s.y]
     }
 
     pub fn update_texture<C>(&mut self, context: &mut C, size: [u32; 2], image_buffer: &[RGBu8])
@@ -146,8 +172,10 @@ impl PreviewQuad {
         let len = image_buffer.len() * std::mem::size_of::<RGBu8>();
 
         let image_buffer = unsafe { std::slice::from_raw_parts(data, len) };
-        self.texture = make_texture(context, size, image_buffer, MagFilter::Linear);
-        self.zoomed_texture = make_texture(context, size, image_buffer, MagFilter::Nearest);
+        self.texture = Some(make_texture(context, size, image_buffer, MagFilter::Linear));
+        self.zoomed_texture = Some(make_texture(context, size, image_buffer, MagFilter::Nearest));
+
+        self.texture_aspect_ratio = size[0] as f32 / size[1] as f32;
     }
 
     pub fn handle_event(&mut self, event: WindowEvent) {
@@ -183,7 +211,7 @@ fn make_texture<C>(
     size: [u32; 2],
     image_buffer: &[u8],
     mag_filter: MagFilter,
-) -> LuminanceTexture<Dim2, NormRGB8UI>
+) -> Texture<Dim2, NormRGB8UI>
 where
     C: GraphicsContext<Backend = Backend>,
 {
@@ -201,11 +229,4 @@ where
     context
         .new_texture_raw(size, sampler, upload)
         .expect("unable to upload preview texture")
-}
-
-fn make_placeholder_texture<C>(context: &mut C, mag_filter: MagFilter) -> LuminanceTexture<Dim2, NormRGB8UI>
-where
-    C: GraphicsContext<Backend = Backend>,
-{
-    make_texture(context, [1, 1], &[0, 0, 0], mag_filter)
 }
