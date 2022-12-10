@@ -59,7 +59,7 @@ fn main() {
                 width,
                 height,
                 enable_dispersion: true,
-                max_depth: Some(10),
+                max_depth: None,
                 always_sample_single_wavelength: false,
                 visibility: None,
                 scene_version: None,
