@@ -1,5 +1,6 @@
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
+    io::Cursor,
     path::Path,
     time::Instant,
 };
@@ -39,6 +40,8 @@ use crate::{
 
 use rgb2spec::RGB2Spec;
 
+const RGB2SPEC_BYTES: &[u8; 9437448] = include_bytes!("../res/out.spec");
+
 pub struct Scene {
     pub meshes: Vec<Mesh>,
     pub lights: Vec<Light>,
@@ -68,7 +71,7 @@ impl Scene {
     where
         P: AsRef<Path>,
     {
-        let rgb2spec = match RGB2Spec::load("res/out.spec") {
+        let rgb2spec = match RGB2Spec::from_reader(&mut Cursor::new(RGB2SPEC_BYTES)) {
             Ok(rgb2spec) => rgb2spec,
             Err(e) => panic!("Can't load rgb2spec file: {}", e),
         };

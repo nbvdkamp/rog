@@ -26,7 +26,7 @@ lerp = "0.4.0"
 rayon = "1.5.3"
 static_assertions = "1.1.0"
 arrayvec = "0.7.2"
-rgb2spec = "0.1.0"
+rgb2spec = "0.1.1"
 sha2 = "0.10.6"
 byteorder = "1.4.3"
 
@@ -40,7 +40,6 @@ luminance-derive = "0.10.0"
 luminance-front = "0.6.1"
 luminance-glfw = "0.18.2"
 luminance-windowing = "0.10.1"
-
 
 [dependencies.cgmath]
 version = "0.18.0"
