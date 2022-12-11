@@ -292,7 +292,7 @@ impl App {
                                                 .iter()
                                                 .map(|c| c.normalized())
                                                 .collect::<Vec<_>>(),
-                                            size: image.settings.size(),
+                                            size: image.settings.size,
                                         });
                                     }),
                                     update_interval: Duration::from_secs(10),

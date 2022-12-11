@@ -47,7 +47,7 @@ impl WorkingImage {
                     spectrum: Spectrumf32::constant(0.0),
                     samples: 0
                 };
-                settings.width * settings.height
+                settings.size.x * settings.size.y
             ],
             settings,
         }
@@ -58,7 +58,7 @@ impl WorkingImage {
         P: AsRef<Path>,
     {
         let buffer = self.to_rgb_buffer();
-        save_image(&buffer, self.settings.size(), path)
+        save_image(&buffer, self.settings.size, path)
     }
 
     pub fn to_rgb_buffer(&self) -> Vec<RGBf32> {
@@ -151,7 +151,7 @@ impl WorkingImage {
             }
         }
 
-        let expected_pixel_count = image.settings.width * image.settings.height;
+        let expected_pixel_count = image.settings.size.x * image.settings.size.y;
         let expected_pixels_size = expected_pixel_count * std::mem::size_of::<Pixel>();
 
         let _pixels_header = SectionHeader::from_reader(&mut file, PIXELS_TAG, Some(expected_pixels_size))?;

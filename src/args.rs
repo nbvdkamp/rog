@@ -1,10 +1,14 @@
 use std::{path::PathBuf, str::FromStr, time::Duration};
 
-use crate::{raytracer::acceleration::Accel, scene_version::SceneVersion};
-
-use super::render_settings::{ImageSettings, RenderSettings, TerminationCondition, VisibilitySettings};
+use cgmath::vec2;
 use clap::{arg, value_parser, Command};
 use image::ImageFormat;
+
+use crate::{
+    raytracer::acceleration::Accel,
+    render_settings::{ImageSettings, RenderSettings, TerminationCondition, VisibilitySettings},
+    scene_version::SceneVersion,
+};
 
 pub struct Args {
     pub scene_file: PathBuf,
@@ -149,8 +153,7 @@ impl Args {
         };
 
         let image_settings = ImageSettings {
-            width: read_usize("width", 1920),
-            height: read_usize("height", 1080),
+            size: vec2(read_usize("width", 1920), read_usize("height", 1080)),
             enable_dispersion: !matches.get_flag("no-dispersion"),
             always_sample_single_wavelength: matches.get_flag("always-sample-wavelength"),
             visibility: if use_visibility {

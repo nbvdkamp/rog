@@ -1,6 +1,6 @@
 use std::{path::PathBuf, time::Duration};
 
-use cgmath::{vec2, Vector2};
+use cgmath::Vector2;
 use serde::{Deserialize, Serialize};
 
 use crate::{raytracer::acceleration::Accel, scene_version::SceneVersion};
@@ -12,8 +12,7 @@ pub struct VisibilitySettings {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ImageSettings {
-    pub width: usize,
-    pub height: usize,
+    pub size: Vector2<usize>,
     pub enable_dispersion: bool,
     pub max_depth: Option<usize>,
     pub always_sample_single_wavelength: bool,
@@ -32,10 +31,6 @@ impl ImageSettings {
         } else {
             false
         }
-    }
-
-    pub fn size(&self) -> Vector2<usize> {
-        vec2(self.width, self.height)
     }
 
     pub fn max_depth_reached(&self, depth: usize) -> bool {

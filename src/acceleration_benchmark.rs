@@ -1,3 +1,5 @@
+use cgmath::vec2;
+
 #[cfg(feature = "stats")]
 use renderer::raytracer::acceleration::statistics::Statistics;
 use renderer::{
@@ -56,8 +58,7 @@ fn main() {
             };
 
             let image_settings = ImageSettings {
-                width,
-                height,
+                size: vec2(width, height),
                 enable_dispersion: true,
                 max_depth: None,
                 always_sample_single_wavelength: false,

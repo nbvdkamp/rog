@@ -192,7 +192,7 @@ impl Raytracer {
         message_receiver: Option<Receiver<RenderMessage>>,
         image: WorkingImage,
     ) -> (WorkingImage, f32) {
-        let image_size = image.settings.size();
+        let image_size = image.settings.size;
         let aspect_ratio = image_size.x as f32 / image_size.y as f32;
         let fov_factor = (self.scene.camera.y_fov / 2.).tan();
 
