@@ -19,7 +19,7 @@ fn main() {
 
 fn headless_render(args: Args) {
     let image = if let Some(path) = &args.render_settings.intermediate_read_path {
-        match WorkingImage::read_from_file(path, &args.image_settings.scene_version.clone().unwrap()) {
+        match WorkingImage::read_from_file(path, &args.image_settings.scene_version) {
             Ok(image) => image,
             Err(e) => {
                 eprintln!("An error occured while opening intermediate image: {e}");

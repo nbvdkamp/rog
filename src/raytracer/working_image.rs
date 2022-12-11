@@ -123,7 +123,7 @@ impl WorkingImage {
         Ok(())
     }
 
-    pub fn read_from_file<P>(path: P, expected_scene_version: &SceneVersion) -> Result<Self, Error>
+    pub fn read_from_file<P>(path: P, expected_scene_version: &Option<SceneVersion>) -> Result<Self, Error>
     where
         P: AsRef<Path>,
     {
@@ -140,13 +140,15 @@ impl WorkingImage {
 
         let mut image = serde_json::from_slice::<WorkingImage>(&json_buffer).map_err(Serde)?;
 
-        if image
-            .settings
-            .scene_version
-            .as_ref()
-            .map_or(true, |v| v.hash != expected_scene_version.hash)
-        {
-            return Err(Error::SceneMismatch);
+        if let Some(expected) = expected_scene_version {
+            if image
+                .settings
+                .scene_version
+                .as_ref()
+                .map_or(true, |v| v.hash != expected.hash)
+            {
+                return Err(Error::SceneMismatch);
+            }
         }
 
         let expected_pixel_count = image.settings.width * image.settings.height;
