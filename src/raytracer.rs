@@ -410,9 +410,13 @@ impl Raytracer {
 
         // Errors when the lock has multiple owners but the scope should guarantee that never happens
         let lock = Arc::try_unwrap(image).ok().unwrap();
-        let image = lock.into_inner().expect("Cannot unlock image mutex");
+        let mut image = lock.into_inner().expect("Cannot unlock image mutex");
+        let time_spent = start.elapsed().as_secs_f32();
 
-        (image, start.elapsed().as_secs_f32())
+        image.paths_sampled_per_pixel += *current_sample.lock().unwrap() as u32 - 1;
+        image.seconds_spent_rendering += time_spent;
+
+        (image, time_spent)
     }
 
     fn pixel_to_screen(

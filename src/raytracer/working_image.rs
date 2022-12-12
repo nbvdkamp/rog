@@ -31,6 +31,8 @@ pub struct WorkingImage {
     pub settings: ImageSettings,
     #[serde(skip)]
     pub pixels: Vec<Pixel>,
+    pub paths_sampled_per_pixel: u32,
+    pub seconds_spent_rendering: f32,
 }
 
 #[derive(Clone)]
@@ -50,6 +52,8 @@ impl WorkingImage {
                 settings.size.x * settings.size.y
             ],
             settings,
+            paths_sampled_per_pixel: 0,
+            seconds_spent_rendering: 0.0,
         }
     }
 
