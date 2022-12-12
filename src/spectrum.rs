@@ -48,6 +48,18 @@ impl Spectrumf32 {
         self.data.iter().fold(f32::MIN, |old, v| old.max(*v))
     }
 
+    pub fn mean_square_error(&self, other: &Self) -> f32 {
+        self.data
+            .iter()
+            .zip(other.data.iter())
+            .map(|(s, o)| {
+                let e = s - o;
+                e * e
+            })
+            .sum::<f32>()
+            / RESOLUTION as f32
+    }
+
     pub fn add_at_wavelength_lerp(&mut self, value: f32, wavelength: f32) {
         let x = (wavelength - CIE::LAMBDA_MIN) / CIE::LAMBDA_RANGE * (RESOLUTION - 2) as f32;
         let i = x.floor() as usize;

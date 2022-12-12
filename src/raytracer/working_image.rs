@@ -183,6 +183,15 @@ impl WorkingImage {
 
         Ok(image)
     }
+
+    pub fn mean_square_error(&self, other: &Self) -> f32 {
+        self.pixels
+            .iter()
+            .zip(other.pixels.iter())
+            .map(|(s, o)| s.result_spectrum().mean_square_error(&o.result_spectrum()))
+            .sum::<f32>()
+            / self.pixels.len() as f32
+    }
 }
 
 struct FileHeader {
