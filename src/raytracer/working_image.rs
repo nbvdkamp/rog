@@ -41,6 +41,12 @@ pub struct Pixel {
     pub samples: u32,
 }
 
+impl Pixel {
+    fn result_spectrum(&self) -> Spectrumf32 {
+        self.spectrum * Spectrumf32::RESOLUTION as f32 / self.samples as f32
+    }
+}
+
 impl WorkingImage {
     pub fn new(settings: ImageSettings) -> Self {
         WorkingImage {
@@ -72,9 +78,8 @@ impl WorkingImage {
                 if pixel.spectrum.data.iter().any(|v| v.is_nan()) {
                     return RGBf32::new(1.0, 0.5, 0.0);
                 }
-                let spectrum = pixel.spectrum * Spectrumf32::RESOLUTION as f32 / pixel.samples as f32;
 
-                let c = spectrum.to_srgb().linear_to_srgb();
+                let c = pixel.result_spectrum().to_srgb().linear_to_srgb();
                 if c.has_nan_component() {
                     RGBf32::new(0.0, 1.0, 0.0)
                 } else {
