@@ -18,7 +18,7 @@ pub(crate) mod aabb;
 pub mod acceleration;
 mod axis;
 mod bsdf;
-mod file_formatting;
+pub mod file_formatting;
 pub mod geometry;
 mod ray;
 mod sampling;

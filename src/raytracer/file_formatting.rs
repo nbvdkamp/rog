@@ -5,6 +5,7 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
+#[derive(Debug)]
 pub enum Error {
     IO(std::io::Error),
     Serde(serde_json::Error),
