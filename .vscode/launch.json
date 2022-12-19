@@ -7,15 +7,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'rustexperiment'",
+            "name": "Debug executable 'renderer'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=rustexperiment",
-                    "--package=rustexperiment"
+                    "--bin=renderer",
+                    "--package=renderer"
                 ],
                 "filter": {
-                    "name": "rustexperiment",
+                    "name": "renderer",
                     "kind": "bin"
                 }
             },
@@ -26,7 +26,7 @@
             "type": "cppvsdbg",
             "request": "launch",
             "name": "(Windows) Debug executable",
-            "program": "${workspaceRoot}/target/debug/rustexperiment.exe",
+            "program": "${workspaceRoot}/target/debug/renderer.exe",
             "stopAtEntry": false,
             "environment": [],
             "console": "integratedTerminal",
@@ -36,16 +36,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'rustexperiment'",
+            "name": "Debug unit tests in executable 'renderer'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=rustexperiment",
-                    "--package=rustexperiment"
+                    "--bin=renderer",
+                    "--package=renderer"
                 ],
                 "filter": {
-                    "name": "rustexperiment",
+                    "name": "renderer",
                     "kind": "bin"
                 }
             },
