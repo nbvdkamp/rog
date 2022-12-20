@@ -238,7 +238,7 @@ impl App {
         let (progress_sender, progress_receiver) = channel();
         let mut cancel_sender: Option<Sender<RenderMessage>> = None;
 
-        thread::scope(move |scope| 'app: loop {
+        thread::scope(|scope| 'app: loop {
             context.window.glfw.poll_events();
 
             for (_, event) in glfw::flush_messages(&events) {
