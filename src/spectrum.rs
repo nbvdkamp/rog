@@ -60,6 +60,10 @@ impl Spectrumf32 {
             / RESOLUTION as f32
     }
 
+    pub fn mean(&self) -> f32 {
+        self.data.iter().sum::<f32>() / RESOLUTION as f32
+    }
+
     pub fn add_at_wavelength_lerp(&mut self, value: f32, wavelength: f32) {
         let x = (wavelength - CIE::LAMBDA_MIN) / CIE::LAMBDA_RANGE * (RESOLUTION - 2) as f32;
         let i = x.floor() as usize;

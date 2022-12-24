@@ -42,7 +42,7 @@ pub struct Pixel {
 }
 
 impl Pixel {
-    fn result_spectrum(&self) -> Spectrumf32 {
+    pub fn result_spectrum(&self) -> Spectrumf32 {
         self.spectrum * Spectrumf32::RESOLUTION as f32 / self.samples as f32
     }
 }
