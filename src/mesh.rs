@@ -23,6 +23,7 @@ pub enum VertexSemantics {
     TextureCoords,
 }
 
+#[repr(C)]
 #[derive(Copy, Clone, Vertex)]
 #[vertex(sem = "VertexSemantics")]
 pub struct LuminanceVertex {
