@@ -112,7 +112,7 @@ impl Scene {
                     }
                 };
 
-                let mut result_scene = Scene {
+                let mut scene = Scene {
                     meshes: Vec::new(),
                     lights: Vec::new(),
                     textures: Textures {
@@ -126,11 +126,10 @@ impl Scene {
                     environment,
                 };
 
-                for scene in document.scenes() {
-                    result_scene.parse_nodes(scene.nodes().collect(), &buffers, Matrix4::identity(), &rgb2spec);
-                }
+                let gltf_scene = document.default_scene().unwrap_or(document.scenes().next().unwrap());
+                scene.parse_nodes(gltf_scene.nodes().collect(), &buffers, Matrix4::identity(), &rgb2spec);
 
-                let sorted_textures = &mut result_scene.textures;
+                let sorted_textures = &mut scene.textures;
 
                 let parse_time = start.elapsed().as_secs_f32();
                 let start = Instant::now();
@@ -147,7 +146,7 @@ impl Scene {
                     Normal,
                 }
 
-                for mesh in &mut result_scene.meshes {
+                for mesh in &mut scene.meshes {
                     macro_rules! set_type {
                         ( $tex:expr, $tex_type:expr ) => {
                             match $tex {
@@ -229,7 +228,7 @@ impl Scene {
                     });
 
                 // To draw meshes with alpha textures last
-                result_scene.meshes.iter_mut().partition_in_place(|mesh| {
+                scene.meshes.iter_mut().partition_in_place(|mesh| {
                     mesh.material
                         .base_color_texture
                         .map_or(true, |tex| preview_textures[tex.index].format == Format::Rgb)
@@ -242,7 +241,7 @@ impl Scene {
                     total_time, lib_time, parse_time, textures_time,
                 );
 
-                Ok((result_scene, preview_textures))
+                Ok((scene, preview_textures))
             }
             Err(e) => {
                 let hint = if let gltf::Error::Io(_) = e {
