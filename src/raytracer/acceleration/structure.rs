@@ -1,7 +1,10 @@
 use cgmath::Point3;
 
 use super::statistics::StatisticsStore;
-use crate::raytracer::{triangle::Triangle, Ray};
+use crate::{
+    mesh::Instance,
+    raytracer::{triangle::Triangle, Ray},
+};
 
 pub enum TraceResult {
     Miss,
@@ -13,10 +16,10 @@ pub enum TraceResult {
     },
 }
 
-pub enum TraceResultMesh {
+pub enum TraceResultMesh<'a> {
     Miss,
     Hit {
-        mesh_index: u32,
+        instance: &'a Instance,
         triangle_index: u32,
         t: f32,
         u: f32,
@@ -42,7 +45,7 @@ impl TraceResult {
         }
     }
 
-    pub fn with_mesh_index(self, mesh_index: usize) -> TraceResultMesh {
+    pub fn with_instance(self, instance: &Instance) -> TraceResultMesh {
         match self {
             TraceResult::Miss => TraceResultMesh::Miss,
             TraceResult::Hit {
@@ -51,7 +54,7 @@ impl TraceResult {
                 u,
                 v,
             } => TraceResultMesh::Hit {
-                mesh_index: mesh_index as u32,
+                instance,
                 triangle_index,
                 t,
                 u,

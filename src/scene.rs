@@ -10,8 +10,6 @@ use cgmath::{
     vec3,
     vec4,
     InnerSpace,
-    Matrix,
-    Matrix3,
     Matrix4,
     Point2,
     Point3,
@@ -20,7 +18,6 @@ use cgmath::{
     Rotation2,
     SquareMatrix,
     Vector3,
-    Vector4,
     Zero,
 };
 use gltf::{camera::Projection, mesh::Mode, scene::Transform};
@@ -32,10 +29,11 @@ use crate::{
     environment::Environment,
     light::{Kind, Light},
     material::{CauchyCoefficients, Material, TextureRef, TextureTransform},
-    mesh::{Mesh, Vertices},
+    mesh::{Instance, Mesh, Vertices},
     raytracer::{aabb::BoundingBox, triangle::Triangle, Textures},
     spectrum::Spectrumf32,
     texture::{Format, Texture},
+    util::normal_transform_from_mat4,
 };
 
 use rgb2spec::RGB2Spec;
@@ -44,6 +42,7 @@ const RGB2SPEC_BYTES: &[u8; 9437448] = include_bytes!("../res/out.spec");
 
 pub struct Scene {
     pub meshes: Vec<Mesh>,
+    pub instances: Vec<Instance>,
     pub lights: Vec<Light>,
     pub textures: Textures,
     pub camera: PerspectiveCamera,
@@ -114,6 +113,7 @@ impl Scene {
 
                 let mut scene = Scene {
                     meshes: Vec::new(),
+                    instances: Vec::new(),
                     lights: Vec::new(),
                     textures: Textures {
                         base_color_coefficients: Vec::new(),
@@ -228,7 +228,8 @@ impl Scene {
                     });
 
                 // To draw meshes with alpha textures last
-                scene.meshes.iter_mut().partition_in_place(|mesh| {
+                scene.instances.iter_mut().partition_in_place(|instance| {
+                    let mesh = &scene.meshes[instance.mesh_index as usize];
                     mesh.material
                         .base_color_texture
                         .map_or(true, |tex| preview_textures[tex.index].format == Format::Rgb)
@@ -299,8 +300,10 @@ impl Scene {
         transform: Matrix4<f32>,
         rgb2spec: &RGB2Spec,
     ) {
-        let m = Matrix3::from_cols(transform.x.truncate(), transform.y.truncate(), transform.z.truncate());
-        let normal_transform = m.invert().unwrap().transpose();
+        let Some(inverse_transform) = transform.invert() else {
+            eprintln!("Singular transform matrix for mesh: {}, skipping it", mesh.name().unwrap_or(&mesh.index().to_string()));
+            return;
+        };
 
         for primitive in mesh.primitives() {
             if primitive.mode() != Mode::Triangles {
@@ -387,8 +390,7 @@ impl Scene {
             };
 
             let positions: Vec<Point3<f32>> = if let Some(iter) = reader.read_positions() {
-                iter.map(|pos| Point3::from_homogeneous(transform * Vector4::new(pos[0], pos[1], pos[2], 1.0)))
-                    .collect()
+                iter.map(|pos| pos.into()).collect()
             } else {
                 eprintln!(
                     "Skipping primitive with missing POSITION attribute (mesh: {}, primitive: {})",
@@ -407,9 +409,7 @@ impl Scene {
             assert_eq!(indices.len() % 3, 0);
 
             let normals: Vec<Vector3<f32>> = match reader.read_normals() {
-                Some(normals) => normals
-                    .map(|normal| -> Vector3<f32> { normal_transform * Vector3::from(normal) })
-                    .collect(),
+                Some(normals) => normals.map(|normal| Vector3::from(normal)).collect(),
                 None => {
                     let mut tri_normals = Vec::with_capacity(indices.len() / 3);
 
@@ -445,7 +445,7 @@ impl Scene {
 
             let tangents: Vec<Vector3<f32>> = match reader.read_tangents() {
                 Some(reader) => reader
-                    .map(|tangent| normal_transform * (tangent[3] * vec3(tangent[0], tangent[1], tangent[2])))
+                    .map(|tangent| tangent[3] * vec3(tangent[0], tangent[1], tangent[2]))
                     .collect(),
                 None => {
                     let mut tri_tangents = Vec::with_capacity(indices.len() / 3);
@@ -569,6 +569,13 @@ impl Scene {
                 // Fast path if the whole mesh is one piece
                 if visited.len() == vertices.positions.len() {
                     self.meshes.push(Mesh::new(vertices, triangles, material, new_bounds));
+                    let mesh_index = self.meshes.len() - 1;
+                    self.instances.push(Instance::new(
+                        mesh_index,
+                        &self.meshes[mesh_index],
+                        transform,
+                        inverse_transform,
+                    ));
                     break;
                 }
 
@@ -597,6 +604,13 @@ impl Scene {
 
                 self.meshes
                     .push(Mesh::new(vertices, new_triangles, material.clone(), new_bounds));
+                let mesh_index = self.meshes.len() - 1;
+                self.instances.push(Instance::new(
+                    mesh_index,
+                    &self.meshes[mesh_index],
+                    transform,
+                    inverse_transform,
+                ));
             }
         }
     }
@@ -622,8 +636,7 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>,
             Kind::Point { radius }
         }
         GltfKind::Directional => {
-            let m = Matrix3::from_cols(transform.x.truncate(), transform.y.truncate(), transform.z.truncate());
-            let normal_transform = m.invert().unwrap().transpose();
+            let normal_transform = normal_transform_from_mat4(transform);
             let direction = -(normal_transform * vec3(0.0, 0.0, -1.0)).normalize();
 
             let angular_diameter = (|| extras?.angular_diameter)().map_or(0.0, |degrees| degrees.to_radians());

@@ -280,22 +280,29 @@ impl SceneStatistics {
         }
 
         let mut tris_to_sort = scene
-            .meshes
+            .instances
             .iter()
             .enumerate()
-            .flat_map(|(mesh_index, mesh)| {
+            .flat_map(|(instance_index, instance)| {
+                let mesh = &scene.meshes[instance.mesh_index as usize];
                 mesh.triangles.iter().enumerate().map(move |(tri_index, tri)| {
                     let verts = [
                         Vert {
-                            position: mesh.vertices.positions[tri.indices[0] as usize],
+                            position: Point3::from_homogeneous(
+                                instance.transform * mesh.vertices.positions[tri.indices[0] as usize].to_homogeneous(),
+                            ),
                             barycentric: point2(0.0, 0.0),
                         },
                         Vert {
-                            position: mesh.vertices.positions[tri.indices[1] as usize],
+                            position: Point3::from_homogeneous(
+                                instance.transform * mesh.vertices.positions[tri.indices[1] as usize].to_homogeneous(),
+                            ),
                             barycentric: point2(1.0, 0.0),
                         },
                         Vert {
-                            position: mesh.vertices.positions[tri.indices[2] as usize],
+                            position: Point3::from_homogeneous(
+                                instance.transform * mesh.vertices.positions[tri.indices[2] as usize].to_homogeneous(),
+                            ),
                             barycentric: point2(0.0, 1.0),
                         },
                     ];
@@ -306,7 +313,7 @@ impl SceneStatistics {
                     bounds.add(verts[2].position);
 
                     ClippedTri {
-                        mesh_index,
+                        instance_index,
                         tri_index,
                         verts,
                         bounds,
@@ -473,7 +480,7 @@ struct Vert {
 
 #[derive(Clone, Copy)]
 struct ClippedTri {
-    mesh_index: usize,
+    instance_index: usize,
     tri_index: usize,
     verts: [Vert; 3],
     bounds: BoundingBox,
@@ -608,7 +615,8 @@ fn sample_triangle_materials(tris: Vec<ClippedTri>, raytracer: &Raytracer) -> Op
 
     for _ in 0..MATERIAL_SAMPLES {
         let triangle = tris[sample_item_from_cumulative_probabilities(&cumulative_probabilities).unwrap()];
-        let mesh = &raytracer.scene.meshes[triangle.mesh_index];
+        let instance = &raytracer.scene.instances[triangle.instance_index];
+        let mesh = &raytracer.scene.meshes[instance.mesh_index as usize];
         let original_tri = &mesh.triangles[triangle.tri_index];
 
         if let Some(texture_ref) = mesh.material.base_color_texture {

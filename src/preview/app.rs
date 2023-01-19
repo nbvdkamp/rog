@@ -21,7 +21,7 @@ use luminance_front::{
     pixel::{NormRGB8UI, NormRGBA8UI, NormUnsigned},
     render_state::RenderState,
     shader::{
-        types::{Mat44, Vec3, Vec4},
+        types::{Mat33, Mat44, Vec3, Vec4},
         Uniform,
     },
     tess::{Interleaved, Tess},
@@ -40,13 +40,15 @@ use crate::{
     render_settings::{ImageSettings, RenderSettings},
     scene::Scene,
     texture::{Format, Texture},
-    util::mat_to_shader_type,
+    util::{mat3_to_shader_type, mat_to_shader_type, normal_transform_from_mat4},
 };
 
 #[derive(Debug, UniformInterface)]
 struct ShaderInterface {
     u_projection: Uniform<Mat44<f32>>,
     u_view: Uniform<Mat44<f32>>,
+    u_model: Uniform<Mat44<f32>>,
+    u_normal_transform: Uniform<Mat33<f32>>,
     u_base_color: Uniform<Vec4<f32>>,
     u_base_color_texture: Uniform<TextureBinding<Dim2, NormUnsigned>>,
     u_use_texture: Uniform<bool>,
@@ -166,6 +168,8 @@ impl App {
             .iter()
             .map(|mesh| (mesh.to_tess(&mut context).unwrap(), mesh.material.clone()))
             .collect::<Vec<(Tess<LuminanceVertex, VertexIndex, (), Interleaved>, Material)>>();
+
+        let instances = raytracer.scene.instances.clone();
 
         // Unlock it again
         drop(raytracer);
@@ -343,7 +347,8 @@ impl App {
                     &PipelineState::default().set_clear_color(background_color),
                     |pipeline, mut shd_gate| {
                         if !*self.rendering.lock().unwrap() {
-                            for (tess, material) in &tesses {
+                            for instance in &instances {
+                                let (tess, material) = &tesses[instance.mesh_index as usize];
                                 let tex = material.base_color_texture.and_then(|tex| textures[tex.index].as_mut());
 
                                 let bound_tex = match tex {
@@ -355,6 +360,9 @@ impl App {
                                 shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
                                     iface.set(&unif.u_projection, mat_to_shader_type(self.camera.projection()));
                                     iface.set(&unif.u_view, mat_to_shader_type(self.camera.view));
+                                    iface.set(&unif.u_model, mat_to_shader_type(instance.transform));
+                                    let normal_transform = normal_transform_from_mat4(instance.transform);
+                                    iface.set(&unif.u_normal_transform, mat3_to_shader_type(normal_transform));
                                     iface.set(&unif.u_base_color, material.base_color.into());
                                     iface.set(&unif.u_light_position, light_position);
 

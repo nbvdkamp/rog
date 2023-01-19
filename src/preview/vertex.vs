@@ -1,24 +1,22 @@
-in vec4 position;
+in vec3 position;
 in vec3 normal;
 in vec2 uv;
 
 out vec3 v_normal;
 out vec3 v_light_direction;
-out vec4 v_base_color;
+out vec3 v_fragment_position;
 out vec2 v_uv;
 
 uniform mat4 u_projection;
 uniform mat4 u_view;
-uniform vec4 u_base_color;
-uniform vec3 u_light_position;
+uniform mat4 u_model;
+uniform mat3 u_normal_transform;
 
 void main() {
-    vec4 pos = u_projection * u_view * position;
-
-    v_normal = normal;
-    v_light_direction = normalize(u_light_position - vec3(position));
-    v_base_color = u_base_color;
+    v_normal = normalize(u_normal_transform * normal);
+    vec4 fragment_pos = u_model * vec4(position, 1.0);
+    v_fragment_position = fragment_pos.xyz / fragment_pos.w;
     v_uv = uv;
 
-    gl_Position = pos;
+    gl_Position = u_projection * u_view * u_model * vec4(position, 1.0);
 }

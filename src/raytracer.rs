@@ -35,6 +35,7 @@ use crate::{
     scene_version::SceneVersion,
     spectrum::Spectrumf32,
     texture::{CoefficientTexture, Texture},
+    util::normal_transform_from_mat4,
 };
 
 use aabb::BoundingBox;
@@ -96,8 +97,8 @@ impl Raytracer {
         let scene_bounds = {
             let mut b = BoundingBox::new();
 
-            for mesh in &scene.meshes {
-                b = b.union(&mesh.bounds);
+            for instance in &scene.instances {
+                b = b.union(&instance.bounds);
             }
 
             b
@@ -112,7 +113,10 @@ impl Raytracer {
         let start = Instant::now();
 
         for &accel in accel_structures_to_construct {
-            result.accel_structures.construct(accel, &result.scene.meshes).unwrap();
+            result
+                .accel_structures
+                .construct(accel, &result.scene.meshes, result.scene.instances.clone())
+                .unwrap();
         }
 
         let l = accel_structures_to_construct.len();
@@ -451,13 +455,14 @@ impl Raytracer {
         // Hard cap bounces to prevent endless bouncing inside perfectly reflective surfaces
         while !image_settings.max_depth_reached(depth) && depth < 100 {
             let TraceResultMesh::Hit {
-                mesh_index, triangle_index, u, v, ..
+                instance, triangle_index, u, v, ..
             } = self.trace(&ray, settings.accel_structure) else {
                 result += path_weight * self.scene.environment.sample(ray.direction);
                 break;
             };
 
-            let intersected_mesh = &self.scene.meshes[mesh_index as usize];
+            let normal_transform = normal_transform_from_mat4(instance.transform);
+            let intersected_mesh = &self.scene.meshes[instance.mesh_index as usize];
             let verts = &intersected_mesh.vertices;
 
             let triangle = &intersected_mesh.triangles[triangle_index as usize];
@@ -473,6 +478,7 @@ impl Raytracer {
             let hit_pos = w * verts.positions[indices[0]]
                 + u * verts.positions[indices[1]].to_vec()
                 + v * verts.positions[indices[2]].to_vec();
+            let hit_pos = Point3::from_homogeneous(instance.transform * hit_pos.to_homogeneous());
 
             if let Wavelength::Undecided = wavelength {
                 if image_settings.always_sample_single_wavelength {
@@ -533,15 +539,15 @@ impl Raytracer {
 
             let edge1 = verts.positions[indices[0]] - verts.positions[indices[1]];
             let edge2 = verts.positions[indices[0]] - verts.positions[indices[2]];
-            let mut geom_normal = edge1.cross(edge2).normalize();
+            let mut geom_normal = normal_transform * edge1.cross(edge2).normalize();
 
             // Interpolate the vertex normals
-            let mut normal =
-                (w * verts.normals[indices[0]] + u * verts.normals[indices[1]] + v * verts.normals[indices[2]])
-                    .normalize();
-            let mut tangent =
-                (w * verts.tangents[indices[0]] + u * verts.tangents[indices[1]] + v * verts.tangents[indices[2]])
-                    .normalize();
+            let mut normal = (normal_transform
+                * (w * verts.normals[indices[0]] + u * verts.normals[indices[1]] + v * verts.normals[indices[2]]))
+                .normalize();
+            let mut tangent = (normal_transform
+                * (w * verts.tangents[indices[0]] + u * verts.tangents[indices[1]] + v * verts.tangents[indices[2]]))
+                .normalize();
 
             // Handle the rare case where a bad tangent (linearly dependent with the normal) causes NaNs
             if normal == tangent || -normal == tangent {
@@ -566,7 +572,7 @@ impl Raytracer {
 
             let shading_normal = mat_sample
                 .shading_normal
-                .map(|n| ensure_valid_reflection(geom_normal, -ray.direction, frame.to_global(n)));
+                .map(|n| ensure_valid_reflection(geom_normal, -ray.direction, frame.to_global(n)).normalize());
 
             if let Some(shading_normal) = shading_normal {
                 frame = ShadingFrame::new(shading_normal);
@@ -672,7 +678,7 @@ impl Raytracer {
         let mut ray = ray;
 
         while let TraceResultMesh::Hit {
-            mesh_index,
+            instance,
             triangle_index,
             t,
             u,
@@ -684,7 +690,7 @@ impl Raytracer {
                 break;
             }
 
-            let intersected_mesh = &self.scene.meshes[mesh_index as usize];
+            let intersected_mesh = &self.scene.meshes[instance.mesh_index as usize];
             let verts = &intersected_mesh.vertices;
 
             let triangle = &intersected_mesh.triangles[triangle_index as usize];
@@ -721,6 +727,7 @@ impl Raytracer {
                 let hit_pos = w * verts.positions[indices[0]]
                     + u * verts.positions[indices[1]].to_vec()
                     + v * verts.positions[indices[2]].to_vec();
+                let hit_pos = Point3::from_homogeneous(instance.transform * hit_pos.to_homogeneous());
                 let offset = 0.0002;
                 ray.origin = hit_pos + offset * ray.direction;
                 distance -= t + offset;

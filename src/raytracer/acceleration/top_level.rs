@@ -1,7 +1,7 @@
-use cgmath::Vector3;
+use cgmath::{Point3, Vector3};
 
 use crate::{
-    mesh::Mesh,
+    mesh::{Instance, Mesh},
     raytracer::{
         aabb::{BoundingBox, Intersects},
         ray::Ray,
@@ -30,8 +30,7 @@ enum Node {
         bounds: BoundingBox,
     },
     Leaf {
-        mesh_index: usize,
-        bounds: BoundingBox,
+        instance: Box<Instance>,
     },
 }
 
@@ -39,16 +38,14 @@ impl Node {
     fn bounds(&self) -> &BoundingBox {
         match self {
             Node::Inner { bounds, .. } => bounds,
-            Node::Leaf { bounds, .. } => bounds,
+            Node::Leaf { instance } => &instance.bounds,
         }
     }
 }
 
-impl TopLevelBVH {
-    pub fn new(accel_type: Accel, meshes: &[Mesh]) -> Self {
+impl<'a> TopLevelBVH {
+    pub fn new(accel_type: Accel, meshes: &[Mesh], instances: Vec<Instance>) -> Self {
         let mut children: Vec<Box<dyn AccelerationStructure + Send + Sync>> = Vec::new();
-        let mut nodes = Vec::new();
-        let stats = Statistics::new();
 
         for mesh in meshes {
             let triangle_bounds = mesh
@@ -85,14 +82,19 @@ impl TopLevelBVH {
                     )));
                 }
             }
-
-            stats.count_leaf_node();
-
-            nodes.push(Node::Leaf {
-                mesh_index: children.len() - 1,
-                bounds: mesh.bounds,
-            });
         }
+
+        let stats = Statistics::new();
+
+        let mut nodes = instances
+            .into_iter()
+            .map(|instance| {
+                stats.count_leaf_node();
+                Node::Leaf {
+                    instance: Box::new(instance),
+                }
+            })
+            .collect();
 
         // From Walter et al. 2008: Fast Agglomerative Clustering for Rendering
         let mut a = 0;
@@ -153,28 +155,34 @@ impl TopLevelBVH {
         self.stats.get_copy()
     }
 
-    fn intersect_node(&self, node: &Node, ray: &Ray, inv_dir: Vector3<f32>, meshes: &[Mesh]) -> TraceResultMesh {
+    fn intersect_node(&'a self, node: &'a Node, ray: &Ray, inv_dir: Vector3<f32>, meshes: &[Mesh]) -> TraceResultMesh {
         match node {
             Node::Inner { left, right, .. } => self.inner_intersect(left, right, ray, inv_dir, meshes),
-            Node::Leaf { mesh_index, .. } => {
-                let i = *mesh_index;
+            Node::Leaf { instance } => {
+                let i = instance.mesh_index as usize;
                 self.stats.count_intersection_test();
                 let mesh = &meshes[i];
-                let t = self.children[i].intersect(ray, &mesh.vertices.positions, &mesh.triangles);
+
+                let transformed_ray = Ray {
+                    origin: Point3::from_homogeneous(instance.inverse_transform * ray.origin.to_homogeneous()),
+                    direction: (instance.inverse_transform * ray.direction.extend(0.0)).truncate(),
+                };
+
+                let t = self.children[i].intersect(&transformed_ray, &mesh.vertices.positions, &mesh.triangles);
 
                 if let TraceResult::Hit { .. } = t {
                     self.stats.count_intersection_hit();
                 }
 
-                t.with_mesh_index(i)
+                t.with_instance(instance)
             }
         }
     }
 
     fn inner_intersect(
-        &self,
-        left: &Node,
-        right: &Node,
+        &'a self,
+        left: &'a Node,
+        right: &'a Node,
         ray: &Ray,
         inv_dir: Vector3<f32>,
         meshes: &[Mesh],
@@ -199,9 +207,9 @@ impl TopLevelBVH {
     }
 
     fn intersect_both_children_hit(
-        &self,
-        first_hit_child: &Node,
-        second_hit_child: &Node,
+        &'a self,
+        first_hit_child: &'a Node,
+        second_hit_child: &'a Node,
         dist_to_second_box: f32,
         ray: &Ray,
         inv_dir: Vector3<f32>,

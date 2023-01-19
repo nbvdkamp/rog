@@ -1,6 +1,7 @@
 use std::path::Path;
 
-use cgmath::{Matrix4, Point3, Vector2, Vector3};
+use cgmath::{Matrix, Matrix3, Matrix4, Point3, SquareMatrix, Vector2, Vector3};
+use luminance::shader::types::Mat33;
 use luminance_front::shader::types::Mat44;
 
 use super::color::{RGBf32, RGBu8};
@@ -57,6 +58,16 @@ pub fn max_element(v: Vector3<f32>) -> f32 {
 pub fn mat_to_shader_type<T>(m: Matrix4<T>) -> Mat44<T> {
     let x: [[T; 4]; 4] = m.into();
     x.into()
+}
+
+pub fn mat3_to_shader_type<T>(m: Matrix3<T>) -> Mat33<T> {
+    let x: [[T; 3]; 3] = m.into();
+    x.into()
+}
+
+pub fn normal_transform_from_mat4(transform: Matrix4<f32>) -> Matrix3<f32> {
+    let m = Matrix3::from_cols(transform.x.truncate(), transform.y.truncate(), transform.z.truncate());
+    m.invert().unwrap().transpose()
 }
 
 pub fn save_image<P>(buffer: &[RGBf32], image_size: Vector2<usize>, path: P)

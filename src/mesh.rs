@@ -5,7 +5,7 @@ use luminance_front::{
     Backend,
 };
 
-use cgmath::{Point2, Point3, Vector3};
+use cgmath::{Matrix4, Point2, Point3, Vector3};
 
 use crate::{
     material::Material,
@@ -100,5 +100,31 @@ impl Mesh {
             .set_vertices(luminance_vertices)
             .set_indices(indices)
             .build()
+    }
+}
+
+#[derive(Clone)]
+pub struct Instance {
+    pub mesh_index: u32,
+    pub transform: Matrix4<f32>,
+    pub inverse_transform: Matrix4<f32>,
+    pub bounds: BoundingBox,
+}
+
+impl Instance {
+    pub fn new(mesh_index: usize, mesh: &Mesh, transform: Matrix4<f32>, inverse_transform: Matrix4<f32>) -> Self {
+        let mut bounds = BoundingBox::new();
+
+        for &position in &mesh.vertices.positions {
+            let transformed = transform * position.to_homogeneous();
+            bounds.add(Point3::from_homogeneous(transformed));
+        }
+
+        Instance {
+            mesh_index: mesh_index as u32,
+            transform,
+            inverse_transform,
+            bounds,
+        }
     }
 }

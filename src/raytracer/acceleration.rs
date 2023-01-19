@@ -10,7 +10,7 @@ pub mod bvh;
 pub mod bvh_rec;
 pub mod kdtree;
 
-use crate::mesh::Mesh;
+use crate::mesh::{Instance, Mesh};
 
 use self::top_level::TopLevelBVH;
 
@@ -33,25 +33,25 @@ impl std::fmt::Display for ConstructError {
 }
 
 impl AccelerationStructures {
-    pub fn construct(&mut self, accel: Accel, meshes: &[Mesh]) -> Result<(), ConstructError> {
+    pub fn construct(&mut self, accel: Accel, meshes: &[Mesh], instances: Vec<Instance>) -> Result<(), ConstructError> {
         match accel {
             Accel::Bvh => {
                 if self.bvh.is_some() {
                     return Err(ConstructError::default());
                 }
-                let _ = self.bvh.insert(TopLevelBVH::new(accel, meshes));
+                let _ = self.bvh.insert(TopLevelBVH::new(accel, meshes, instances));
             }
             Accel::BvhRecursive => {
                 if self.bvh_rec.is_some() {
                     return Err(ConstructError::default());
                 }
-                let _ = self.bvh_rec.insert(TopLevelBVH::new(accel, meshes));
+                let _ = self.bvh_rec.insert(TopLevelBVH::new(accel, meshes, instances));
             }
             Accel::KdTree => {
                 if self.kdtree.is_some() {
                     return Err(ConstructError::default());
                 }
-                let _ = self.kdtree.insert(TopLevelBVH::new(accel, meshes));
+                let _ = self.kdtree.insert(TopLevelBVH::new(accel, meshes, instances));
             }
         }
         Ok(())
