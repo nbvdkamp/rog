@@ -588,6 +588,10 @@ impl Raytracer {
                 let light_sample = light.sample(hit_pos);
 
                 let offset_direction = light_sample.direction.dot(geom_normal).signum() * geom_normal;
+                // FIXME: This offset prevents shadow acne but can cause light to leak
+                // through seams between triangles with an acute angle.
+                // The whole problem could be avoided by starting the shadow ray at the light
+                // but this doesn't work for directional lights.
                 let offset_hit_pos = Raytracer::offset_hit_pos(hit_pos, offset_direction);
 
                 if light_sample.distance <= light.range {
