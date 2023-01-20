@@ -267,7 +267,7 @@ impl App {
                         }
                         *rendering = true;
 
-                        self.movement = Movement::new();
+                        self.movement.reset();
                         progress_display_quad.reset();
 
                         let (sender, cancel_receiver) = channel();
@@ -468,6 +468,14 @@ impl Movement {
             mouse_position: vec2(0.0, 0.0),
             mouse_delta: vec2(0.0, 0.0),
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.forward_backward = MovementDirection::new();
+        self.left_right = MovementDirection::new();
+        self.up_down = MovementDirection::new();
+        self.roll = MovementDirection::new();
+        self.turning = false;
     }
 
     pub fn translation(&self) -> Vector3<f32> {
