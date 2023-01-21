@@ -84,9 +84,31 @@ pub enum Sample {
     Null,
 }
 
+impl Sample {
+    fn multiply_pdf(self, other_pdf: f32) -> Self {
+        match self {
+            Sample::Sample { incident, weight, pdf } => Sample::Sample {
+                incident,
+                weight,
+                pdf: pdf * other_pdf,
+            },
+            Sample::Null => Sample::Null,
+        }
+    }
+}
+
 pub enum Evaluation {
     Evaluation { weight: Spectrumf32, pdf: f32 },
     Null,
+}
+
+impl Evaluation {
+    fn to_sample_with_incident(self, incident: Vector3<f32>) -> Sample {
+        match self {
+            Evaluation::Evaluation { weight, pdf } => Sample::Sample { incident, weight, pdf },
+            Evaluation::Null => Sample::Null,
+        }
+    }
 }
 
 pub fn eval_specular_reflection(
@@ -415,39 +437,17 @@ pub fn sample(mat: &MaterialSample, outgoing: Vector3<f32>) -> Sample {
         let alpha = calculate_alpha(mat.roughness);
         let micronormal = ggx::sample_micronormal(outgoing, alpha);
         let incident = reflect(outgoing, micronormal);
-        return if let Evaluation::Evaluation { weight, pdf } =
-            eval_specular_reflection(mat, outgoing, incident, micronormal)
-        {
-            Sample::Sample {
-                incident,
-                weight,
-                pdf: pdf * pdfs.specular_reflection,
-            }
-        } else {
-            Sample::Null
-        };
+        return eval_specular_reflection(mat, outgoing, incident, micronormal)
+            .to_sample_with_incident(incident)
+            .multiply_pdf(pdfs.specular_reflection);
     } else {
         r -= pdfs.specular_reflection;
     }
 
     if r < pdfs.specular_transmission {
-        if let Sample::Sample { incident, weight, pdf } = bsdf_sample_specular_transmission(mat, outgoing) {
-            Sample::Sample {
-                incident,
-                weight,
-                pdf: pdf * pdfs.specular_transmission,
-            }
-        } else {
-            Sample::Null
-        }
-    } else if let Sample::Sample { incident, weight, pdf } = bsdf_sample_diffuse_reflection(mat, outgoing) {
-        Sample::Sample {
-            incident,
-            weight,
-            pdf: pdf * pdfs.diffuse,
-        }
+        bsdf_sample_specular_transmission(mat, outgoing).multiply_pdf(pdfs.specular_transmission)
     } else {
-        Sample::Null
+        bsdf_sample_diffuse_reflection(mat, outgoing).multiply_pdf(pdfs.diffuse)
     }
     // TODO: Clearcoat sampling
 }
