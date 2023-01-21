@@ -638,10 +638,9 @@ impl Raytracer {
                 Sample::Null => break,
             };
 
-            let offset_direction = if backfacing { -1.0 } else { 1.0 } * local_bounce_dir.z.signum() * geom_normal;
-            let offset_hit_pos = Raytracer::offset_hit_pos(hit_pos, offset_direction);
-
             let bounce_dir = frame.to_global(local_bounce_dir);
+            let offset_direction = bounce_dir.dot(geom_normal).signum() * geom_normal;
+            let offset_hit_pos = Raytracer::offset_hit_pos(hit_pos, offset_direction);
 
             let shadow_terminator = shading_normal.map_or(1.0, |shading_normal| {
                 bump_shading_factor(normal, shading_normal, bounce_dir)
