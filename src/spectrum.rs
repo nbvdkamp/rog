@@ -80,98 +80,6 @@ impl Spectrumf32 {
     }
 }
 
-#[derive(Clone)]
-pub struct VecSpectrumf32 {
-    data: Vec<f32>,
-}
-
-impl VecSpectrumf32 {
-    pub fn new(data: Vec<f32>) -> Self {
-        VecSpectrumf32 { data }
-    }
-
-    pub fn constant(v: f32) -> Self {
-        //TODO: const size for now
-        VecSpectrumf32 {
-            data: vec![v; RESOLUTION],
-        }
-    }
-
-    pub fn zero() -> Self {
-        Self::constant(0.0)
-    }
-
-    pub fn sqrt(&self) -> Self {
-        let mut data = vec![0.0; RESOLUTION];
-
-        for i in 0..RESOLUTION {
-            data[i] = self.data[i].sqrt();
-        }
-
-        Self { data }
-    }
-}
-
-impl_op_ex!(+ |a: &VecSpectrumf32, b: &VecSpectrumf32| -> VecSpectrumf32 {
-    let data = a.data.iter().zip(b.data.iter()).map(|(a, b)| a + b);
-
-    VecSpectrumf32 { data: data.collect() }
-});
-
-impl_op_ex!(-|a: &VecSpectrumf32, b: &VecSpectrumf32| -> VecSpectrumf32 {
-    let data = a.data.iter().zip(b.data.iter()).map(|(a, b)| a - b);
-
-    VecSpectrumf32 { data: data.collect() }
-});
-
-impl_op_ex!(*|a: &VecSpectrumf32, b: &VecSpectrumf32| -> VecSpectrumf32 {
-    let data = a.data.iter().zip(b.data.iter()).map(|(a, b)| a * b);
-
-    VecSpectrumf32 { data: data.collect() }
-});
-
-impl_op_ex!(/ |a: &VecSpectrumf32, b: &VecSpectrumf32| -> VecSpectrumf32 {
-    let data = a.data.iter().zip(b.data.iter()).map(|(a, b)| a / b);
-
-    VecSpectrumf32 { data: data.collect() }
-});
-
-impl_op_ex_commutative!(*|a: &VecSpectrumf32, b: f32| -> VecSpectrumf32 {
-    let data = a.data.iter().map(|a| a * b);
-
-    VecSpectrumf32 { data: data.collect() }
-});
-
-impl_op_ex_commutative!(/ |a: &VecSpectrumf32, b: f32| -> VecSpectrumf32 {
-    let data = a.data.iter().map(|a| a / b);
-
-    VecSpectrumf32 { data: data.collect() }
-});
-
-impl AddAssign for VecSpectrumf32 {
-    fn add_assign(&mut self, other: Self) {
-        self.data.iter_mut().zip(other.data.iter()).for_each(|(a, b)| *a += b);
-    }
-}
-
-impl MulAssign<Self> for VecSpectrumf32 {
-    fn mul_assign(&mut self, other: Self) {
-        self.data.iter_mut().zip(other.data.iter()).for_each(|(a, b)| *a *= b);
-    }
-}
-
-impl MulAssign<f32> for VecSpectrumf32 {
-    fn mul_assign(&mut self, s: f32) {
-        self.data.iter_mut().for_each(|a| *a *= s);
-    }
-}
-
-impl DivAssign<f32> for VecSpectrumf32 {
-    fn div_assign(&mut self, s: f32) {
-        self.data.iter_mut().for_each(|a| *a /= s);
-    }
-}
-
 #[derive(Clone, Copy)]
 pub struct ArrSpectrumf32 {
     pub data: [f32; RESOLUTION],
@@ -293,36 +201,36 @@ mod tests {
 
     #[test]
     fn add() {
-        let a = VecSpectrumf32::new(vec![1.0, 2.0]);
-        let b = VecSpectrumf32::new(vec![10.0, 20.0]);
+        let a = Spectrumf32::constant(1.0);
+        let b = Spectrumf32::constant(2.0);
         let c = a + b;
 
-        assert_eq!(c.data, vec![11.0, 22.0]);
+        assert_eq!(c.data, [3.0; RESOLUTION]);
     }
 
     #[test]
     fn mul() {
-        let a = VecSpectrumf32::new(vec![1.0, 2.0]);
-        let b = VecSpectrumf32::new(vec![10.0, 20.0]);
+        let a = Spectrumf32::constant(2.0);
+        let b = Spectrumf32::constant(3.0);
         let c = a * b;
 
-        assert_eq!(c.data, vec![10.0, 40.0]);
+        assert_eq!(c.data, [6.0; RESOLUTION]);
     }
 
     #[test]
     fn mul_scalar() {
-        let a = VecSpectrumf32::new(vec![1.0, 2.0]) * 2.0;
+        let a = Spectrumf32::constant(1.0) * 2.0;
 
-        assert_eq!(a.data, vec![2.0, 4.0]);
+        assert_eq!(a.data, [2.0; RESOLUTION]);
     }
 
     #[test]
     fn add_assign() {
-        let mut a = VecSpectrumf32::new(vec![1.0, 2.0]);
-        let b = VecSpectrumf32::new(vec![10.0, 20.0]);
+        let mut a = Spectrumf32::constant(1.0);
+        let b = Spectrumf32::constant(2.0);
         a += b;
 
-        assert_eq!(a.data, vec![11.0, 22.0]);
+        assert_eq!(a.data, [3.0; RESOLUTION]);
     }
 
     #[test]
@@ -356,29 +264,5 @@ mod tests {
         }
 
         assert!(max_error.max_component() < 0.01);
-    }
-}
-
-#[cfg(test)]
-mod bench {
-    extern crate test;
-    use test::Bencher;
-
-    use super::*;
-
-    #[bench]
-    fn add(b: &mut Bencher) {
-        let p = VecSpectrumf32::new(vec![1.0; RESOLUTION]);
-        let q = VecSpectrumf32::new(vec![10.0; RESOLUTION]);
-
-        b.iter(|| &p + &q);
-    }
-
-    #[bench]
-    fn add2(b: &mut Bencher) {
-        let p = ArrSpectrumf32::new([1.0; RESOLUTION]);
-        let q = ArrSpectrumf32::new([10.0; RESOLUTION]);
-
-        b.iter(|| &p + &q);
     }
 }
