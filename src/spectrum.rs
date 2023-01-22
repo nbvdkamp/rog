@@ -6,22 +6,54 @@ use crate::{
     color::{RGBf32, XYZf32},
 };
 
+pub struct Spectrumf32WithAlpha {
+    pub spectrum: Spectrumf32,
+    pub alpha: f32,
+}
+
+impl_op_ex!(+ |a: &Spectrumf32WithAlpha, b: &Spectrumf32WithAlpha| -> Spectrumf32WithAlpha {
+    Spectrumf32WithAlpha {
+        spectrum: a.spectrum + b.spectrum,
+        alpha: a.alpha + b.alpha
+    }
+});
+
+impl_op_ex!(*|a: Spectrumf32WithAlpha, s: f32| -> Spectrumf32WithAlpha {
+    Spectrumf32WithAlpha {
+        spectrum: a.spectrum * s,
+        alpha: a.alpha * s,
+    }
+});
+
 pub type Spectrumf32 = ArrSpectrumf32;
 
 const RESOLUTION: usize = 60;
+const STEP_SIZE: f32 = CIE::LAMBDA_RANGE / (RESOLUTION - 1) as f32;
+
+const fn make_lambda() -> [f32; RESOLUTION] {
+    let mut l = [0.0; RESOLUTION];
+    let mut i = 0;
+
+    while i < RESOLUTION {
+        l[i] = CIE::LAMBDA_MIN + i as f32 * STEP_SIZE;
+        i += 1;
+    }
+
+    l
+}
+
+const LAMBDA: [f32; RESOLUTION] = make_lambda();
 
 impl Spectrumf32 {
     /// Converts to CIE 1931 XYZ color space
     pub fn to_xyz(self) -> XYZf32 {
         let mut xyz = XYZf32::from_grayscale(0.0);
 
-        let step_size = CIE::LAMBDA_RANGE / (RESOLUTION - 1) as f32;
-
         for i in 0..RESOLUTION {
-            let wavelength = CIE::LAMBDA_MIN + i as f32 * step_size;
+            let wavelength = CIE::LAMBDA_MIN + i as f32 * STEP_SIZE;
             let whitepoint_sample = CIE::illuminant_d65_interp(wavelength);
 
-            xyz += self.data[i] * CIE::observer_1931_interp(wavelength) * whitepoint_sample * step_size;
+            xyz += self.data[i] * CIE::observer_1931_interp(wavelength) * whitepoint_sample * STEP_SIZE;
         }
 
         xyz
@@ -33,15 +65,14 @@ impl Spectrumf32 {
 
     /// Constructs discretized spectrum from rgb2spec coefficients
     pub fn from_coefficients(coeffs: [f32; 3]) -> Self {
-        let mut spectrum = Self::zero();
-        let step_size = CIE::LAMBDA_RANGE / (RESOLUTION - 1) as f32;
+        let mut data = [0.0; RESOLUTION];
 
         for i in 0..RESOLUTION {
-            let wavelength = CIE::LAMBDA_MIN + i as f32 * step_size;
-            spectrum.data[i] = rgb2spec::eval_precise(coeffs, wavelength);
+            let wavelength = LAMBDA[i];
+            data[i] = rgb2spec::eval_precise(coeffs, wavelength);
         }
 
-        spectrum
+        Self { data }
     }
 
     pub fn max_value(&self) -> f32 {
