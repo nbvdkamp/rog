@@ -163,7 +163,7 @@ impl Raytracer {
                 stats.compute_visibility_weighted_material_sums();
 
                 if let Err(e) = std::fs::create_dir_all(dir)
-                    .map_err(|e| Error::IO(e))
+                    .map_err(Error::IO)
                     .and(stats.write_to_file(path))
                 {
                     println!("Writing visibility data to file failed: {e}");
@@ -288,7 +288,7 @@ impl Raytracer {
                                     direction: dir4.truncate().normalize(),
                                 };
 
-                                match self.radiance(ray, settings, &image_settings) {
+                                match self.radiance(ray, settings, image_settings) {
                                     RadianceResult::Spectrum(spectrum) => {
                                         pixel.spectrum += spectrum;
                                         pixel.samples += Spectrumf32::RESOLUTION as u32;
@@ -809,7 +809,7 @@ pub fn render_and_save<P>(
         report: Box::new(report_progress),
     });
 
-    let (image, time_elapsed) = raytracer.render(&render_settings, progress, image_reporting, message_receiver, image);
+    let (image, time_elapsed) = raytracer.render(render_settings, progress, image_reporting, message_receiver, image);
     println!("\r\x1b[2KFinished rendering in {time_elapsed} seconds");
 
     image.save_as_rgb(path);

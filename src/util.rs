@@ -93,7 +93,7 @@ where
 
     match save_result {
         Ok(_) => println!("File was saved succesfully: {}", path.as_ref().display()),
-        Err(e) => println!("Couldn't save file: {}", e),
+        Err(e) => println!("Couldn't save file: {e}"),
     }
 }
 

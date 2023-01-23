@@ -148,7 +148,7 @@ impl<'a> TopLevelBVH {
             result = result + c.get_statistics();
         }
 
-        return result;
+        result
     }
 
     pub fn get_top_level_statistics(&self) -> StatisticsStore {

@@ -103,7 +103,7 @@ pub enum Evaluation {
 }
 
 impl Evaluation {
-    fn to_sample_with_incident(self, incident: Vector3<f32>) -> Sample {
+    fn into_sample_with_incident(self, incident: Vector3<f32>) -> Sample {
         match self {
             Evaluation::Evaluation { weight, pdf } => Sample::Sample { incident, weight, pdf },
             Evaluation::Null => Sample::Null,
@@ -438,7 +438,7 @@ pub fn sample(mat: &MaterialSample, outgoing: Vector3<f32>) -> Sample {
         let micronormal = ggx::sample_micronormal(outgoing, alpha);
         let incident = reflect(outgoing, micronormal);
         return eval_specular_reflection(mat, outgoing, incident, micronormal)
-            .to_sample_with_incident(incident)
+            .into_sample_with_incident(incident)
             .multiply_pdf(pdfs.specular_reflection);
     } else {
         r -= pdfs.specular_reflection;

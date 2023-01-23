@@ -207,7 +207,7 @@ impl FileHeader {
     where
         W: Write,
     {
-        write!(writer, "{}", TAG)?;
+        write!(writer, "{TAG}")?;
         writer.write_u32::<LittleEndian>(self.format_version)?;
         writer.write_u64::<LittleEndian>(self.total_size)?;
         writer.write_u32::<LittleEndian>(self.spectrum_resolution)?;

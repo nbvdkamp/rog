@@ -72,7 +72,7 @@ impl Scene {
     {
         let rgb2spec = match RGB2Spec::from_reader(&mut Cursor::new(RGB2SPEC_BYTES)) {
             Ok(rgb2spec) => rgb2spec,
-            Err(e) => panic!("Can't load rgb2spec file: {}", e),
+            Err(e) => panic!("Can't load rgb2spec file: {e}"),
         };
 
         let start = Instant::now();
@@ -94,7 +94,7 @@ impl Scene {
                             ImageFormat::R16G16B16A16 => (Format::Rgba, drop_every_other_byte(i.pixels)),
                             ImageFormat::R8 => (Format::Rgb, repeat_every_byte_thrice(i.pixels)),
                             ImageFormat::R8G8 => (Format::Rgb, insert_zero_byte_every_two(i.pixels)),
-                            other => panic!("Texture format {:?} is not implemented", other),
+                            other => panic!("Texture format {other:?} is not implemented"),
                         };
 
                         Texture::new(pixels, i.width as usize, i.height as usize, format)
@@ -238,8 +238,7 @@ impl Scene {
                 let textures_time = start.elapsed().as_secs_f32();
                 let total_time = lib_time + parse_time + textures_time;
                 println!(
-                    "Loaded scene in {} seconds ({} in library, {} converting scene, {} converting textures)",
-                    total_time, lib_time, parse_time, textures_time,
+                    "Loaded scene in {total_time} seconds ({lib_time} in library, {parse_time} converting scene, {textures_time} converting textures)"
                 );
 
                 Ok((scene, preview_textures))
@@ -252,10 +251,7 @@ impl Scene {
                     ""
                 };
 
-                Err(format!(
-                    "An error occured while opening the glTF file:\n\t{}{}",
-                    e, hint
-                ))
+                Err(format!("An error occured while opening the glTF file:\n\t{e}{hint}"))
             }
         }
     }
@@ -409,7 +405,7 @@ impl Scene {
             assert_eq!(indices.len() % 3, 0);
 
             let normals: Vec<Vector3<f32>> = match reader.read_normals() {
-                Some(normals) => normals.map(|normal| Vector3::from(normal)).collect(),
+                Some(normals) => normals.map(Vector3::from).collect(),
                 None => {
                     let mut tri_normals = Vec::with_capacity(indices.len() / 3);
 

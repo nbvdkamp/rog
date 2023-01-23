@@ -76,9 +76,6 @@ impl BoundingVolumeHierarchy {
             let left_indices: Vec<usize>;
             let right_indices: Vec<usize>;
 
-            let left_bounds;
-            let right_bounds;
-
             let Node::Inner {
                 left_child,
                 right_child,
@@ -114,8 +111,8 @@ impl BoundingVolumeHierarchy {
                 }
             };
 
-            left_bounds = compute_bounding_box_item_indexed(triangle_bounds, &left_indices);
-            right_bounds = compute_bounding_box_item_indexed(triangle_bounds, &right_indices);
+            let left_bounds = compute_bounding_box_item_indexed(triangle_bounds, &left_indices);
+            let right_bounds = compute_bounding_box_item_indexed(triangle_bounds, &right_indices);
 
             *left_child = NonZeroU32::new(new_left_index as u32);
             *right_child = NonZeroU32::new(new_right_index as u32);

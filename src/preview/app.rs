@@ -84,7 +84,7 @@ impl App {
         let (scene, textures) = match Scene::load(args.scene_file) {
             Ok(scene) => scene,
             Err(message) => {
-                eprintln!("{}", message);
+                eprintln!("{message}");
                 std::process::exit(-1);
             }
         };
