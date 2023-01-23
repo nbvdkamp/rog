@@ -188,3 +188,26 @@ mod tests {
         assert_eq!(bb.intersects_ray(&ray, &inv_dir), Intersects::No);
     }
 }
+
+#[cfg(test)]
+mod bench {
+    extern crate test;
+    use test::Bencher;
+
+    use super::*;
+
+    #[bench]
+    fn intersect(b: &mut Bencher) {
+        let mut bb = BoundingBox::new();
+        bb.add(Point3::new(-1.0, -1.0, -1.0));
+        bb.add(Point3::new(1.0, 1.0, 1.0));
+
+        let ray = Ray {
+            origin: Point3::new(-2.0, 0.0, 0.0),
+            direction: Vector3::new(1.0, 0.0, 0.0),
+        };
+        let inv_dir = 1.0 / ray.direction;
+
+        b.iter(|| bb.intersects_ray(ray.origin, inv_dir));
+    }
+}
