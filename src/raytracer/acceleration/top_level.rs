@@ -189,8 +189,8 @@ impl<'a> TopLevelBVH {
     ) -> TraceResultMesh {
         self.stats.count_inner_node_traversal();
 
-        let hit_l_box = left.bounds().intersects_ray(ray, &inv_dir);
-        let hit_r_box = right.bounds().intersects_ray(ray, &inv_dir);
+        let hit_l_box = left.bounds().intersects_ray(ray.origin, inv_dir);
+        let hit_r_box = right.bounds().intersects_ray(ray.origin, inv_dir);
 
         match (hit_l_box, hit_r_box) {
             (Intersects::No, Intersects::No) => TraceResultMesh::Miss,

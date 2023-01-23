@@ -1,4 +1,4 @@
-use super::{axis::Axis, Ray};
+use super::axis::Axis;
 use crate::util::*;
 use cgmath::{ElementWise, EuclideanSpace, Point3, Vector3};
 use serde::{Deserialize, Serialize};
@@ -74,19 +74,20 @@ impl BoundingBox {
         2.0 * (e.x * e.y + e.x * e.z + e.y * e.z)
     }
 
-    pub fn intersects_ray_not_inlined(&self, ray: &Ray, inv_dir: &Vector3<f32>) -> Intersects {
-        self.intersects_ray(ray, inv_dir)
+    pub fn intersects_ray_not_inlined(&self, ray_origin: Point3<f32>, inv_dir: Vector3<f32>) -> Intersects {
+        self.intersects_ray(ray_origin, inv_dir)
     }
 
     #[inline(always)]
-    pub fn intersects_ray(&self, ray: &Ray, inv_dir: &Vector3<f32>) -> Intersects {
-        let t0 = (self.min - ray.origin).mul_element_wise(*inv_dir);
-        let t1 = (self.max - ray.origin).mul_element_wise(*inv_dir);
+    pub fn intersects_ray(&self, origin: Point3<f32>, inv_dir: Vector3<f32>) -> Intersects {
+        let t0 = (self.min - origin).mul_element_wise(inv_dir);
+        let t1 = (self.max - origin).mul_element_wise(inv_dir);
         let tmin = t0.elementwise_min(t1);
         let tmax = t0.elementwise_max(t1);
 
         let max_tmin = max_element(tmin);
-        let intersects = max_tmin <= min_element(tmax) && min_element(tmax) >= 0.0; // Ensure the object isn't behind the ray
+        let min_tmax = min_element(tmax);
+        let intersects = max_tmin <= min_tmax && min_tmax >= 0.0; // Ensure the object isn't behind the ray
 
         if intersects {
             Intersects::Yes { distance: max_tmin }
@@ -109,6 +110,7 @@ impl BoundingBox {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::raytracer::Ray;
 
     #[test]
     fn center() {
@@ -140,7 +142,10 @@ mod tests {
         };
         let inv_dir = 1.0 / ray.direction;
 
-        assert_eq!(bb.intersects_ray(&ray, &inv_dir), Intersects::Yes { distance: 1.0 });
+        assert_eq!(
+            bb.intersects_ray(ray.origin, inv_dir),
+            Intersects::Yes { distance: 1.0 }
+        );
     }
 
     #[test]
@@ -155,7 +160,10 @@ mod tests {
         };
         let inv_dir = 1. / ray.direction;
 
-        assert_eq!(bb.intersects_ray(&ray, &inv_dir), Intersects::Yes { distance: 1.0 });
+        assert_eq!(
+            bb.intersects_ray(ray.origin, inv_dir),
+            Intersects::Yes { distance: 1.0 }
+        );
     }
 
     #[test]
@@ -170,7 +178,7 @@ mod tests {
         };
         let inv_dir = 1.0 / ray.direction;
 
-        assert_eq!(bb.intersects_ray(&ray, &inv_dir), Intersects::No);
+        assert_eq!(bb.intersects_ray(ray.origin, inv_dir), Intersects::No);
     }
 
     #[test]
@@ -185,7 +193,7 @@ mod tests {
         };
         let inv_dir = 1.0 / ray.direction;
 
-        assert_eq!(bb.intersects_ray(&ray, &inv_dir), Intersects::No);
+        assert_eq!(bb.intersects_ray(ray.origin, inv_dir), Intersects::No);
     }
 }
 
@@ -195,6 +203,7 @@ mod bench {
     use test::Bencher;
 
     use super::*;
+    use crate::raytracer::Ray;
 
     #[bench]
     fn intersect(b: &mut Bencher) {

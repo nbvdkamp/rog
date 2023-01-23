@@ -162,7 +162,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                     right_child,
                     bounds,
                 } => {
-                    if let Intersects::Yes { .. } = bounds.intersects_ray(ray, &inv_dir) {
+                    if let Intersects::Yes { .. } = bounds.intersects_ray(ray.origin, inv_dir) {
                         self.stats.count_inner_node_traversal();
                         stack.push(left_child.unwrap().get() as usize);
                         stack.push(right_child.unwrap().get() as usize);
@@ -173,7 +173,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                     bounds,
                 } => {
                     if !triangle_indices.is_empty() {
-                        if let Intersects::Yes { .. } = bounds.intersects_ray(ray, &inv_dir) {
+                        if let Intersects::Yes { .. } = bounds.intersects_ray(ray.origin, inv_dir) {
                             let r =
                                 intersect_triangles_indexed(triangle_indices, ray, positions, triangles, &self.stats);
 

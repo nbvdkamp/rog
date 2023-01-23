@@ -103,8 +103,8 @@ impl KdTree {
         let mut right_bounds = bounds;
         right_bounds.set_min(axis, plane);
 
-        let hit_l_box = left_bounds.intersects_ray(ray, &inv_dir);
-        let hit_r_box = right_bounds.intersects_ray(ray, &inv_dir);
+        let hit_l_box = left_bounds.intersects_ray(ray.origin, inv_dir);
+        let hit_r_box = right_bounds.intersects_ray(ray.origin, inv_dir);
 
         match (hit_l_box, hit_r_box) {
             (Intersects::No, Intersects::No) => TraceResult::Miss,
