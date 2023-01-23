@@ -52,7 +52,7 @@ impl Args {
                     .required(false),
                 arg!(-t --threads <NUM> "Number of threads to use for rendering (default is based on available threads)")
                     .value_parser(value_parser!(usize))
-                    .default_value(format!("{}", default_thread_count))
+                    .default_value(format!("{default_thread_count}"))
                     .required(false),
                 arg!(--"max-bounces" <NUM> "Maximum bounces per path, no hard limit if omitted")
                     .value_parser(value_parser!(usize))
@@ -76,10 +76,7 @@ impl Args {
             if let Some(&v) = matches.get_one::<usize>(name) {
                 v
             } else {
-                println!(
-                    "Unable to parse argument {} as an integer, using value {} instead",
-                    name, default
-                );
+                println!("Unable to parse argument {name} as an integer, using value {default} instead");
                 default
             }
         };
@@ -128,8 +125,8 @@ impl Args {
         };
 
         let headless = matches.get_flag("headless");
-        let intermediate_read_path = matches.get_one::<PathBuf>("read-intermediate").map(|p| p.clone());
-        let intermediate_write_path = matches.get_one::<PathBuf>("write-intermediate").map(|p| p.clone());
+        let intermediate_read_path = matches.get_one::<PathBuf>("read-intermediate").cloned();
+        let intermediate_write_path = matches.get_one::<PathBuf>("write-intermediate").cloned();
 
         if !headless && intermediate_read_path.is_some() {
             eprintln!("Resuming rendering currently only works in --headless mode");
@@ -162,7 +159,7 @@ impl Args {
                 None
             },
             scene_version,
-            max_depth: matches.get_one::<usize>("max-bounces").map(|v| *v),
+            max_depth: matches.get_one::<usize>("max-bounces").copied(),
         };
 
         Args {
