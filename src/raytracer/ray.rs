@@ -19,13 +19,6 @@ impl Ray {
 
         let p = self.direction.cross(edge2);
         let determinant = edge1.dot(p);
-
-        const EPSILON: f32 = 1e-6;
-
-        if determinant > -EPSILON && determinant < EPSILON {
-            return IntersectionResult::Miss;
-        }
-
         let inverse_determinant = 1.0 / determinant;
         let t = self.origin - p0;
         let u = inverse_determinant * t.dot(p);
