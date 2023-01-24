@@ -567,7 +567,7 @@ impl Scene {
 
                 // Fast path if the whole mesh is one piece
                 if visited.len() == vertices.positions.len() {
-                    self.meshes.push(Mesh::new(vertices, triangles, new_bounds));
+                    self.meshes.push(Mesh::new(vertices, triangles));
                     let mesh_index = self.meshes.len() - 1;
                     self.instances.push(Instance::new(
                         mesh_index,
@@ -602,7 +602,7 @@ impl Scene {
                         .collect(),
                 };
 
-                self.meshes.push(Mesh::new(vertices, new_triangles, new_bounds));
+                self.meshes.push(Mesh::new(vertices, new_triangles));
                 let mesh_index = self.meshes.len() - 1;
                 self.instances.push(Instance::new(
                     mesh_index,

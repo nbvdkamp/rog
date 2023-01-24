@@ -50,16 +50,11 @@ pub type VertexIndex = u32;
 pub struct Mesh {
     pub vertices: Vertices,
     pub triangles: Vec<Triangle>,
-    pub bounds: BoundingBox,
 }
 
 impl Mesh {
-    pub fn new(vertices: Vertices, triangles: Vec<Triangle>, bounds: BoundingBox) -> Self {
-        Mesh {
-            vertices,
-            triangles,
-            bounds,
-        }
+    pub fn new(vertices: Vertices, triangles: Vec<Triangle>) -> Self {
+        Mesh { vertices, triangles }
     }
 
     pub fn to_tess<C>(&self, context: &mut C) -> Result<Tess<LuminanceVertex, VertexIndex, (), Interleaved>, TessError>
