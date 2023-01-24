@@ -65,6 +65,14 @@ fn transform_to_mat(t: Transform) -> Matrix4<f32> {
     }
 }
 
+#[derive(PartialEq, Eq, Hash)]
+struct AttributeAccessorIndices {
+    position: usize,
+    normals: Option<usize>,
+    tangents: Option<usize>,
+    texture_coordinates: Vec<usize>,
+}
+
 impl Scene {
     pub fn load<P>(path: P) -> Result<(Self, Vec<Texture>), String>
     where
@@ -126,8 +134,16 @@ impl Scene {
                     environment,
                 };
 
+                let mut accessor_indices_map = HashMap::new();
+
                 let gltf_scene = document.default_scene().unwrap_or(document.scenes().next().unwrap());
-                scene.parse_nodes(gltf_scene.nodes().collect(), &buffers, Matrix4::identity(), &rgb2spec);
+                scene.parse_nodes(
+                    gltf_scene.nodes().collect(),
+                    &buffers,
+                    Matrix4::identity(),
+                    &mut accessor_indices_map,
+                    &rgb2spec,
+                );
 
                 let sorted_textures = &mut scene.textures;
 
@@ -264,13 +280,14 @@ impl Scene {
         nodes: Vec<gltf::Node>,
         buffers: &[gltf::buffer::Data],
         base_transform: Matrix4<f32>,
+        accessor_indices_map: &mut HashMap<AttributeAccessorIndices, Vec<usize>>,
         rgb2spec: &RGB2Spec,
     ) {
         for node in nodes {
             let transform = base_transform * transform_to_mat(node.transform());
 
             if let Some(mesh) = node.mesh() {
-                self.add_meshes_from_gltf_mesh(mesh, buffers, transform, rgb2spec);
+                self.add_meshes_from_gltf_mesh(mesh, buffers, transform, accessor_indices_map, rgb2spec);
             } else if let Some(cam) = node.camera() {
                 if let Projection::Perspective(perspective) = cam.projection() {
                     self.camera = PerspectiveCamera {
@@ -288,7 +305,13 @@ impl Scene {
                 self.lights.push(parse_light(light, transform, rgb2spec));
             }
 
-            self.parse_nodes(node.children().collect(), buffers, transform, rgb2spec);
+            self.parse_nodes(
+                node.children().collect(),
+                buffers,
+                transform,
+                accessor_indices_map,
+                rgb2spec,
+            );
         }
     }
 
@@ -297,6 +320,7 @@ impl Scene {
         mesh: gltf::Mesh,
         buffers: &[gltf::buffer::Data],
         transform: Matrix4<f32>,
+        accessor_indices_map: &mut HashMap<AttributeAccessorIndices, Vec<usize>>,
         rgb2spec: &RGB2Spec,
     ) {
         let Some(inverse_transform) = transform.invert() else {
@@ -312,6 +336,15 @@ impl Scene {
                 );
                 continue;
             }
+
+            let Some(attribute_accessor_indices) = accessor_indices_from_primitive(&primitive) else {
+                eprintln!(
+                    "Skipping primitive with missing POSITION attribute (mesh: {}, primitive: {})",
+                    mesh.index(),
+                    primitive.index()
+                );
+                continue;
+            };
 
             let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
 
@@ -387,6 +420,19 @@ impl Scene {
                     transform: t.texture_transform().map(read_texture_transform),
                 }),
             };
+
+            if let Some(indices) = accessor_indices_map.get(&attribute_accessor_indices) {
+                for &mesh_index in indices {
+                    self.instances.push(Instance::new(
+                        mesh_index,
+                        &self.meshes[mesh_index],
+                        transform,
+                        inverse_transform,
+                        material.clone(),
+                    ));
+                }
+                return;
+            }
 
             let positions: Vec<Point3<f32>> = if let Some(iter) = reader.read_positions() {
                 iter.map(|pos| pos.into()).collect()
@@ -527,6 +573,7 @@ impl Scene {
             // Split topologically and spatially separated parts of the mesh into separate meshes
             // to improve acceleration structure performance.
             let mut assigned = vec![false; triangles.len()];
+            let mut mesh_indices = Vec::new();
 
             while let Some(first_unassigned) = assigned.iter().position(|&v| !v) {
                 let mut visited = HashSet::<u32>::new();
@@ -576,6 +623,7 @@ impl Scene {
                         inverse_transform,
                         material,
                     ));
+                    mesh_indices.push(mesh_index);
                     break;
                 }
 
@@ -611,7 +659,10 @@ impl Scene {
                     inverse_transform,
                     material.clone(),
                 ));
+                mesh_indices.push(mesh_index);
             }
+
+            accessor_indices_map.insert(attribute_accessor_indices, mesh_indices);
         }
     }
 }
@@ -686,4 +737,29 @@ pub fn repeat_every_byte_thrice(v: Vec<u8>) -> Vec<u8> {
 
 pub fn insert_zero_byte_every_two(v: Vec<u8>) -> Vec<u8> {
     v.chunks_exact(2).flat_map(|s| [s[0], s[1], 0]).collect()
+}
+
+fn accessor_indices_from_primitive(primitive: &gltf::Primitive) -> Option<AttributeAccessorIndices> {
+    use gltf::Semantic;
+    let Some(position) = primitive.get(&Semantic::Positions).map(|a| a.index()) else {
+        return None;
+    };
+
+    let normals = primitive.get(&Semantic::Normals).map(|a| a.index());
+    let tangents = primitive.get(&Semantic::Tangents).map(|a| a.index());
+
+    let mut texture_coordinates = Vec::new();
+    let mut i = 0;
+
+    while let Some(a) = primitive.get(&Semantic::TexCoords(i)) {
+        texture_coordinates.push(a.index());
+        i += 1;
+    }
+
+    Some(AttributeAccessorIndices {
+        position,
+        normals,
+        tangents,
+        texture_coordinates,
+    })
 }
