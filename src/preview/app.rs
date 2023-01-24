@@ -9,7 +9,7 @@ use std::{
     time::Duration,
 };
 
-use cgmath::{vec2, vec3, Matrix4, Rad, SquareMatrix, Vector2, Vector3};
+use cgmath::{vec2, vec3, Matrix3, Matrix4, Rad, SquareMatrix, Vector2, Vector3};
 
 use glfw::{Action, Context as _, Key, MouseButton, SwapInterval, WindowEvent, WindowMode};
 
@@ -33,7 +33,6 @@ use crate::{
     args::Args,
     camera::PerspectiveCamera,
     color::RGBu8,
-    material::Material,
     mesh::{LuminanceVertex, VertexIndex, VertexSemantics},
     preview::preview_quad::PreviewQuad,
     raytracer::{render_and_save, working_image::WorkingImage, ImageUpdateReporting, Raytracer, RenderMessage},
@@ -49,6 +48,7 @@ struct ShaderInterface {
     u_view: Uniform<Mat44<f32>>,
     u_model: Uniform<Mat44<f32>>,
     u_normal_transform: Uniform<Mat33<f32>>,
+    u_uv_transform: Uniform<Mat33<f32>>,
     u_base_color: Uniform<Vec4<f32>>,
     u_base_color_texture: Uniform<TextureBinding<Dim2, NormUnsigned>>,
     u_use_texture: Uniform<bool>,
@@ -166,8 +166,8 @@ impl App {
             .scene
             .meshes
             .iter()
-            .map(|mesh| (mesh.to_tess(&mut context).unwrap(), mesh.material.clone()))
-            .collect::<Vec<(Tess<LuminanceVertex, VertexIndex, (), Interleaved>, Material)>>();
+            .map(|mesh| mesh.to_tess(&mut context).unwrap())
+            .collect::<Vec<Tess<LuminanceVertex, VertexIndex, (), Interleaved>>>();
 
         let instances = raytracer.scene.instances.clone();
 
@@ -348,7 +348,8 @@ impl App {
                     |pipeline, mut shd_gate| {
                         if !*self.rendering.lock().unwrap() {
                             for instance in &instances {
-                                let (tess, material) = &tesses[instance.mesh_index as usize];
+                                let tess = &tesses[instance.mesh_index as usize];
+                                let material = &instance.material;
                                 let tex = material.base_color_texture.and_then(|tex| textures[tex.index].as_mut());
 
                                 let bound_tex = match tex {
@@ -363,6 +364,11 @@ impl App {
                                     iface.set(&unif.u_model, mat_to_shader_type(instance.transform));
                                     let normal_transform = normal_transform_from_mat4(instance.transform);
                                     iface.set(&unif.u_normal_transform, mat3_to_shader_type(normal_transform));
+                                    let uv_transform = instance
+                                        .material
+                                        .base_color_texture
+                                        .map_or(Matrix3::identity(), |tex_ref| tex_ref.transform_matrix());
+                                    iface.set(&unif.u_uv_transform, mat3_to_shader_type(uv_transform));
                                     iface.set(&unif.u_base_color, material.base_color.into());
                                     iface.set(&unif.u_light_position, light_position);
 

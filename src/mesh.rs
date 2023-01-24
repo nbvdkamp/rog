@@ -51,16 +51,14 @@ pub struct Mesh {
     pub vertices: Vertices,
     pub triangles: Vec<Triangle>,
     pub bounds: BoundingBox,
-    pub material: Material,
 }
 
 impl Mesh {
-    pub fn new(vertices: Vertices, triangles: Vec<Triangle>, material: Material, bounds: BoundingBox) -> Self {
+    pub fn new(vertices: Vertices, triangles: Vec<Triangle>, bounds: BoundingBox) -> Self {
         Mesh {
             vertices,
             triangles,
             bounds,
-            material,
         }
     }
 
@@ -78,18 +76,16 @@ impl Mesh {
             .map(|i| {
                 let pos: [f32; 3] = self.vertices.positions[i].into();
                 let norm: [f32; 3] = self.vertices.normals[i].into();
+                let uv = if let Some(tex_coords) = self.vertices.tex_coords.first() {
+                    let Point2 { x: u, y: v } = tex_coords[i];
+                    [u, v]
+                } else {
+                    [0.0, 0.0]
+                };
                 LuminanceVertex {
                     position: pos.into(),
                     normal: norm.into(),
-                    uv: if let (Some(tex_coords), Some(tex_ref)) =
-                        (self.vertices.tex_coords.first(), self.material.base_color_texture)
-                    {
-                        let uv = tex_coords[i];
-                        let Point2 { x: u, y: v } = tex_ref.transform_texture_coordinates(uv);
-                        [u, v].into()
-                    } else {
-                        [0.0, 0.0].into()
-                    },
+                    uv: uv.into(),
                 }
             })
             .collect();
@@ -109,10 +105,17 @@ pub struct Instance {
     pub transform: Matrix4<f32>,
     pub inverse_transform: Matrix4<f32>,
     pub bounds: BoundingBox,
+    pub material: Material,
 }
 
 impl Instance {
-    pub fn new(mesh_index: usize, mesh: &Mesh, transform: Matrix4<f32>, inverse_transform: Matrix4<f32>) -> Self {
+    pub fn new(
+        mesh_index: usize,
+        mesh: &Mesh,
+        transform: Matrix4<f32>,
+        inverse_transform: Matrix4<f32>,
+        material: Material,
+    ) -> Self {
         let mut bounds = BoundingBox::new();
 
         for &position in &mesh.vertices.positions {
@@ -125,6 +128,7 @@ impl Instance {
             transform,
             inverse_transform,
             bounds,
+            material,
         }
     }
 }

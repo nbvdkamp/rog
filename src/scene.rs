@@ -146,7 +146,7 @@ impl Scene {
                     Normal,
                 }
 
-                for mesh in &mut scene.meshes {
+                for instance in &mut scene.instances {
                     macro_rules! set_type {
                         ( $tex:expr, $tex_type:expr ) => {
                             match $tex {
@@ -163,11 +163,14 @@ impl Scene {
                         };
                     }
 
-                    set_type!(mesh.material.base_color_texture, TextureType::BaseColor);
-                    set_type!(mesh.material.metallic_roughness_texture, TextureType::MetallicRoughness);
-                    set_type!(mesh.material.transmission_texture, TextureType::Transmission);
-                    set_type!(mesh.material.emissive_texture, TextureType::Emissive);
-                    set_type!(mesh.material.normal_texture, TextureType::Normal);
+                    set_type!(instance.material.base_color_texture, TextureType::BaseColor);
+                    set_type!(
+                        instance.material.metallic_roughness_texture,
+                        TextureType::MetallicRoughness
+                    );
+                    set_type!(instance.material.transmission_texture, TextureType::Transmission);
+                    set_type!(instance.material.emissive_texture, TextureType::Emissive);
+                    set_type!(instance.material.normal_texture, TextureType::Normal);
                 }
 
                 let mut preview_textures = Vec::new();
@@ -229,8 +232,8 @@ impl Scene {
 
                 // To draw meshes with alpha textures last
                 scene.instances.iter_mut().partition_in_place(|instance| {
-                    let mesh = &scene.meshes[instance.mesh_index as usize];
-                    mesh.material
+                    instance
+                        .material
                         .base_color_texture
                         .map_or(true, |tex| preview_textures[tex.index].format == Format::Rgb)
                 });
@@ -564,13 +567,14 @@ impl Scene {
 
                 // Fast path if the whole mesh is one piece
                 if visited.len() == vertices.positions.len() {
-                    self.meshes.push(Mesh::new(vertices, triangles, material, new_bounds));
+                    self.meshes.push(Mesh::new(vertices, triangles, new_bounds));
                     let mesh_index = self.meshes.len() - 1;
                     self.instances.push(Instance::new(
                         mesh_index,
                         &self.meshes[mesh_index],
                         transform,
                         inverse_transform,
+                        material,
                     ));
                     break;
                 }
@@ -598,14 +602,14 @@ impl Scene {
                         .collect(),
                 };
 
-                self.meshes
-                    .push(Mesh::new(vertices, new_triangles, material.clone(), new_bounds));
+                self.meshes.push(Mesh::new(vertices, new_triangles, new_bounds));
                 let mesh_index = self.meshes.len() - 1;
                 self.instances.push(Instance::new(
                     mesh_index,
                     &self.meshes[mesh_index],
                     transform,
                     inverse_transform,
+                    material.clone(),
                 ));
             }
         }

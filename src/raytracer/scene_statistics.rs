@@ -619,7 +619,7 @@ fn sample_triangle_materials(tris: Vec<ClippedTri>, raytracer: &Raytracer) -> Op
         let mesh = &raytracer.scene.meshes[instance.mesh_index as usize];
         let original_tri = &mesh.triangles[triangle.tri_index];
 
-        if let Some(texture_ref) = mesh.material.base_color_texture {
+        if let Some(texture_ref) = instance.material.base_color_texture {
             let point = sample_coordinates_on_triangle();
 
             let barycentric = interpolate_point_on_triangle(
@@ -642,13 +642,13 @@ fn sample_triangle_materials(tris: Vec<ClippedTri>, raytracer: &Raytracer) -> Op
             let alpha = coeffs_sample.a;
 
             let base_color_spectrum = alpha
-                * Spectrumf32::from_coefficients(mesh.material.base_color_coefficients)
+                * Spectrumf32::from_coefficients(instance.material.base_color_coefficients)
                 * Spectrumf32::from_coefficients(coeffs_sample.rgb().into());
 
             spectrum += base_color_spectrum;
             samples += alpha;
         } else {
-            spectrum += Spectrumf32::from_coefficients(mesh.material.base_color_coefficients);
+            spectrum += Spectrumf32::from_coefficients(instance.material.base_color_coefficients);
             samples += 1.0;
         }
     }

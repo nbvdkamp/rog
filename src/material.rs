@@ -1,6 +1,6 @@
 use super::color::{RGBAf32, RGBf32};
 use arrayvec::ArrayVec;
-use cgmath::{point2, vec3, Basis2, InnerSpace, Point2, Rotation, Vector2, Vector3};
+use cgmath::{point2, vec3, Basis2, InnerSpace, Matrix2, Matrix3, Point2, Rotation, SquareMatrix, Vector2, Vector3};
 
 use crate::{raytracer::Textures, spectrum::Spectrumf32, texture::Texture};
 
@@ -102,8 +102,16 @@ pub struct TextureTransform {
 }
 
 impl TextureTransform {
-    pub fn transform_texture_coordinates(&self, Point2 { x: u, y: v }: Point2<f32>) -> Point2<f32> {
+    fn transform_texture_coordinates(&self, Point2 { x: u, y: v }: Point2<f32>) -> Point2<f32> {
         self.rotation.rotate_point(point2(u * self.scale.x, v * self.scale.y)) + self.offset
+    }
+
+    fn to_matrix(&self) -> Matrix3<f32> {
+        let t = Matrix3::from_translation(self.offset);
+        let r: Matrix2<f32> = self.rotation.into();
+        let r = Matrix3::from(r);
+        let s = Matrix3::from_nonuniform_scale(self.scale.x, self.scale.y);
+        t * r * s
     }
 }
 
@@ -120,6 +128,10 @@ impl TextureRef {
             Some(t) => t.transform_texture_coordinates(uv),
             None => uv,
         }
+    }
+
+    pub fn transform_matrix(&self) -> Matrix3<f32> {
+        self.transform.map_or(Matrix3::identity(), |t| t.to_matrix())
     }
 }
 

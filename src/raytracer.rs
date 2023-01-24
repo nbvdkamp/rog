@@ -466,7 +466,7 @@ impl Raytracer {
             let verts = &intersected_mesh.vertices;
 
             let triangle = &intersected_mesh.triangles[triangle_index as usize];
-            let material = &intersected_mesh.material;
+            let material = &instance.material;
 
             let indices = [
                 triangle.indices[0] as usize,
@@ -697,7 +697,7 @@ impl Raytracer {
             let verts = &intersected_mesh.vertices;
 
             let triangle = &intersected_mesh.triangles[triangle_index as usize];
-            let material = &intersected_mesh.material;
+            let material = &instance.material;
 
             if let Some(tex_ref) = material.base_color_texture {
                 if !self.scene.textures.base_color_coefficients[tex_ref.index].has_alpha {
