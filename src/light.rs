@@ -1,5 +1,9 @@
-use crate::{color::RGBf32, raytracer::geometry::orthogonal_vector, spectrum::Spectrumf32};
-use cgmath::{InnerSpace, Point3, Vector3};
+use crate::{
+    color::RGBf32,
+    raytracer::{aabb::BoundingBox, geometry::orthogonal_vector},
+    spectrum::Spectrumf32,
+};
+use cgmath::{vec3, InnerSpace, Point3, Vector3};
 use rand::Rng;
 
 #[derive(Clone)]
@@ -117,6 +121,26 @@ impl Light {
                     use_mis: false,
                 }
             }
+        }
+    }
+
+    pub fn bounds(&self) -> Option<BoundingBox> {
+        match self.kind {
+            Kind::Point { radius } => {
+                let r = vec3(radius, radius, radius);
+
+                Some(BoundingBox {
+                    min: self.pos - r,
+                    max: self.pos + r,
+                })
+            }
+            Kind::Spot { .. } => {
+                let mut bounds = BoundingBox::new();
+                bounds.add(self.pos);
+
+                Some(bounds)
+            }
+            Kind::Directional { .. } => None,
         }
     }
 }

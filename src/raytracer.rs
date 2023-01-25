@@ -94,16 +94,6 @@ impl Raytracer {
         use_visibility: bool,
         scene_version: Option<SceneVersion>,
     ) -> Self {
-        let scene_bounds = {
-            let mut b = BoundingBox::new();
-
-            for instance in &scene.instances {
-                b = b.union(&instance.bounds);
-            }
-
-            b
-        };
-
         let mut result = Raytracer {
             scene,
             stats: None,
@@ -147,6 +137,23 @@ impl Raytracer {
                 stats
             } else {
                 // If we can't find matching cached visibilty data, compute it
+
+                let scene_bounds = {
+                    let mut b = BoundingBox::new();
+
+                    for instance in &result.scene.instances {
+                        b = b.union(&instance.bounds);
+                    }
+
+                    for light in &result.scene.lights {
+                        if let Some(light_bounds) = light.bounds() {
+                            b = b.union(&light_bounds);
+                        }
+                    }
+
+                    b
+                };
+
                 let mut stats = SceneStatistics::new(scene_bounds, scene_version);
 
                 let start = Instant::now();
