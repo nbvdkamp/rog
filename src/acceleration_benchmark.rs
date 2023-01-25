@@ -35,7 +35,16 @@ fn main() {
             }
         };
 
-        let raytracer = Raytracer::new(scene, &accel_structures_to_construct, false, None);
+        let image_settings = ImageSettings {
+            size: vec2(width, height),
+            enable_dispersion: true,
+            max_depth: None,
+            always_sample_single_wavelength: false,
+            visibility: None,
+            scene_version: None,
+        };
+
+        let raytracer = Raytracer::new(scene, &accel_structures_to_construct, image_settings.clone());
 
         println!("Filename: {scene_name}, tris: {}", raytracer.get_num_tris());
         #[cfg(feature = "stats")]
@@ -57,18 +66,9 @@ fn main() {
                 intermediate_write_path: None,
             };
 
-            let image_settings = ImageSettings {
-                size: vec2(width, height),
-                enable_dispersion: true,
-                max_depth: None,
-                always_sample_single_wavelength: false,
-                visibility: None,
-                scene_version: None,
-            };
-
-            let image = WorkingImage::new(image_settings);
-
+            let image = WorkingImage::new(image_settings.clone());
             let (_, time_elapsed) = raytracer.render(&settings, None, None, None, image);
+
             let name = structure.name();
 
             #[cfg(feature = "stats")]

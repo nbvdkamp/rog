@@ -67,7 +67,9 @@ impl Args {
                 arg!(-r --"read-intermediate" <FILE> "Read from intermediate image file to resume rendering")
                     .value_parser(value_parser!(PathBuf))
                     .required(false),
-                arg!(-v --visibility "Sample visibility data for the scene and use it for importance sampling"),
+                arg!(--"spectral-importance-sampling" "Use visibility for spectral importance sampling"),
+                arg!(--"nee++-rejection" "Use visibility data for rejection sampling shadow rays"),
+                arg!(--"nee++-direct" "Use visibility data for importance sampling lights"),
                 arg!(--"visibility-debug" "Write computed visibility related data to disk for debugging"),
             ])
             .get_matches();
@@ -115,13 +117,20 @@ impl Args {
             Accel::BvhRecursive
         };
 
-        let use_visibility = matches.get_flag("visibility");
+        let spectral_importance_sampling = matches.get_flag("spectral-importance-sampling");
+        let nee_rejection = matches.get_flag("nee++-rejection");
+        let nee_direct = matches.get_flag("nee++-direct");
+        let visibility_debug = matches.get_flag("visibility-debug");
 
-        let dump_debug_data = if matches.get_flag("visibility-debug") && !use_visibility {
-            eprintln!("Can't dump visibility data if using visibility data is not enabled");
-            std::process::exit(-1);
+        let visibility = if spectral_importance_sampling || nee_rejection || nee_direct || visibility_debug {
+            Some(VisibilitySettings {
+                dump_debug_data: visibility_debug,
+                spectral_importance_sampling,
+                nee_rejection,
+                nee_direct,
+             })
         } else {
-            matches.get_flag("visibility-debug")
+            None
         };
 
         let headless = matches.get_flag("headless");
@@ -153,11 +162,7 @@ impl Args {
             size: vec2(read_usize("width", 1920), read_usize("height", 1080)),
             enable_dispersion: !matches.get_flag("no-dispersion"),
             always_sample_single_wavelength: matches.get_flag("always-sample-wavelength"),
-            visibility: if use_visibility {
-                Some(VisibilitySettings { dump_debug_data })
-            } else {
-                None
-            },
+            visibility,
             scene_version,
             max_depth: matches.get_one::<usize>("max-bounces").copied(),
         };

@@ -32,7 +32,6 @@ use crate::{
     raytracer::{file_formatting::Error, working_image::Pixel},
     render_settings::{ImageSettings, RenderSettings, TerminationCondition},
     scene::Scene,
-    scene_version::SceneVersion,
     spectrum::Spectrumf32,
     texture::{CoefficientTexture, Texture},
     util::normal_transform_from_mat4,
@@ -60,6 +59,7 @@ pub struct Raytracer {
     pub scene: Scene,
     pub accel_structures: AccelerationStructures,
     stats: Option<SceneStatistics>,
+    image_settings: ImageSettings,
 }
 
 pub struct RenderProgressReporting {
@@ -88,16 +88,12 @@ pub enum Wavelength {
 }
 
 impl Raytracer {
-    pub fn new(
-        scene: Scene,
-        accel_structures_to_construct: &[Accel],
-        use_visibility: bool,
-        scene_version: Option<SceneVersion>,
-    ) -> Self {
+    pub fn new(scene: Scene, accel_structures_to_construct: &[Accel], image_settings: ImageSettings) -> Self {
         let mut result = Raytracer {
             scene,
             stats: None,
             accel_structures: AccelerationStructures::default(),
+            image_settings,
         };
 
         let start = Instant::now();
@@ -117,8 +113,13 @@ impl Raytracer {
             start.elapsed().as_secs_f32()
         );
 
-        if use_visibility {
-            let scene_version = scene_version.expect("scene_version should be passed when using visibility data");
+        if result.image_settings.use_visibility() {
+            let scene_version = result
+                .image_settings
+                .scene_version
+                .clone()
+                .expect("scene_version should be present when using visibility data")
+                .clone();
 
             let dir = PathBuf::from("output/cache/");
             let mut path = dir.clone();
@@ -214,7 +215,6 @@ impl Raytracer {
         let cam_model = self.scene.camera.model;
         let cam_pos4 = cam_model * Vector4::new(0., 0., 0., 1.);
         let camera_pos = Point3::from_homogeneous(cam_pos4);
-        let image_settings = &image.settings.clone();
         let image = Arc::new(Mutex::new(image));
 
         let tile_size = 100;
@@ -295,7 +295,7 @@ impl Raytracer {
                                     direction: dir4.truncate().normalize(),
                                 };
 
-                                match self.radiance(ray, settings, image_settings) {
+                                match self.radiance(ray, settings) {
                                     RadianceResult::Spectrum(spectrum) => {
                                         pixel.spectrum += spectrum;
                                         pixel.samples += Spectrumf32::RESOLUTION as u32;
@@ -449,7 +449,7 @@ impl Raytracer {
         self.scene.meshes.iter().map(|m| m.triangles.len()).sum()
     }
 
-    fn radiance(&self, ray: Ray, settings: &RenderSettings, image_settings: &ImageSettings) -> RadianceResult {
+    fn radiance(&self, ray: Ray, settings: &RenderSettings) -> RadianceResult {
         let mut result = Spectrumf32::constant(0.0);
         let mut path_weight = Spectrumf32::constant(1.0);
         let mut ray = ray;
@@ -460,7 +460,7 @@ impl Raytracer {
         let mut depth = 0;
 
         // Hard cap bounces to prevent endless bouncing inside perfectly reflective surfaces
-        while !image_settings.max_depth_reached(depth) && depth < 100 {
+        while !self.image_settings.max_depth_reached(depth) && depth < 100 {
             let TraceResultMesh::Hit {
                 instance, triangle_index, u, v, ..
             } = self.trace(&ray, settings.accel_structure) else {
@@ -488,8 +488,13 @@ impl Raytracer {
             let hit_pos = Point3::from_homogeneous(instance.transform * hit_pos.to_homogeneous());
 
             if let Wavelength::Undecided = wavelength {
-                if image_settings.always_sample_single_wavelength {
-                    let value = if let Some(stats) = &self.stats {
+                if self.image_settings.always_sample_single_wavelength {
+                    let importance_sample = self
+                        .image_settings
+                        .visibility
+                        .map_or(false, |v| v.spectral_importance_sampling);
+
+                    let value = if importance_sample && let Some(stats) = &self.stats {
                         let voxel_index = stats.get_voxel_index(hit_pos);
 
                         let distribution = stats.spectral_distributions[voxel_index]
@@ -530,7 +535,7 @@ impl Raytracer {
                 continue;
             }
 
-            if image_settings.enable_dispersion && mat_sample.transmission > 0.0 {
+            if self.image_settings.enable_dispersion && mat_sample.transmission > 0.0 {
                 let lambda;
 
                 match wavelength {

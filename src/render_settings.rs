@@ -8,6 +8,9 @@ use crate::{raytracer::acceleration::Accel, scene_version::SceneVersion};
 #[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct VisibilitySettings {
     pub dump_debug_data: bool,
+    pub spectral_importance_sampling: bool,
+    pub nee_rejection: bool,
+    pub nee_direct: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -26,7 +29,7 @@ impl ImageSettings {
     }
 
     pub fn dump_visibility_data(&self) -> bool {
-        if let Some(VisibilitySettings { dump_debug_data }) = self.visibility {
+        if let Some(VisibilitySettings { dump_debug_data, .. }) = self.visibility {
             dump_debug_data
         } else {
             false

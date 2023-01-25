@@ -92,8 +92,7 @@ impl App {
         let raytracer = Raytracer::new(
             scene,
             &[args.render_settings.accel_structure],
-            args.image_settings.use_visibility(),
-            args.image_settings.scene_version.clone(),
+            args.image_settings.clone(),
         );
 
         if args.image_settings.dump_visibility_data() {
