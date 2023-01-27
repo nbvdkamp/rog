@@ -612,7 +612,26 @@ impl Raytracer {
                         direction: light_sample.direction,
                     };
 
-                    let shadowed = self.is_ray_obstructed(shadow_ray, light_sample.distance, settings.accel_structure);
+                    let rejection_sample = self.image_settings.visibility.map_or(false, |v| v.nee_rejection);
+
+                    // NEE++ rejection sampling
+                    let (shadowed, rejection_pdf) = if rejection_sample
+                            && let Some(stats) = &self.stats
+                            && let Some(sample_position) = &light_sample.position {
+                        let pdf = stats.get_estimated_visibility(shadow_ray.origin, *sample_position);
+
+                        let shadowed = if thread_rng().gen_bool(pdf as f64) {
+                            self.is_ray_obstructed(shadow_ray, light_sample.distance, settings.accel_structure)
+                        } else {
+                            true
+                        };
+
+                        (shadowed, pdf)
+                    } else {
+                        let shadowed =
+                            self.is_ray_obstructed(shadow_ray, light_sample.distance, settings.accel_structure);
+                        (shadowed, 1.0)
+                    };
 
                     if !shadowed {
                         let local_incident = frame.to_local(light_sample.direction);
@@ -620,7 +639,7 @@ impl Raytracer {
 
                         if let Evaluation::Evaluation { weight: bsdf, pdf } = eval {
                             let light_pick_prob = 1.0 / num_lights as f32;
-                            let light_pdf = light_pick_prob * light_sample.pdf;
+                            let light_pdf = light_pick_prob * light_sample.pdf * rejection_pdf;
 
                             let mis_weight = if light_sample.use_mis {
                                 mis2(light_pdf, pdf)
@@ -632,12 +651,7 @@ impl Raytracer {
                                 bump_shading_factor(normal, shading_normal, light_sample.direction)
                             });
 
-                            result += path_weight
-                                    // * mat_sample.base_color_spectrum
-                                    * mis_weight
-                                    * light_sample.intensity
-                                    * shadow_terminator
-                                    * bsdf
+                            result += path_weight * mis_weight * light_sample.intensity * shadow_terminator * bsdf
                                 / light_pdf
                                 * light.spectrum;
                         }

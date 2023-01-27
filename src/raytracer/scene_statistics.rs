@@ -88,6 +88,15 @@ impl SceneStatistics {
         }
     }
 
+    pub fn get_estimated_visibility(&self, a: Point3<f32>, b: Point3<f32>) -> f32 {
+        let a = self.get_voxel_index(a);
+        let b = self.get_voxel_index(b);
+        let i = self.get_table_index(a, b);
+        let vis = self.visibility[i] as f32 / VISIBILITY_SAMPLES as f32;
+        // Ensure estimate is never 0 to prevent bias
+        (0.99 * vis + 0.01).clamp(0.01, 1.0)
+    }
+
     pub fn sample_visibility(&mut self, raytracer: &Raytracer, accel: Accel) {
         self.visibility = (0..VOXEL_COUNT)
             .into_par_iter()

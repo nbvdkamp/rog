@@ -34,6 +34,7 @@ pub enum Kind {
 
 pub struct LightSample {
     pub direction: Vector3<f32>,
+    pub position: Option<Point3<f32>>,
     pub distance: f32,
     pub intensity: f32,
     pub pdf: f32,
@@ -70,6 +71,7 @@ impl Light {
 
                 LightSample {
                     direction,
+                    position: Some(sample_pos),
                     distance,
                     intensity: pdf * self.intensity / (4.0 * std::f32::consts::PI),
                     pdf: pdf * factor,
@@ -99,6 +101,7 @@ impl Light {
 
                 LightSample {
                     direction: sample_dir,
+                    position: None,
                     distance: f32::INFINITY,
                     intensity: pdf * self.intensity * std::f32::consts::PI,
                     pdf,
@@ -115,6 +118,7 @@ impl Light {
 
                 LightSample {
                     direction,
+                    position: Some(self.pos),
                     distance,
                     intensity,
                     pdf: 1.0,
