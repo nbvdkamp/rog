@@ -618,7 +618,7 @@ fn sample_triangle_materials(tris: Vec<ClippedTri>, raytracer: &Raytracer) -> Op
         .map(|tri| triangle_area(tri.verts[0].position, tri.verts[1].position, tri.verts[2].position))
         .collect::<Vec<_>>();
 
-    let cumulative_probabilities = cumulative_probabilities_from_weights(surface_areas);
+    let cumulative_probabilities = cumulative_probabilities_from_weights(&surface_areas);
     let mut spectrum = Spectrumf32::constant(0.0);
     let mut samples = 0.0;
 

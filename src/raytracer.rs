@@ -29,6 +29,7 @@ pub mod working_image;
 
 use crate::{
     cie_data as CIE,
+    light::Light,
     raytracer::{file_formatting::Error, working_image::Pixel},
     render_settings::{ImageSettings, RenderSettings, TerminationCondition},
     scene::Scene,
@@ -46,6 +47,8 @@ use sampling::{sample_item_from_cumulative_probabilities, tent_sample};
 use scene_statistics::SceneStatistics;
 use shadingframe::ShadingFrame;
 use working_image::WorkingImage;
+
+use self::sampling::cumulative_probabilities_from_weights;
 
 pub struct Textures {
     pub base_color_coefficients: Vec<CoefficientTexture>,
@@ -455,8 +458,6 @@ impl Raytracer {
         let mut ray = ray;
 
         let mut wavelength = Wavelength::Undecided;
-
-        let num_lights = self.scene.lights.len();
         let mut depth = 0;
 
         // Hard cap bounces to prevent endless bouncing inside perfectly reflective surfaces
@@ -595,8 +596,7 @@ impl Raytracer {
             let sample = bsdf::sample(&mat_sample, local_outgoing);
 
             // Next event estimation (directly sampling lights)
-            if num_lights > 0 {
-                let light = &self.scene.lights[rand::thread_rng().gen_range(0..num_lights)];
+            if let Some((light, light_pick_pdf)) = self.sample_light(hit_pos) {
                 let light_sample = light.sample(hit_pos);
 
                 let offset_direction = light_sample.direction.dot(geom_normal).signum() * geom_normal;
@@ -638,8 +638,7 @@ impl Raytracer {
                         let eval = bsdf::eval(&mat_sample, local_outgoing, local_incident);
 
                         if let Evaluation::Evaluation { weight: bsdf, pdf } = eval {
-                            let light_pick_prob = 1.0 / num_lights as f32;
-                            let light_pdf = light_pick_prob * light_sample.pdf * rejection_pdf;
+                            let light_pdf = light_pick_pdf * light_sample.pdf * rejection_pdf;
 
                             let mis_weight = if light_sample.use_mis {
                                 mis2(light_pdf, pdf)
@@ -696,6 +695,45 @@ impl Raytracer {
                 value: result.at_wavelength_lerp(wavelength),
                 wavelength,
             },
+        }
+    }
+
+    fn sample_light(&self, hit_pos: Point3<f32>) -> Option<(&Light, f32)> {
+        let visibility_sample = self.image_settings.visibility.map_or(false, |v| v.nee_direct);
+        let lights = &self.scene.lights;
+
+        match lights.len() {
+            0 => None,
+            1 => Some((&self.scene.lights[0], 1.0)),
+            n if visibility_sample => {
+                let stats = self.stats.as_ref().expect("scene statistics should be present");
+                let visibilities: Vec<Option<f32>> = lights
+                    .iter()
+                    .map(|light| {
+                        light
+                            .bounds()
+                            .map(|b| stats.get_estimated_visibility(hit_pos, b.center()))
+                    })
+                    .collect();
+
+                let visibility_sum: f32 = visibilities.iter().filter_map(|&opt| opt).sum();
+                let has_position_count = visibilities.iter().filter(|c| c.is_some()).count();
+                let has_no_position_count = n - has_position_count;
+
+                let weight_per_positionless_light = visibility_sum / has_no_position_count as f32;
+                let weights: Vec<f32> = visibilities
+                    .into_iter()
+                    .map(|opt| opt.unwrap_or(weight_per_positionless_light))
+                    .collect();
+
+                let cumulative_probabilities = cumulative_probabilities_from_weights(&weights);
+                let i = sample_item_from_cumulative_probabilities(&cumulative_probabilities)
+                    .expect("weights should be non-empty.");
+
+                Some((&lights[i], weights[i] / weights.iter().sum::<f32>()))
+            }
+            n if !visibility_sample => Some((&self.scene.lights[rand::thread_rng().gen_range(0..n)], 1.0 / n as f32)),
+            _ => unreachable!(),
         }
     }
 

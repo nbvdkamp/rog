@@ -35,7 +35,7 @@ pub fn sample_coordinates_on_triangle() -> Point2<f32> {
     }
 }
 
-pub fn cumulative_probabilities_from_weights(weights: Vec<f32>) -> Vec<f32> {
+pub fn cumulative_probabilities_from_weights(weights: &[f32]) -> Vec<f32> {
     let sum = weights.iter().sum::<f32>();
 
     let mut cumulative_probabilities = Vec::new();
