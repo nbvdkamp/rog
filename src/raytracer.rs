@@ -618,7 +618,9 @@ impl Raytracer {
                     let (shadowed, rejection_pdf) = if rejection_sample
                             && let Some(stats) = &self.stats
                             && let Some(sample_position) = &light_sample.position {
-                        let pdf = stats.get_estimated_visibility(shadow_ray.origin, *sample_position);
+                        let offset_hit_pos_voxel_index = stats.get_voxel_index(offset_hit_pos);
+                        let sample_pos_voxel_index = stats.get_voxel_index(*sample_position);
+                        let pdf = stats.get_estimated_visibility(offset_hit_pos_voxel_index, sample_pos_voxel_index);
 
                         let shadowed = if thread_rng().gen_bool(pdf as f64) {
                             self.is_ray_obstructed(shadow_ray, light_sample.distance, settings.accel_structure)
@@ -707,12 +709,15 @@ impl Raytracer {
             1 => Some((&self.scene.lights[0], 1.0)),
             n if visibility_sample => {
                 let stats = self.stats.as_ref().expect("scene statistics should be present");
+                let hit_pos_voxel_index = stats.get_voxel_index(hit_pos);
+
                 let visibilities: Vec<Option<f32>> = lights
                     .iter()
                     .map(|light| {
-                        light
-                            .bounds()
-                            .map(|b| stats.get_estimated_visibility(hit_pos, b.center()))
+                        light.bounds().map(|b| {
+                            let light_pos_voxel_index = stats.get_voxel_index(b.center());
+                            stats.get_estimated_visibility(hit_pos_voxel_index, light_pos_voxel_index)
+                        })
                     })
                     .collect();
 
