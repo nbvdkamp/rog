@@ -4,7 +4,7 @@ use rayon::prelude::*;
 use rgb2spec::RGB2Spec;
 use static_assertions::assert_eq_align;
 
-use crate::color::{RGBAf32, RGBf32};
+use crate::color::{RGBAf32, RGBf32, SRGB8_TO_LINEAR_TABLE};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Format {
@@ -85,11 +85,11 @@ impl Texture {
                     .image
                     .par_chunks(3)
                     .map(|slice: &[u8]| {
-                        let coeffs = rgb2spec.fetch(
-                            (RGBf32::new(slice[0] as f32, slice[1] as f32, slice[2] as f32) / 255.0)
-                                .srgb_to_linear()
-                                .into(),
-                        );
+                        let coeffs = rgb2spec.fetch([
+                            SRGB8_TO_LINEAR_TABLE[slice[0] as usize],
+                            SRGB8_TO_LINEAR_TABLE[slice[1] as usize],
+                            SRGB8_TO_LINEAR_TABLE[slice[2] as usize],
+                        ]);
                         CoefficientPixel { coeffs }
                     })
                     .collect::<Vec<CoefficientPixel>>();
