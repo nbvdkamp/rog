@@ -680,11 +680,12 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>,
         .and_then(|extras| serde_json::from_str(extras.as_ref().get()).ok());
 
     use gltf::khr_lights_punctual::Kind as GltfKind;
+    let position = Point3::from_homogeneous(transform * vec4(0.0, 0.0, 0.0, 1.0));
 
     let kind = match light.kind() {
         GltfKind::Point => {
             let radius = (|| extras?.radius)().unwrap_or(0.0);
-            Kind::Point { radius }
+            Kind::Point { radius, position }
         }
         GltfKind::Directional => {
             let normal_transform = normal_transform_from_mat4(transform);
@@ -705,6 +706,7 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>,
             inner_cone_angle,
             outer_cone_angle,
         } => Kind::Spot {
+            position,
             inner_cone_angle,
             outer_cone_angle,
         },
@@ -718,7 +720,6 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>,
     let spectrum = Spectrumf32::from_coefficients(rgb2spec.fetch(color.into()));
 
     Light {
-        pos: Point3::from_homogeneous(transform * vec4(0.0, 0.0, 0.0, 1.0)),
         intensity: light.intensity(),
         range: light.range().unwrap_or(f32::INFINITY),
         spectrum,

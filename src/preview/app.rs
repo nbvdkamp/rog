@@ -152,10 +152,12 @@ impl App {
             [c.r, c.g, c.b, 1.0]
         };
 
-        let light_position = raytracer.scene.lights.first().map_or(Vec3::new(1.0, 1.0, 1.0), |p| {
-            let p = p.pos;
-            Vec3::new(p.x, p.y, p.z)
-        });
+        let light_position = raytracer
+            .scene
+            .lights
+            .first()
+            .and_then(|light| light.position())
+            .map_or(Vec3::new(1.0, 1.0, 1.0), |p| Vec3::new(p.x, p.y, p.z));
 
         let mut context = surface.context;
         let events = surface.events_rx;

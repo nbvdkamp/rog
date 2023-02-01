@@ -7,7 +7,6 @@ use rand::Rng;
 
 #[derive(Clone)]
 pub struct Light {
-    pub pos: Point3<f32>,
     pub spectrum: Spectrumf32,
     pub intensity: f32,
     pub range: f32,
@@ -17,6 +16,7 @@ pub struct Light {
 #[derive(PartialEq, Clone, Debug)]
 pub enum Kind {
     Point {
+        position: Point3<f32>,
         radius: f32,
     },
     Directional {
@@ -25,6 +25,7 @@ pub enum Kind {
         area: f32,
     },
     Spot {
+        position: Point3<f32>,
         inner_cone_angle: f32,
         outer_cone_angle: f32,
     },
@@ -42,19 +43,19 @@ pub struct LightSample {
 impl Light {
     pub fn sample(&self, p: Point3<f32>) -> LightSample {
         match self.kind {
-            Kind::Point { radius } => {
+            Kind::Point { position, radius } => {
                 let area = std::f32::consts::PI * radius * radius;
                 let pdf;
                 let use_mis;
                 let sample_pos;
-                let dir_to_center = (self.pos - p).normalize();
+                let dir_to_center = (position - p).normalize();
 
                 if area > 0.0 {
-                    sample_pos = self.pos + radius * orthogonal_disk_sample(dir_to_center);
+                    sample_pos = position + radius * orthogonal_disk_sample(dir_to_center);
                     use_mis = true;
                     pdf = 1.0 / area;
                 } else {
-                    sample_pos = self.pos;
+                    sample_pos = position;
                     use_mis = false;
                     pdf = 1.0;
                 }
@@ -106,9 +107,9 @@ impl Light {
                     use_mis,
                 }
             }
-            Kind::Spot { .. } => {
+            Kind::Spot { position, .. } => {
                 // TODO: Implement spot lights instead of just another point light
-                let v = self.pos - p;
+                let v = position - p;
                 let distance = v.magnitude();
                 let direction = v / distance;
                 let falloff = distance * distance;
@@ -116,7 +117,7 @@ impl Light {
 
                 LightSample {
                     direction,
-                    position: Some(self.pos),
+                    position: Some(position),
                     distance,
                     intensity,
                     pdf: 1.0,
@@ -128,20 +129,28 @@ impl Light {
 
     pub fn bounds(&self) -> Option<BoundingBox> {
         match self.kind {
-            Kind::Point { radius } => {
+            Kind::Point { position, radius } => {
                 let r = vec3(radius, radius, radius);
 
                 Some(BoundingBox {
-                    min: self.pos - r,
-                    max: self.pos + r,
+                    min: position - r,
+                    max: position + r,
                 })
             }
-            Kind::Spot { .. } => {
+            Kind::Spot { position, .. } => {
                 let mut bounds = BoundingBox::new();
-                bounds.add(self.pos);
+                bounds.add(position);
 
                 Some(bounds)
             }
+            Kind::Directional { .. } => None,
+        }
+    }
+
+    pub fn position(&self) -> Option<Point3<f32>> {
+        match self.kind {
+            Kind::Point { position, .. } => Some(position),
+            Kind::Spot { position, .. } => Some(position),
             Kind::Directional { .. } => None,
         }
     }
