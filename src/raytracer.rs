@@ -48,7 +48,7 @@ use scene_statistics::SceneStatistics;
 use shadingframe::ShadingFrame;
 use working_image::WorkingImage;
 
-use self::sampling::cumulative_probabilities_from_weights;
+use self::sampling::sample_item_from_weights;
 
 pub struct Textures {
     pub base_color_coefficients: Vec<CoefficientTexture>,
@@ -731,9 +731,7 @@ impl Raytracer {
                     .map(|opt| opt.unwrap_or(weight_per_positionless_light))
                     .collect();
 
-                let cumulative_probabilities = cumulative_probabilities_from_weights(&weights);
-                let i = sample_item_from_cumulative_probabilities(&cumulative_probabilities)
-                    .expect("weights should be non-empty.");
+                let i = sample_item_from_weights(&weights).expect("weights should be non-empty.");
 
                 Some((&lights[i], weights[i] / weights.iter().sum::<f32>()))
             }

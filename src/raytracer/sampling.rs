@@ -68,3 +68,23 @@ pub fn sample_item_from_cumulative_probabilities(cumulative_probabilities: &[f32
 
     Some(cumulative_probabilities.len() - 1)
 }
+
+/// When a set of weights is sampled only once this is faster than
+/// [sample_item_from_cumulative_probabilities] because it doesn't require allocating
+pub fn sample_item_from_weights(weights: &[f32]) -> Option<usize> {
+    if weights.is_empty() {
+        return None;
+    }
+
+    let sample = rand::thread_rng().gen::<f32>() * weights.iter().sum::<f32>();
+    let mut sum = 0.0;
+
+    for (i, &w) in weights.iter().enumerate() {
+        sum += w;
+        if sum >= sample {
+            return Some(i);
+        }
+    }
+
+    Some(weights.len() - 1)
+}
