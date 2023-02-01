@@ -41,14 +41,14 @@ pub struct LightSample {
 }
 
 impl Light {
-    pub fn sample(&self, p: Point3<f32>) -> LightSample {
+    pub fn sample(&self, hit_position: Point3<f32>) -> LightSample {
         match self.kind {
             Kind::Point { position, radius } => {
                 let area = std::f32::consts::PI * radius * radius;
                 let pdf;
                 let use_mis;
                 let sample_pos;
-                let dir_to_center = (position - p).normalize();
+                let dir_to_center = (position - hit_position).normalize();
 
                 if area > 0.0 {
                     sample_pos = position + radius * orthogonal_disk_sample(dir_to_center);
@@ -60,7 +60,7 @@ impl Light {
                     pdf = 1.0;
                 }
 
-                let v = sample_pos - p;
+                let v = sample_pos - hit_position;
                 let distance = v.magnitude();
                 let direction = v / distance;
                 let falloff = distance * distance;
@@ -109,7 +109,7 @@ impl Light {
             }
             Kind::Spot { position, .. } => {
                 // TODO: Implement spot lights instead of just another point light
-                let v = position - p;
+                let v = position - hit_position;
                 let distance = v.magnitude();
                 let direction = v / distance;
                 let falloff = distance * distance;
