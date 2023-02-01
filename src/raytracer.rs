@@ -701,43 +701,57 @@ impl Raytracer {
     }
 
     fn sample_light(&self, hit_pos: Point3<f32>) -> Option<(&Light, f32)> {
-        let visibility_sample = self.image_settings.visibility.map_or(false, |v| v.nee_direct);
         let lights = &self.scene.lights;
 
-        match lights.len() {
-            0 => None,
-            1 => Some((&self.scene.lights[0], 1.0)),
-            n if visibility_sample => {
-                let stats = self.stats.as_ref().expect("scene statistics should be present");
-                let hit_pos_voxel_index = stats.get_voxel_index(hit_pos);
-
-                let visibilities: Vec<Option<f32>> = lights
-                    .iter()
-                    .map(|light| {
-                        light.bounds().map(|b| {
-                            let light_pos_voxel_index = stats.get_voxel_index(b.center());
-                            stats.get_estimated_visibility(hit_pos_voxel_index, light_pos_voxel_index)
-                        })
-                    })
-                    .collect();
-
-                let visibility_sum: f32 = visibilities.iter().filter_map(|&opt| opt).sum();
-                let has_position_count = visibilities.iter().filter(|c| c.is_some()).count();
-                let has_no_position_count = n - has_position_count;
-
-                let weight_per_positionless_light = visibility_sum / has_no_position_count as f32;
-                let weights: Vec<f32> = visibilities
-                    .into_iter()
-                    .map(|opt| opt.unwrap_or(weight_per_positionless_light))
-                    .collect();
-
-                let i = sample_item_from_weights(&weights).expect("weights should be non-empty.");
-
-                Some((&lights[i], weights[i] / weights.iter().sum::<f32>()))
-            }
-            n if !visibility_sample => Some((&self.scene.lights[rand::thread_rng().gen_range(0..n)], 1.0 / n as f32)),
-            _ => unreachable!(),
+        if lights.is_empty() {
+            return None;
         }
+
+        if lights.len() == 1 {
+            return Some((&self.scene.lights[0], 1.0));
+        }
+
+        let visibility_sample = self.image_settings.visibility.map_or(false, |v| v.nee_direct);
+
+        if visibility_sample {
+            Some(self.sample_light_visibility_weighted(hit_pos))
+        } else {
+            Some((
+                &lights[rand::thread_rng().gen_range(0..lights.len())],
+                1.0 / lights.len() as f32,
+            ))
+        }
+    }
+
+    // Direct light sampling from NEE++
+    fn sample_light_visibility_weighted(&self, hit_pos: Point3<f32>) -> (&Light, f32) {
+        let lights = &self.scene.lights;
+        let stats = self.stats.as_ref().expect("scene statistics should be present");
+        let hit_pos_voxel_index = stats.get_voxel_index(hit_pos);
+
+        let visibilities: Vec<Option<f32>> = lights
+            .iter()
+            .map(|light| {
+                light.bounds().map(|b| {
+                    let light_pos_voxel_index = stats.get_voxel_index(b.center());
+                    stats.get_estimated_visibility(hit_pos_voxel_index, light_pos_voxel_index)
+                })
+            })
+            .collect();
+
+        let visibility_sum: f32 = visibilities.iter().filter_map(|&opt| opt).sum();
+        let has_position_count = visibilities.iter().filter(|c| c.is_some()).count();
+        let has_no_position_count = lights.len() - has_position_count;
+
+        let weight_per_positionless_light = visibility_sum / has_no_position_count as f32;
+        let weights: Vec<f32> = visibilities
+            .into_iter()
+            .map(|opt| opt.unwrap_or(weight_per_positionless_light))
+            .collect();
+
+        let i = sample_item_from_weights(&weights).expect("weights should be non-empty.");
+
+        (&lights[i], weights[i] / weights.iter().sum::<f32>())
     }
 
     /// Checks if distance to the nearest obstructing triangle is less than the distance
