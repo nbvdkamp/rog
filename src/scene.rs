@@ -721,7 +721,6 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>,
         pos: Point3::from_homogeneous(transform * vec4(0.0, 0.0, 0.0, 1.0)),
         intensity: light.intensity(),
         range: light.range().unwrap_or(f32::INFINITY),
-        color,
         spectrum,
         kind,
     }

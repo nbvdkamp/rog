@@ -1,5 +1,4 @@
 use crate::{
-    color::RGBf32,
     raytracer::{aabb::BoundingBox, geometry::orthogonal_vector},
     spectrum::Spectrumf32,
 };
@@ -9,7 +8,6 @@ use rand::Rng;
 #[derive(Clone)]
 pub struct Light {
     pub pos: Point3<f32>,
-    pub color: RGBf32,
     pub spectrum: Spectrumf32,
     pub intensity: f32,
     pub range: f32,
