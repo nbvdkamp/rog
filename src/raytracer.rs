@@ -127,7 +127,9 @@ impl Raytracer {
                 .expect("scene_version should be present when using visibility data")
                 .clone();
 
-            let dir = PathBuf::from("output/cache/");
+            let resolution = 16;
+            let mut dir = PathBuf::from("output/cache/");
+            dir.push(resolution.to_string());
             let mut path = dir.clone();
 
             path.push(
@@ -138,7 +140,7 @@ impl Raytracer {
             );
             path.set_extension("vis");
 
-            let cached_stats = SceneStatistics::read_from_file(path.clone(), &scene_version, &result.scene);
+            let cached_stats = SceneStatistics::read_from_file(path.clone(), &scene_version, &result.scene, resolution);
 
             let stats = if let Ok(stats) = cached_stats {
                 stats
@@ -161,7 +163,7 @@ impl Raytracer {
                     b
                 };
 
-                let mut stats = SceneStatistics::new(scene_bounds, scene_version);
+                let mut stats = SceneStatistics::new(scene_bounds, scene_version, resolution);
 
                 let start = Instant::now();
                 stats.sample_visibility(&result, accel_structures_to_construct[0]);
