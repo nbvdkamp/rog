@@ -51,13 +51,17 @@ static_assertions::const_assert_eq!(JSON_TAG.len() % 4, 0);
 static_assertions::const_assert_eq!(VISIBILITY_TAG.len() % 4, 0);
 
 type Visibility = u8;
+const_assert!(Visibility::MAX as usize >= VISIBILITY_SAMPLES);
 
 pub struct Distribution {
     pub probabilities: Spectrumf32,
     pub cumulative_probabilities: Spectrumf32,
 }
 
-const_assert!(Visibility::MAX as usize >= VISIBILITY_SAMPLES);
+pub struct VoxelLights {
+    pub voxel_index: usize,
+    pub light_indices: Vec<usize>,
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct SceneStatistics {
@@ -65,6 +69,10 @@ pub struct SceneStatistics {
     scene_extent: Vector3<f32>,
     voxel_extent: Vector3<f32>,
     scene_version: SceneVersion,
+    #[serde(skip)]
+    pub voxels_with_lights: Vec<VoxelLights>,
+    #[serde(skip)]
+    pub positionless_lights: Vec<usize>,
     #[serde(skip)]
     visibility: Vec<Visibility>,
     #[serde(skip)]
@@ -82,6 +90,8 @@ impl SceneStatistics {
             scene_extent,
             voxel_extent: scene_extent / RESOLUTION as f32,
             scene_version,
+            voxels_with_lights: Vec::new(),
+            positionless_lights: Vec::new(),
             visibility: Vec::new(),
             materials: Vec::new(),
             spectral_distributions: Vec::new(),
@@ -220,6 +230,30 @@ impl SceneStatistics {
         let a = first_index.max(second_index);
         let b = first_index.min(second_index);
         a + b * VOXEL_COUNT - b * (b + 1) / 2
+    }
+
+    pub fn compute_light_voxel_distribution(&mut self, scene: &Scene) {
+        for (i, light) in scene.lights.iter().enumerate() {
+            // TODO: Account for radius
+            if let Some(position) = light.position() {
+                let voxel_index = self.get_voxel_index(position);
+
+                if let Some(v) = self
+                    .voxels_with_lights
+                    .iter_mut()
+                    .find(|v| v.voxel_index == voxel_index)
+                {
+                    v.light_indices.push(i);
+                } else {
+                    self.voxels_with_lights.push(VoxelLights {
+                        voxel_index,
+                        light_indices: vec![i],
+                    });
+                };
+            } else {
+                self.positionless_lights.push(i);
+            }
+        }
     }
 
     pub fn compute_visibility_weighted_material_sums(&mut self) {
@@ -427,7 +461,7 @@ impl SceneStatistics {
         Ok(())
     }
 
-    pub fn read_from_file<P>(path: P, expected_scene_version: &SceneVersion) -> Result<Self, Error>
+    pub fn read_from_file<P>(path: P, expected_scene_version: &SceneVersion, scene: &Scene) -> Result<Self, Error>
     where
         P: AsRef<Path>,
     {
@@ -472,8 +506,9 @@ impl SceneStatistics {
             .map_err(IO)?;
         }
 
-        // These aren't stored because we can just recompute them
+        // These aren't stored because recomputing them is cheap
         stats.compute_visibility_weighted_material_sums();
+        stats.compute_light_voxel_distribution(scene);
 
         Ok(stats)
     }

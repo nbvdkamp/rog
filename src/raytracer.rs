@@ -43,12 +43,15 @@ use acceleration::{structure::TraceResultMesh, Accel, AccelerationStructures};
 use bsdf::{mis2, Evaluation, Sample};
 use geometry::{ensure_valid_reflection, orthogonal_vector};
 use ray::Ray;
-use sampling::{sample_item_from_cumulative_probabilities, tent_sample};
+use sampling::{
+    sample_item_from_cumulative_probabilities,
+    sample_item_from_weights,
+    sample_value_from_slice_uniform,
+    tent_sample,
+};
 use scene_statistics::SceneStatistics;
 use shadingframe::ShadingFrame;
 use working_image::WorkingImage;
-
-use self::sampling::sample_item_from_weights;
 
 pub struct Textures {
     pub base_color_coefficients: Vec<CoefficientTexture>,
@@ -135,7 +138,7 @@ impl Raytracer {
             );
             path.set_extension("vis");
 
-            let cached_stats = SceneStatistics::read_from_file(path.clone(), &scene_version);
+            let cached_stats = SceneStatistics::read_from_file(path.clone(), &scene_version, &result.scene);
 
             let stats = if let Ok(stats) = cached_stats {
                 stats
@@ -171,6 +174,7 @@ impl Raytracer {
                     start.elapsed().as_secs_f32()
                 );
 
+                stats.compute_light_voxel_distribution(&result.scene);
                 stats.compute_visibility_weighted_material_sums();
 
                 if let Err(e) = std::fs::create_dir_all(dir)
@@ -716,10 +720,7 @@ impl Raytracer {
         if visibility_sample {
             Some(self.sample_light_visibility_weighted(hit_pos))
         } else {
-            Some((
-                &lights[rand::thread_rng().gen_range(0..lights.len())],
-                1.0 / lights.len() as f32,
-            ))
+            Some(sample_value_from_slice_uniform(lights))
         }
     }
 
@@ -727,31 +728,32 @@ impl Raytracer {
     fn sample_light_visibility_weighted(&self, hit_pos: Point3<f32>) -> (&Light, f32) {
         let lights = &self.scene.lights;
         let stats = self.stats.as_ref().expect("scene statistics should be present");
+        let positionless_fraction = stats.positionless_lights.len() as f32 / lights.len() as f32;
+
+        if thread_rng().gen_bool(positionless_fraction as f64) {
+            let (&i, pdf) = sample_value_from_slice_uniform(&stats.positionless_lights);
+            return (&lights[i], positionless_fraction * pdf);
+        }
+
         let hit_pos_voxel_index = stats.get_voxel_index(hit_pos);
 
-        let visibilities: Vec<Option<f32>> = lights
+        let weights: Vec<f32> = stats
+            .voxels_with_lights
             .iter()
-            .map(|light| {
-                light.bounds().map(|b| {
-                    let light_pos_voxel_index = stats.get_voxel_index(b.center());
-                    stats.get_estimated_visibility(hit_pos_voxel_index, light_pos_voxel_index)
-                })
-            })
+            .map(|v| stats.get_estimated_visibility(hit_pos_voxel_index, v.voxel_index) * v.light_indices.len() as f32)
             .collect();
 
-        let visibility_sum: f32 = visibilities.iter().filter_map(|&opt| opt).sum();
-        let has_position_count = visibilities.iter().filter(|c| c.is_some()).count();
-        let has_no_position_count = lights.len() - has_position_count;
+        // Sample a voxel
+        let (voxel_index, voxel_pdf) = sample_item_from_weights(&weights).expect("weights should be non-empty.");
+        let v = &stats.voxels_with_lights[voxel_index];
 
-        let weight_per_positionless_light = visibility_sum / has_no_position_count as f32;
-        let weights: Vec<f32> = visibilities
-            .into_iter()
-            .map(|opt| opt.unwrap_or(weight_per_positionless_light))
-            .collect();
+        // Sample a light from the voxel
+        let (&light_index, light_pdf) = sample_value_from_slice_uniform(&v.light_indices);
 
-        let i = sample_item_from_weights(&weights).expect("weights should be non-empty.");
-
-        (&lights[i], weights[i] / weights.iter().sum::<f32>())
+        (
+            &lights[light_index],
+            voxel_pdf * light_pdf * (1.0 - positionless_fraction),
+        )
     }
 
     /// Checks if distance to the nearest obstructing triangle is less than the distance
