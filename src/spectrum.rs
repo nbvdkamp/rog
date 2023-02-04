@@ -130,10 +130,6 @@ impl ArrSpectrumf32 {
         ArrSpectrumf32 { data: [v; RESOLUTION] }
     }
 
-    pub fn zero() -> Self {
-        Self::constant(0.0)
-    }
-
     pub fn sqrt(&self) -> Self {
         let mut data = [0.0; RESOLUTION];
 
