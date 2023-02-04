@@ -1,6 +1,8 @@
 #![allow(clippy::needless_range_loop)]
 use std::ops::{self, AddAssign, DivAssign, MulAssign};
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     cie_data as CIE,
     color::{RGBf32, XYZf32},
@@ -111,8 +113,9 @@ impl Spectrumf32 {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct ArrSpectrumf32 {
+    #[serde(with = "serde_arrays")]
     pub data: [f32; RESOLUTION],
 }
 

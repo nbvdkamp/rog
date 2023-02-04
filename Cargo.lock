@@ -87,9 +87,9 @@ checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
 
 [[package]]
 name = "cc"
-version = "1.0.73"
+version = "1.0.79"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fff2a6927b3bb87f9595d67196a70493f627687a71d87a0d692242c33f58c11"
+checksum = "50d30906286121d95be3d479533b458f87493b30a4b5f79a607db8f5d11aa91f"
 
 [[package]]
 name = "cfg-if"
@@ -132,12 +132,18 @@ dependencies = [
 
 [[package]]
 name = "cmake"
-version = "0.1.48"
+version = "0.1.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8ad8cef104ac57b68b89df3208164d228503abbdce70f6880ffa3d970e7443a"
+checksum = "db34956e100b30725f2eb215f90d4871051239535632f84fea3bc92722c66b7c"
 dependencies = [
  "cc",
 ]
+
+[[package]]
+name = "cobs"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67ba02a97a2bd10f4b59b25c7973101c79642302776489e030cd13cdab09ed15"
 
 [[package]]
 name = "color_quant"
@@ -283,6 +289,12 @@ dependencies = [
  "pin-project",
  "spin",
 ]
+
+[[package]]
+name = "fnv"
+version = "1.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
 name = "futures-core"
@@ -595,9 +607,9 @@ dependencies = [
 
 [[package]]
 name = "luminance-glfw"
-version = "0.18.2"
+version = "0.18.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84bc41f9709dbfa41eba6808688a4dbd8efcd70bdc5aaf1994a9394fa0f481c1"
+checksum = "f10bf348cfa1a38b573d6e6e6215ecf6534d5e329bcc923610c9cdd10fa1f62a"
 dependencies = [
  "gl",
  "glfw",
@@ -771,6 +783,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "postcard"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c2b180dc0bade59f03fd005cb967d3f1e5f69b13922dad0cd6e047cb8af2363"
+dependencies = [
+ "cobs",
+ "serde",
+]
+
+[[package]]
 name = "ppv-lite86"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -866,6 +888,7 @@ dependencies = [
  "cgmath",
  "clap",
  "crossbeam-deque",
+ "fnv",
  "glfw",
  "gltf",
  "image",
@@ -877,10 +900,12 @@ dependencies = [
  "luminance-glfw",
  "luminance-windowing",
  "num_cpus",
+ "postcard",
  "rand",
  "rayon",
  "rgb2spec",
  "serde",
+ "serde_arrays",
  "serde_json",
  "sha2",
  "static_assertions",
@@ -917,6 +942,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61ea8d54c77f8315140a05f4c7237403bf38b72704d031543aa1d16abbf517d1"
 dependencies = [
  "serde_derive",
+]
+
+[[package]]
+name = "serde_arrays"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38636132857f68ec3d5f3eb121166d2af33cb55174c4d5ff645db6165cbef0fd"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

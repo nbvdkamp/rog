@@ -9,6 +9,7 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 pub enum Error {
     IO(std::io::Error),
     Serde(serde_json::Error),
+    Postcard(postcard::Error),
     TagMismatch { expected: Vec<u8>, actual: Vec<u8> },
     FormatVersionMismatch { current: u32, file: u32 },
     SceneMismatch,
@@ -25,6 +26,7 @@ impl fmt::Display for Error {
             match self {
                 Error::IO(e) => return e.fmt(f),
                 Error::Serde(e) => return e.fmt(f),
+                Error::Postcard(e) => return e.fmt(f),
                 Error::TagMismatch { expected, actual } => format!("wrong binary tag found, expected {expected:?} but got {actual:?}"),
                 Error::FormatVersionMismatch {current, file} =>
                     format!("current format version ({current}) does not match the version of the file ({file})"),

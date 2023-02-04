@@ -33,9 +33,11 @@ arrayvec = "0.7.2"
 rgb2spec = "0.1.1"
 sha2 = "0.10.6"
 byteorder = "1.4.3"
+fnv = "1.0.7"
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_arrays = "0.1.0"
 
 glfw = "0.44.0"
 
@@ -62,3 +64,8 @@ features = [
     "KHR_materials_ior",
     "KHR_texture_transform",
 ]
+
+[dependencies.postcard]
+version = "1.0.2"
+features = ["alloc"]
+default-features = false

@@ -140,7 +140,7 @@ impl Raytracer {
             );
             path.set_extension("vis");
 
-            let cached_stats = SceneStatistics::read_from_file(path.clone(), &scene_version, &result.scene, resolution);
+            let cached_stats = SceneStatistics::read_from_file(path.clone(), &scene_version, resolution);
 
             let stats = if let Ok(stats) = cached_stats {
                 stats
@@ -166,10 +166,6 @@ impl Raytracer {
                 let mut stats = SceneStatistics::new(scene_bounds, scene_version, resolution);
 
                 let start = Instant::now();
-                stats.sample_visibility(&result, accel_structures_to_construct[0]);
-                println!("Computed visibility map in {} seconds", start.elapsed().as_secs_f32());
-
-                let start = Instant::now();
                 stats.sample_materials(&result);
                 println!(
                     "Computed material averages in {} seconds",
@@ -177,6 +173,11 @@ impl Raytracer {
                 );
 
                 stats.compute_light_voxel_distribution(&result.scene);
+
+                let start = Instant::now();
+                stats.sample_visibility(&result, accel_structures_to_construct[0]);
+                println!("Computed visibility map in {} seconds", start.elapsed().as_secs_f32());
+
                 stats.compute_visibility_weighted_material_sums();
 
                 if let Err(e) = std::fs::create_dir_all(dir)
@@ -502,10 +503,9 @@ impl Raytracer {
                         .map_or(false, |v| v.spectral_importance_sampling);
 
                     let value = if importance_sample && let Some(stats) = &self.stats {
-                        let voxel_index = stats.get_voxel_index(hit_pos);
+                        let voxel = &stats.get_grid_position(hit_pos);
 
-                        let distribution = stats.spectral_distributions[voxel_index]
-                            .as_ref()
+                        let distribution = stats.spectral_distributions.get(voxel)
                             .expect("voxel should have distributions");
 
                         let i = sample_item_from_cumulative_probabilities(&distribution.cumulative_probabilities.data)
@@ -624,9 +624,9 @@ impl Raytracer {
                     let (shadowed, rejection_pdf) = if rejection_sample
                             && let Some(stats) = &self.stats
                             && let Some(sample_position) = &light_sample.position {
-                        let offset_hit_pos_voxel_index = stats.get_voxel_index(offset_hit_pos);
-                        let sample_pos_voxel_index = stats.get_voxel_index(*sample_position);
-                        let pdf = stats.get_estimated_visibility(offset_hit_pos_voxel_index, sample_pos_voxel_index);
+                        let offset_hit_pos_voxel = stats.get_grid_position(offset_hit_pos);
+                        let sample_pos_voxel = stats.get_grid_position(*sample_position);
+                        let pdf = stats.get_estimated_visibility(offset_hit_pos_voxel, sample_pos_voxel);
 
                         let shadowed = if thread_rng().gen_bool(pdf as f64) {
                             self.is_ray_obstructed(shadow_ray, light_sample.distance, settings.accel_structure)
@@ -737,12 +737,12 @@ impl Raytracer {
             return (&lights[i], positionless_fraction * pdf);
         }
 
-        let hit_pos_voxel_index = stats.get_voxel_index(hit_pos);
+        let hit_pos_voxel = stats.get_grid_position(hit_pos);
 
         let weights: Vec<f32> = stats
             .voxels_with_lights
             .iter()
-            .map(|v| stats.get_estimated_visibility(hit_pos_voxel_index, v.voxel_index) * v.light_indices.len() as f32)
+            .map(|v| stats.get_estimated_visibility(hit_pos_voxel, v.voxel) * v.light_indices.len() as f32)
             .collect();
 
         // Sample a voxel

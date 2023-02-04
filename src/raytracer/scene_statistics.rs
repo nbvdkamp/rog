@@ -1,4 +1,6 @@
 use std::{
+    cmp::Ordering,
+    collections::HashMap,
     fs::File,
     io::{Read, Write},
     path::Path,
@@ -6,21 +8,21 @@ use std::{
 
 use arrayvec::ArrayVec;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use rayon::iter::ParallelIterator;
+use fnv::FnvHashMap;
+use rayon::{iter::ParallelIterator, prelude::IntoParallelRefIterator};
 use serde::{Deserialize, Serialize};
 use static_assertions::const_assert;
 
-use cgmath::{point2, point3, vec2, vec3, ElementWise, Point2, Point3, Vector3};
+use cgmath::{point2, vec2, vec3, ElementWise, Point2, Point3, Vector3};
 use rand::Rng;
-use rayon::prelude::IntoParallelIterator;
 
 use crate::{
     color::RGBf32,
-    raytracer::{file_formatting::SectionHeader, geometry::triangle_area, sampling::sample_coordinates_on_triangle},
+    raytracer::{geometry::triangle_area, sampling::sample_coordinates_on_triangle},
     scene::Scene,
     scene_version::SceneVersion,
     spectrum::Spectrumf32,
-    util::{align_to, save_image},
+    util::save_image,
 };
 
 use super::{
@@ -37,91 +39,140 @@ use super::{
 const VISIBILITY_SAMPLES: usize = 16;
 const MATERIAL_SAMPLES: usize = 128;
 
-// File format
-const FORMAT_VERSION: u32 = 1;
-const TAG: &str = "SCENE_STATISTICS";
-const JSON_TAG: &str = "JSON";
-const VISIBILITY_TAG: &str = "VIS ";
-const MATERIALS_TAG: &str = "MATS";
-static_assertions::const_assert_eq!(TAG.len() % 4, 0);
-static_assertions::const_assert_eq!(JSON_TAG.len() % 4, 0);
-static_assertions::const_assert_eq!(VISIBILITY_TAG.len() % 4, 0);
+#[derive(Clone, Copy, Serialize, Deserialize)]
+pub struct Visibility {
+    pub passed_tests: u8,
+}
 
-type Visibility = u8;
-const_assert!(Visibility::MAX as usize >= VISIBILITY_SAMPLES);
+impl Visibility {
+    pub fn value(&self) -> f32 {
+        self.passed_tests as f32 / VISIBILITY_SAMPLES as f32
+    }
+}
 
+const_assert!(u8::MAX as usize >= VISIBILITY_SAMPLES);
+
+#[derive(Serialize, Deserialize)]
 pub struct Distribution {
     pub probabilities: Spectrumf32,
     pub cumulative_probabilities: Spectrumf32,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct VoxelLights {
-    pub voxel_index: usize,
+    pub voxel: VoxelId,
     pub light_indices: Vec<usize>,
+}
+
+pub type VoxelId = Point3<u8>;
+
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
+pub struct VoxelPair {
+    first: VoxelId,
+    second: VoxelId,
+}
+
+impl VoxelPair {
+    pub fn new(a: VoxelId, b: VoxelId) -> Self {
+        fn cmp(a: VoxelId, b: VoxelId) -> Ordering {
+            let x = a.x.cmp(&b.x);
+            let Ordering::Equal = x  else {
+                return x;
+            };
+
+            let y = a.y.cmp(&b.y);
+            let Ordering::Equal = y else {
+                return y;
+            };
+
+            return a.z.cmp(&b.z);
+        }
+
+        if cmp(a, b) == Ordering::Less {
+            Self { first: a, second: b }
+        } else {
+            Self { first: b, second: a }
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct SceneStatistics {
-    resolution: usize,
+    resolution: u8,
     voxel_count: usize,
-    table_size: usize,
     scene_bounds: BoundingBox,
     scene_extent: Vector3<f32>,
     voxel_extent: Vector3<f32>,
     scene_version: SceneVersion,
-    #[serde(skip)]
     pub voxels_with_lights: Vec<VoxelLights>,
-    #[serde(skip)]
     pub positionless_lights: Vec<usize>,
-    #[serde(skip)]
-    visibility: Vec<Visibility>,
-    #[serde(skip)]
-    materials: Vec<Option<Spectrumf32>>,
-    #[serde(skip)]
-    pub spectral_distributions: Vec<Option<Distribution>>,
+    visibility: FnvHashMap<VoxelPair, Visibility>,
+    materials: HashMap<VoxelId, Spectrumf32>,
+    pub spectral_distributions: HashMap<VoxelId, Distribution>,
 }
 
 impl SceneStatistics {
-    pub fn new(scene_bounds: BoundingBox, scene_version: SceneVersion, resolution: usize) -> Self {
+    pub fn new(scene_bounds: BoundingBox, scene_version: SceneVersion, resolution: u8) -> Self {
         let scene_extent = scene_bounds.max - scene_bounds.min;
-        let voxel_count = resolution * resolution * resolution;
+        let cube = |x| x * x * x;
 
         SceneStatistics {
             resolution,
-            voxel_count,
-            table_size: (voxel_count * (voxel_count + 1)) / 2,
+            voxel_count: cube(resolution as usize),
             scene_bounds,
             scene_extent,
             voxel_extent: scene_extent / resolution as f32,
             scene_version,
             voxels_with_lights: Vec::new(),
             positionless_lights: Vec::new(),
-            visibility: Vec::new(),
-            materials: Vec::new(),
-            spectral_distributions: Vec::new(),
+            visibility: FnvHashMap::default(),
+            materials: HashMap::new(),
+            spectral_distributions: HashMap::new(),
         }
     }
 
-    pub fn get_estimated_visibility(&self, first_voxel_index: usize, voxel_b_index: usize) -> f32 {
-        let i = self.get_table_index(first_voxel_index, voxel_b_index);
-        let vis = self.visibility[i] as f32 / VISIBILITY_SAMPLES as f32;
+    pub fn get_estimated_visibility(&self, first: VoxelId, second: VoxelId) -> f32 {
+        let vis = self.get_raw_visibility(VoxelPair::new(first, second)).value();
         // Ensure estimate is never 0 to prevent bias
         (0.99 * vis + 0.01).clamp(0.01, 1.0)
     }
 
     pub fn sample_visibility(&mut self, raytracer: &Raytracer, accel: Accel) {
-        self.visibility = (0..self.voxel_count)
-            .into_par_iter()
-            .flat_map(|b| {
-                (b..self.voxel_count)
-                    .map(|a| self.measure_visibility_between_voxels(a, b, raytracer, accel))
+        assert!(!self.materials.is_empty());
+        assert!(!self.voxels_with_lights.is_empty() || !self.positionless_lights.is_empty());
+
+        let mut nonempty_voxels = self.materials.keys().copied().collect::<Vec<_>>();
+
+        for v in &self.voxels_with_lights {
+            if !nonempty_voxels.contains(&v.voxel) {
+                nonempty_voxels.push(v.voxel);
+            }
+        }
+
+        self.visibility = nonempty_voxels
+            .par_iter()
+            .flat_map(|&b| {
+                nonempty_voxels
+                    .iter()
+                    .map(|&a| {
+                        (
+                            VoxelPair::new(a, b),
+                            self.measure_visibility_between_voxels(a, b, raytracer, accel),
+                        )
+                    })
                     .collect::<Vec<_>>()
             })
             .collect();
     }
 
-    fn measure_visibility_between_voxels(&self, a: usize, b: usize, raytracer: &Raytracer, accel: Accel) -> Visibility {
-        (0..VISIBILITY_SAMPLES)
+    fn measure_visibility_between_voxels(
+        &self,
+        a: VoxelId,
+        b: VoxelId,
+        raytracer: &Raytracer,
+        accel: Accel,
+    ) -> Visibility {
+        let passed_tests = (0..VISIBILITY_SAMPLES)
             .map(|_| {
                 let start = self.sample_point_in_voxel(a);
                 let end = self.sample_point_in_voxel(b);
@@ -135,24 +186,26 @@ impl SceneStatistics {
 
                 u8::from(!occluded)
             })
-            .sum()
+            .sum();
+
+        Visibility { passed_tests }
     }
 
     pub fn dump_visibility_image<P>(&self, path: P)
     where
         P: AsRef<Path>,
     {
-        assert_eq!(self.visibility.len(), self.table_size);
-
         let image_size = vec2(self.voxel_count, self.voxel_count);
-        let mut buffer = vec![RGBf32::new(0.0, 0.0, 0.0); image_size.x * image_size.y];
+        let mut buffer = vec![RGBf32::new(1.0, 0.0, 0.0); image_size.x * image_size.y];
 
-        for b in 0..self.voxel_count {
-            for a in b..self.voxel_count {
-                let i = self.get_table_index(a, b);
-                buffer[a + b * self.voxel_count] =
-                    RGBf32::from_grayscale(self.visibility[i] as f32 / VISIBILITY_SAMPLES as f32);
-            }
+        for (pair, vis) in &self.visibility {
+            let resolution = self.resolution as usize;
+            let index = |v: Point3<usize>| v.x + v.y * resolution + v.z * resolution * resolution;
+            let a = index(pair.first.cast().unwrap()) as usize;
+            let b = index(pair.second.cast().unwrap()) as usize;
+            let x = a.max(b);
+            let y = a.min(b);
+            buffer[x + y * self.voxel_count] = RGBf32::from_grayscale(vis.value());
         }
 
         save_image(&buffer, image_size, path);
@@ -162,38 +215,28 @@ impl SceneStatistics {
     where
         P: AsRef<Path>,
     {
-        assert_eq!(self.materials.len(), self.voxel_count);
-
         let mut file = File::create(path)?;
         writeln!(file, "resolution {}", self.resolution)?;
 
-        for x in 0..self.resolution {
-            for y in 0..self.resolution {
-                for z in 0..self.resolution {
-                    let i = x + y * self.resolution + z * self.resolution * self.resolution;
-
-                    if let Some(spectrum) = self.materials[i] {
-                        let RGBf32 { r, g, b } = spectrum.to_srgb();
-                        writeln!(file, "{x} {y} {z} {r} {g} {b}")?;
-                    }
-                }
-            }
+        for (&VoxelId { x, y, z }, spectrum) in &self.materials {
+            let RGBf32 { r, g, b } = spectrum.to_srgb();
+            writeln!(file, "{x} {y} {z} {r} {g} {b}")?;
         }
 
         Ok(())
     }
 
-    fn get_grid_position(&self, point: Point3<f32>) -> Point3<usize> {
+    pub fn get_grid_position(&self, point: Point3<f32>) -> VoxelId {
         let relative_pos = (point - self.scene_bounds.min).div_element_wise(self.scene_extent);
         let v = relative_pos * self.resolution as f32;
-        point3(
-            (v.x as usize).min(self.resolution - 1),
-            (v.y as usize).min(self.resolution - 1),
-            (v.z as usize).min(self.resolution - 1),
-        )
+        VoxelId {
+            x: (v.x as u8).min(self.resolution - 1),
+            y: (v.y as u8).min(self.resolution - 1),
+            z: (v.z as u8).min(self.resolution - 1),
+        }
     }
 
-    fn min_corner_of_voxel(&self, position: Point3<usize>) -> Point3<f32> {
+    fn min_corner_of_voxel(&self, position: VoxelId) -> Point3<f32> {
         self.scene_bounds.min
             + vec3(
                 position.x as f32 * self.voxel_extent.x,
@@ -202,27 +245,25 @@ impl SceneStatistics {
             )
     }
 
-    fn max_corner_of_voxel(&self, position: Point3<usize>) -> Point3<f32> {
-        self.min_corner_of_voxel(position + vec3(1, 1, 1))
+    fn max_corner_of_voxel(&self, position: VoxelId) -> Point3<f32> {
+        let VoxelId { x, y, z } = position;
+        self.min_corner_of_voxel(VoxelId {
+            x: x + 1,
+            y: y + 1,
+            z: z + 1,
+        })
     }
 
-    fn bounds_from_grid_position(&self, position: Point3<usize>) -> BoundingBox {
+    fn bounds_from_grid_position(&self, position: VoxelId) -> BoundingBox {
         BoundingBox {
             min: self.min_corner_of_voxel(position),
             max: self.max_corner_of_voxel(position),
         }
     }
 
-    pub fn get_voxel_index(&self, point: Point3<f32>) -> usize {
-        let v = self.get_grid_position(point);
-        v.x + v.y * self.resolution + v.z * self.resolution * self.resolution
-    }
-
-    fn sample_point_in_voxel(&self, voxel_index: usize) -> Point3<f32> {
-        let x = (voxel_index % self.resolution) as f32;
-        let y = ((voxel_index % (self.resolution * self.resolution)) / self.resolution) as f32;
-        let z = (voxel_index / (self.resolution * self.resolution)) as f32;
-        let voxel_offset = self.voxel_extent.mul_element_wise(vec3(x, y, z));
+    fn sample_point_in_voxel(&self, voxel: VoxelId) -> Point3<f32> {
+        let VoxelId { x, y, z } = voxel;
+        let voxel_offset = self.voxel_extent.mul_element_wise(vec3(x as f32, y as f32, z as f32));
 
         let mut rng = rand::thread_rng();
         let random_offset = vec3(rng.gen::<f32>(), rng.gen::<f32>(), rng.gen::<f32>());
@@ -230,27 +271,17 @@ impl SceneStatistics {
         self.scene_bounds.min + voxel_offset + self.voxel_extent.mul_element_wise(random_offset)
     }
 
-    fn get_table_index(&self, first_index: usize, second_index: usize) -> usize {
-        let a = first_index.max(second_index);
-        let b = first_index.min(second_index);
-        a + b * self.voxel_count - b * (b + 1) / 2
-    }
-
     pub fn compute_light_voxel_distribution(&mut self, scene: &Scene) {
         for (i, light) in scene.lights.iter().enumerate() {
             // TODO: Account for radius
             if let Some(position) = light.position() {
-                let voxel_index = self.get_voxel_index(position);
+                let voxel = self.get_grid_position(position);
 
-                if let Some(v) = self
-                    .voxels_with_lights
-                    .iter_mut()
-                    .find(|v| v.voxel_index == voxel_index)
-                {
+                if let Some(v) = self.voxels_with_lights.iter_mut().find(|v| v.voxel == voxel) {
                     v.light_indices.push(i);
                 } else {
                     self.voxels_with_lights.push(VoxelLights {
-                        voxel_index,
+                        voxel,
                         light_indices: vec![i],
                     });
                 };
@@ -260,69 +291,68 @@ impl SceneStatistics {
         }
     }
 
-    pub fn compute_visibility_weighted_material_sums(&mut self) {
-        assert_eq!(self.visibility.len(), self.table_size);
-        assert_eq!(self.materials.len(), self.voxel_count);
+    fn get_raw_visibility(&self, pair: VoxelPair) -> Visibility {
+        if let Some(vis) = self.visibility.get(&pair) {
+            *vis
+        } else {
+            Visibility { passed_tests: 0 }
+        }
+    }
 
+    pub fn compute_visibility_weighted_material_sums(&mut self) {
         self.spectral_distributions = self
             .materials
             .iter()
-            .enumerate()
-            .map(|(i, material)| {
-                material.as_ref().map(|spectrum| {
-                    let mut neighbour_vis_sum = 0.0;
-                    let mut neigbour_material_sum = Spectrumf32::constant(0.0);
+            .map(|(&voxel, spectrum)| {
+                let mut neighbour_vis_sum = 0.0;
+                let mut neigbour_material_sum = Spectrumf32::constant(0.0);
 
-                    for (j, n) in self.materials.iter().enumerate() {
-                        if i == j {
-                            continue;
-                        }
-
-                        if let Some(n_spec) = n {
-                            let vis = self.visibility[self.get_table_index(i, j)] as f32 / VISIBILITY_SAMPLES as f32;
-                            neighbour_vis_sum += vis;
-                            neigbour_material_sum += vis * *n_spec;
-                        }
+                for (&other_voxel, other_spectrum) in self.materials.iter() {
+                    if voxel == other_voxel {
+                        continue;
                     }
 
-                    let neighbour_materials_mean = neigbour_material_sum / neighbour_vis_sum;
-                    let base_chance = 0.1;
-                    let weights = Spectrumf32::constant(base_chance) + spectrum * neighbour_materials_mean;
-                    let probabilities = weights / weights.data.iter().sum::<f32>();
+                    let pair = VoxelPair::new(voxel, other_voxel);
+                    let vis = self.get_raw_visibility(pair).value();
+                    neighbour_vis_sum += vis;
+                    neigbour_material_sum += vis * *other_spectrum;
+                }
 
-                    let mut cumulative_probabilities = Spectrumf32::constant(0.0);
-                    let mut acc = 0.0;
+                let neighbour_materials_mean = neigbour_material_sum / neighbour_vis_sum;
+                let base_chance = 0.1;
+                let weights = Spectrumf32::constant(base_chance) + spectrum * neighbour_materials_mean;
+                let probabilities = weights / weights.data.iter().sum::<f32>();
 
-                    for i in 0..Spectrumf32::RESOLUTION {
-                        acc += probabilities.data[i];
+                let mut cumulative_probabilities = Spectrumf32::constant(0.0);
+                let mut acc = 0.0;
 
-                        cumulative_probabilities.data[i] = acc;
-                    }
+                for i in 0..Spectrumf32::RESOLUTION {
+                    acc += probabilities.data[i];
 
+                    cumulative_probabilities.data[i] = acc;
+                }
+
+                (
+                    voxel,
                     Distribution {
                         probabilities,
                         cumulative_probabilities,
-                    }
-                })
+                    },
+                )
             })
-            .collect::<Vec<_>>();
+            .collect();
     }
 
     pub fn sample_materials(&mut self, raytracer: &Raytracer) {
         self.materials = self
             .split_triangles_into_voxels(&raytracer.scene)
             .into_iter()
-            .map(|tris| sample_triangle_materials(tris, raytracer))
+            .map(|(voxel, tris)| (voxel, sample_triangle_materials(tris, raytracer)))
             .collect();
     }
 
-    fn split_triangles_into_voxels(&self, scene: &Scene) -> Vec<Vec<ClippedTri>> {
-        let mut tris_per_voxel = Vec::new();
-        tris_per_voxel.reserve(self.voxel_count);
-
-        for _ in 0..self.voxel_count {
-            tris_per_voxel.push(Vec::new());
-        }
+    fn split_triangles_into_voxels(&self, scene: &Scene) -> HashMap<VoxelId, Vec<ClippedTri>> {
+        let mut tris_per_voxel: HashMap<VoxelId, Vec<ClippedTri>> = HashMap::new();
 
         let mut tris_to_sort = scene
             .instances
@@ -378,16 +408,17 @@ impl SceneStatistics {
                 voxel_bounds.within_max_bound_with_epsilon(tri.bounds.max, epsilon);
 
             if min_contained && max_contained {
-                let voxel_index = center_grid_pos.x
-                    + center_grid_pos.y * self.resolution
-                    + center_grid_pos.z * self.resolution * self.resolution;
-                tris_per_voxel[voxel_index].push(tri);
+                if let Some(tris) = tris_per_voxel.get_mut(&center_grid_pos) {
+                    tris.push(tri);
+                } else {
+                    tris_per_voxel.insert(center_grid_pos, vec![tri]);
+                }
             } else {
                 // Split the triangle on the voxel boundary and recursively handle the resulting triangles
                 for axis_index in 0..3 {
                     if !min_contained_axes[axis_index] || !max_contained_axes[axis_index] {
                         // If the intersection is on the max bound, offset by 1
-                        let offset = usize::from(min_contained_axes[axis_index]);
+                        let offset = u8::from(min_contained_axes[axis_index]);
 
                         let clip_position = self.scene_bounds.min[axis_index]
                             + self.voxel_extent[axis_index] * (center_grid_pos[axis_index] + offset) as f32;
@@ -416,28 +447,14 @@ impl SceneStatistics {
     where
         P: AsRef<Path>,
     {
-        use Error::{Serde, IO};
+        use Error::{Postcard, IO};
         let mut file = File::create(path).map_err(IO)?;
 
-        let json = serde_json::to_string(self).map_err(Serde)?;
-        let bytes_to_pad = align_to(json.len(), 4) - json.len();
-        let json = format!("{}{}", json, " ".repeat(bytes_to_pad));
-
-        let visibility_size = self.visibility.len() * std::mem::size_of::<Visibility>();
-        let materials_size = self.materials.len() * std::mem::size_of::<Option<Spectrumf32>>();
-
-        let size = FileHeader::SIZE
-            + JSON_TAG.len()
-            + VISIBILITY_TAG.len()
-            + MATERIALS_TAG.len()
-            + 3 * std::mem::size_of::<SectionHeader>()
-            + json.len()
-            + visibility_size
-            + materials_size;
+        let data = postcard::to_allocvec(self).map_err(Postcard)?;
 
         let header = FileHeader {
             format_version: FORMAT_VERSION,
-            total_size: size as u64,
+            size: data.len() as u64,
             resolution: self.resolution as u32,
             visibility_samples: VISIBILITY_SAMPLES as u32,
             material_samples: MATERIAL_SAMPLES as u32,
@@ -445,80 +462,28 @@ impl SceneStatistics {
         };
 
         header.to_writer(&mut file).map_err(IO)?;
-
-        let json_header = SectionHeader::new(json.len(), JSON_TAG);
-        json_header.to_writer(&mut file).map_err(IO)?;
-
-        file.write_all(json.as_bytes()).map_err(IO)?;
-
-        let visibility_header = SectionHeader::new(visibility_size, VISIBILITY_TAG);
-        visibility_header.to_writer(&mut file).map_err(IO)?;
-        file.write_all(&self.visibility).map_err(IO)?;
-
-        let materials_header = SectionHeader::new(materials_size, MATERIALS_TAG);
-        materials_header.to_writer(&mut file).map_err(IO)?;
-
-        let materials_buffer: &[u8] =
-            unsafe { std::slice::from_raw_parts(self.materials.as_ptr() as *const u8, materials_size) };
-
-        file.write_all(materials_buffer).map_err(IO)?;
-
-        Ok(())
+        file.write_all(&data).map_err(IO)
     }
 
     pub fn read_from_file<P>(
         path: P,
         expected_scene_version: &SceneVersion,
-        scene: &Scene,
-        expected_resolution: usize,
+        expected_resolution: u8,
     ) -> Result<Self, Error>
     where
         P: AsRef<Path>,
     {
-        use Error::{Serde, IO};
+        use Error::{Postcard, IO};
         let mut file = File::open(path).map_err(IO)?;
 
         let header = FileHeader::from_reader(&mut file, expected_resolution)?;
+        let mut buffer = vec![0u8; header.size as usize];
+        file.read_exact(&mut buffer).map_err(IO)?;
+        let stats: SceneStatistics = postcard::from_bytes(&buffer).map_err(Postcard)?;
 
-        let json_header = SectionHeader::from_reader(&mut file, JSON_TAG, None)?;
-
-        //Read json
-        let mut json_buffer = vec![0; json_header.size as usize];
-        file.read_exact(&mut json_buffer).map_err(IO)?;
-
-        let mut stats = serde_json::from_slice::<Self>(&json_buffer).map_err(Serde)?;
-
-        if stats.scene_version.hash != expected_scene_version.hash {
+        if expected_scene_version.hash != stats.scene_version.hash {
             return Err(Error::SceneMismatch);
         }
-
-        let expected_voxel_count = (header.resolution * header.resolution * header.resolution) as usize;
-        let expected_vis_count = (expected_voxel_count * (expected_voxel_count + 1)) / 2;
-
-        let expected_vis_size = expected_vis_count * std::mem::size_of::<Visibility>();
-        let expected_mats_size = expected_voxel_count * std::mem::size_of::<Option<Spectrumf32>>();
-
-        let _visibility_header = SectionHeader::from_reader(&mut file, VISIBILITY_TAG, Some(expected_vis_size))?;
-
-        stats.visibility = vec![0; expected_vis_count];
-
-        file.read_exact(&mut stats.visibility).map_err(IO)?;
-
-        let _materials_header = SectionHeader::from_reader(&mut file, MATERIALS_TAG, Some(expected_mats_size))?;
-
-        stats.materials = vec![None; expected_voxel_count];
-
-        unsafe {
-            file.read_exact(std::slice::from_raw_parts_mut(
-                stats.materials.as_ptr() as *mut u8,
-                expected_mats_size,
-            ))
-            .map_err(IO)?;
-        }
-
-        // These aren't stored because recomputing them is cheap
-        stats.compute_visibility_weighted_material_sums();
-        stats.compute_light_voxel_distribution(scene);
 
         Ok(stats)
     }
@@ -651,10 +616,8 @@ fn clip_triangle(tri: ClippedTri, axis: Axis, position: f32) -> ClipTriResult {
     }
 }
 
-fn sample_triangle_materials(tris: Vec<ClippedTri>, raytracer: &Raytracer) -> Option<Spectrumf32> {
-    if tris.is_empty() {
-        return None;
-    }
+fn sample_triangle_materials(tris: Vec<ClippedTri>, raytracer: &Raytracer) -> Spectrumf32 {
+    assert!(!tris.is_empty());
 
     let surface_areas = tris
         .iter()
@@ -705,12 +668,16 @@ fn sample_triangle_materials(tris: Vec<ClippedTri>, raytracer: &Raytracer) -> Op
         }
     }
 
-    Some(spectrum / samples)
+    spectrum / samples
 }
+
+const FORMAT_VERSION: u32 = 1;
+const TAG: &str = "SCENE_STATISTICS";
+static_assertions::const_assert_eq!(TAG.len() % 4, 0);
 
 struct FileHeader {
     pub format_version: u32,
-    pub total_size: u64,
+    pub size: u64,
     pub resolution: u32,
     pub visibility_samples: u32,
     pub material_samples: u32,
@@ -718,15 +685,13 @@ struct FileHeader {
 }
 
 impl FileHeader {
-    const SIZE: usize = TAG.len() + std::mem::size_of::<Self>();
-
     pub fn to_writer<W>(self, writer: &mut W) -> Result<(), std::io::Error>
     where
         W: Write,
     {
         write!(writer, "{TAG}")?;
         writer.write_u32::<LittleEndian>(self.format_version)?;
-        writer.write_u64::<LittleEndian>(self.total_size)?;
+        writer.write_u64::<LittleEndian>(self.size)?;
         writer.write_u32::<LittleEndian>(self.resolution)?;
         writer.write_u32::<LittleEndian>(self.visibility_samples)?;
         writer.write_u32::<LittleEndian>(self.material_samples)?;
@@ -734,7 +699,7 @@ impl FileHeader {
         Ok(())
     }
 
-    pub fn from_reader<R: Read>(reader: &mut R, expected_resolution: usize) -> Result<Self, Error> {
+    pub fn from_reader<R: Read>(reader: &mut R, expected_resolution: u8) -> Result<Self, Error> {
         use Error::IO;
         let mut tag = [0; TAG.len()];
         reader.read_exact(&mut tag).map_err(IO)?;
@@ -757,9 +722,9 @@ impl FileHeader {
         let total_size = reader.read_u64::<LittleEndian>().map_err(IO)?;
 
         let resolution = reader.read_u32::<LittleEndian>().map_err(IO)?;
-        if resolution as usize != expected_resolution {
+        if resolution != expected_resolution as u32 {
             return Err(Error::ResolutionMismatch {
-                current: expected_resolution,
+                current: expected_resolution as usize,
                 file: resolution as usize,
                 name: "visibility".to_string(),
             });
@@ -794,7 +759,7 @@ impl FileHeader {
 
         Ok(Self {
             format_version,
-            total_size,
+            size: total_size,
             resolution,
             visibility_samples,
             material_samples,
