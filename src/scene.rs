@@ -85,183 +85,8 @@ impl Scene {
 
         let start = Instant::now();
 
-        match gltf::import(path) {
-            Ok((document, buffers, images)) => {
-                let lib_time = start.elapsed().as_secs_f32();
-                let start = Instant::now();
-
-                let textures = images
-                    .into_iter()
-                    .map(|i| {
-                        use gltf::image::Format as ImageFormat;
-
-                        let (format, pixels) = match i.format {
-                            ImageFormat::R8G8B8 => (Format::Rgb, i.pixels),
-                            ImageFormat::R8G8B8A8 => (Format::Rgba, i.pixels),
-                            ImageFormat::R16G16B16 => (Format::Rgb, drop_every_other_byte(i.pixels)),
-                            ImageFormat::R16G16B16A16 => (Format::Rgba, drop_every_other_byte(i.pixels)),
-                            ImageFormat::R8 => (Format::Rgb, repeat_every_byte_thrice(i.pixels)),
-                            ImageFormat::R8G8 => (Format::Rgb, insert_zero_byte_every_two(i.pixels)),
-                            other => panic!("Texture format {other:?} is not implemented"),
-                        };
-
-                        Texture::new(pixels, i.width as usize, i.height as usize, format)
-                    })
-                    .collect::<Vec<Texture>>();
-
-                let environment = {
-                    let color = RGBf32::from_hex("#404040").srgb_to_linear();
-                    let coeffs = rgb2spec.fetch(color.into());
-
-                    Environment {
-                        color,
-                        spectrum: Spectrumf32::from_coefficients(coeffs),
-                    }
-                };
-
-                let mut scene = Scene {
-                    meshes: Vec::new(),
-                    instances: Vec::new(),
-                    lights: Vec::new(),
-                    textures: Textures {
-                        base_color_coefficients: Vec::new(),
-                        metallic_roughness: Vec::new(),
-                        transimission: Vec::new(),
-                        emissive: Vec::new(),
-                        normal: Vec::new(),
-                    },
-                    camera: PerspectiveCamera::default(),
-                    environment,
-                };
-
-                let mut accessor_indices_map = HashMap::new();
-
-                let gltf_scene = document.default_scene().unwrap_or(document.scenes().next().unwrap());
-                scene.parse_nodes(
-                    gltf_scene.nodes().collect(),
-                    &buffers,
-                    Matrix4::identity(),
-                    &mut accessor_indices_map,
-                    &rgb2spec,
-                );
-
-                let sorted_textures = &mut scene.textures;
-
-                let parse_time = start.elapsed().as_secs_f32();
-                let start = Instant::now();
-
-                let mut texture_types = Vec::new();
-                texture_types.resize_with(textures.len(), HashMap::new);
-
-                #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
-                enum TextureType {
-                    BaseColor,
-                    MetallicRoughness,
-                    Transmission,
-                    Emissive,
-                    Normal,
-                }
-
-                for instance in &mut scene.instances {
-                    macro_rules! set_type {
-                        ( $tex:expr, $tex_type:expr ) => {
-                            match $tex {
-                                Some(tex) => match texture_types[tex.index].entry($tex_type) {
-                                    Entry::Vacant(e) => {
-                                        e.insert(vec![&mut $tex]);
-                                    }
-                                    Entry::Occupied(mut l) => {
-                                        l.get_mut().push(&mut $tex);
-                                    }
-                                },
-                                None => (),
-                            }
-                        };
-                    }
-
-                    set_type!(instance.material.base_color_texture, TextureType::BaseColor);
-                    set_type!(
-                        instance.material.metallic_roughness_texture,
-                        TextureType::MetallicRoughness
-                    );
-                    set_type!(instance.material.transmission_texture, TextureType::Transmission);
-                    set_type!(instance.material.emissive_texture, TextureType::Emissive);
-                    set_type!(instance.material.normal_texture, TextureType::Normal);
-                }
-
-                let mut preview_textures = Vec::new();
-
-                textures
-                    .into_iter()
-                    .zip(texture_types.into_iter())
-                    .for_each(|(texture, types_map)| {
-                        let mut types = types_map.into_iter();
-
-                        let num_types = types.len();
-
-                        if num_types == 0 {
-                            return;
-                        }
-
-                        let mut insert = |texture: Texture, texture_type, opts: Vec<&mut Option<TextureRef>>| {
-                            match texture_type {
-                                TextureType::BaseColor => {
-                                    sorted_textures
-                                        .base_color_coefficients
-                                        .push(texture.create_spectrum_coefficients(&rgb2spec));
-
-                                    preview_textures.push(texture);
-                                }
-                                TextureType::MetallicRoughness => sorted_textures.metallic_roughness.push(texture),
-                                TextureType::Transmission => sorted_textures.transimission.push(texture),
-                                TextureType::Emissive => sorted_textures.emissive.push(texture),
-                                TextureType::Normal => sorted_textures.normal.push(texture),
-                            };
-
-                            let last_index = match texture_type {
-                                // The index for the result scene texture is the same as for the coefficient texture because they are inserted together
-                                TextureType::BaseColor => &preview_textures,
-                                TextureType::MetallicRoughness => &sorted_textures.metallic_roughness,
-                                TextureType::Transmission => &sorted_textures.transimission,
-                                TextureType::Emissive => &sorted_textures.emissive,
-                                TextureType::Normal => &sorted_textures.normal,
-                            }
-                            .len()
-                                - 1;
-
-                            for tex_opt in opts {
-                                match tex_opt {
-                                    Some(tex) => tex.index = last_index,
-                                    None => unreachable!(),
-                                }
-                            }
-                        };
-
-                        for _ in 0..num_types - 1 {
-                            let (texture_type, opts) = types.next().unwrap();
-                            insert(texture.clone(), texture_type, opts);
-                        }
-
-                        let (texture_type, opts) = types.last().unwrap();
-                        insert(texture, texture_type, opts);
-                    });
-
-                // To draw meshes with alpha textures last
-                scene.instances.iter_mut().partition_in_place(|instance| {
-                    instance
-                        .material
-                        .base_color_texture
-                        .map_or(true, |tex| preview_textures[tex.index].format == Format::Rgb)
-                });
-
-                let textures_time = start.elapsed().as_secs_f32();
-                let total_time = lib_time + parse_time + textures_time;
-                println!(
-                    "Loaded scene in {total_time} seconds ({lib_time} in library, {parse_time} converting scene, {textures_time} converting textures)"
-                );
-
-                Ok((scene, preview_textures))
-            }
+        let (document, buffers, images) = match gltf::import(path) {
+            Ok(result) => result,
             Err(e) => {
                 let hint = if let gltf::Error::Io(_) = e {
                     // TODO: Remove this when the gltf crate updates to include the fix
@@ -270,9 +95,184 @@ impl Scene {
                     ""
                 };
 
-                Err(format!("An error occured while opening the glTF file:\n\t{e}{hint}"))
+                return Err(format!("An error occured while opening the glTF file:\n\t{e}{hint}"));
             }
+        };
+
+        let lib_time = start.elapsed().as_secs_f32();
+        let start = Instant::now();
+
+        let textures = images
+            .into_iter()
+            .map(|i| {
+                use gltf::image::Format as ImageFormat;
+
+                let (format, pixels) = match i.format {
+                    ImageFormat::R8G8B8 => (Format::Rgb, i.pixels),
+                    ImageFormat::R8G8B8A8 => (Format::Rgba, i.pixels),
+                    ImageFormat::R16G16B16 => (Format::Rgb, drop_every_other_byte(i.pixels)),
+                    ImageFormat::R16G16B16A16 => (Format::Rgba, drop_every_other_byte(i.pixels)),
+                    ImageFormat::R8 => (Format::Rgb, repeat_every_byte_thrice(i.pixels)),
+                    ImageFormat::R8G8 => (Format::Rgb, insert_zero_byte_every_two(i.pixels)),
+                    other => panic!("Texture format {other:?} is not implemented"),
+                };
+
+                Texture::new(pixels, i.width as usize, i.height as usize, format)
+            })
+            .collect::<Vec<Texture>>();
+
+        let environment = {
+            let color = RGBf32::from_hex("#404040").srgb_to_linear();
+            let coeffs = rgb2spec.fetch(color.into());
+
+            Environment {
+                color,
+                spectrum: Spectrumf32::from_coefficients(coeffs),
+            }
+        };
+
+        let mut scene = Scene {
+            meshes: Vec::new(),
+            instances: Vec::new(),
+            lights: Vec::new(),
+            textures: Textures {
+                base_color_coefficients: Vec::new(),
+                metallic_roughness: Vec::new(),
+                transimission: Vec::new(),
+                emissive: Vec::new(),
+                normal: Vec::new(),
+            },
+            camera: PerspectiveCamera::default(),
+            environment,
+        };
+
+        let mut accessor_indices_map = HashMap::new();
+
+        let gltf_scene = document.default_scene().unwrap_or(document.scenes().next().unwrap());
+        scene.parse_nodes(
+            gltf_scene.nodes().collect(),
+            &buffers,
+            Matrix4::identity(),
+            &mut accessor_indices_map,
+            &rgb2spec,
+        );
+
+        let sorted_textures = &mut scene.textures;
+
+        let parse_time = start.elapsed().as_secs_f32();
+        let start = Instant::now();
+
+        let mut texture_types = Vec::new();
+        texture_types.resize_with(textures.len(), HashMap::new);
+
+        #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+        enum TextureType {
+            BaseColor,
+            MetallicRoughness,
+            Transmission,
+            Emissive,
+            Normal,
         }
+
+        for instance in &mut scene.instances {
+            macro_rules! set_type {
+                ( $tex:expr, $tex_type:expr ) => {
+                    match $tex {
+                        Some(tex) => match texture_types[tex.index].entry($tex_type) {
+                            Entry::Vacant(e) => {
+                                e.insert(vec![&mut $tex]);
+                            }
+                            Entry::Occupied(mut l) => {
+                                l.get_mut().push(&mut $tex);
+                            }
+                        },
+                        None => (),
+                    }
+                };
+            }
+
+            set_type!(instance.material.base_color_texture, TextureType::BaseColor);
+            set_type!(
+                instance.material.metallic_roughness_texture,
+                TextureType::MetallicRoughness
+            );
+            set_type!(instance.material.transmission_texture, TextureType::Transmission);
+            set_type!(instance.material.emissive_texture, TextureType::Emissive);
+            set_type!(instance.material.normal_texture, TextureType::Normal);
+        }
+
+        let mut preview_textures = Vec::new();
+
+        textures
+            .into_iter()
+            .zip(texture_types.into_iter())
+            .for_each(|(texture, types_map)| {
+                let mut types = types_map.into_iter();
+
+                let num_types = types.len();
+
+                if num_types == 0 {
+                    return;
+                }
+
+                let mut insert = |texture: Texture, texture_type, opts: Vec<&mut Option<TextureRef>>| {
+                    match texture_type {
+                        TextureType::BaseColor => {
+                            sorted_textures
+                                .base_color_coefficients
+                                .push(texture.create_spectrum_coefficients(&rgb2spec));
+
+                            preview_textures.push(texture);
+                        }
+                        TextureType::MetallicRoughness => sorted_textures.metallic_roughness.push(texture),
+                        TextureType::Transmission => sorted_textures.transimission.push(texture),
+                        TextureType::Emissive => sorted_textures.emissive.push(texture),
+                        TextureType::Normal => sorted_textures.normal.push(texture),
+                    };
+
+                    let last_index = match texture_type {
+                        // The index for the result scene texture is the same as for the coefficient texture because they are inserted together
+                        TextureType::BaseColor => &preview_textures,
+                        TextureType::MetallicRoughness => &sorted_textures.metallic_roughness,
+                        TextureType::Transmission => &sorted_textures.transimission,
+                        TextureType::Emissive => &sorted_textures.emissive,
+                        TextureType::Normal => &sorted_textures.normal,
+                    }
+                    .len()
+                        - 1;
+
+                    for tex_opt in opts {
+                        match tex_opt {
+                            Some(tex) => tex.index = last_index,
+                            None => unreachable!(),
+                        }
+                    }
+                };
+
+                for _ in 0..num_types - 1 {
+                    let (texture_type, opts) = types.next().unwrap();
+                    insert(texture.clone(), texture_type, opts);
+                }
+
+                let (texture_type, opts) = types.last().unwrap();
+                insert(texture, texture_type, opts);
+            });
+
+        // To draw meshes with alpha textures last
+        scene.instances.iter_mut().partition_in_place(|instance| {
+            instance
+                .material
+                .base_color_texture
+                .map_or(true, |tex| preview_textures[tex.index].format == Format::Rgb)
+        });
+
+        let textures_time = start.elapsed().as_secs_f32();
+        let total_time = lib_time + parse_time + textures_time;
+        println!(
+                    "Loaded scene in {total_time} seconds ({lib_time} in library, {parse_time} converting scene, {textures_time} converting textures)"
+                );
+
+        Ok((scene, preview_textures))
     }
 
     fn parse_nodes(
