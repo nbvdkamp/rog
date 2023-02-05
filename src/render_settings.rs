@@ -11,6 +11,7 @@ pub struct VisibilitySettings {
     pub spectral_importance_sampling: bool,
     pub nee_rejection: bool,
     pub nee_direct: bool,
+    pub resolution: u8,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -24,10 +25,6 @@ pub struct ImageSettings {
 }
 
 impl ImageSettings {
-    pub fn use_visibility(&self) -> bool {
-        self.visibility.is_some()
-    }
-
     pub fn dump_visibility_data(&self) -> bool {
         self.visibility.map_or(false, |v| v.dump_debug_data)
     }

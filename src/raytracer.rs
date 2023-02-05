@@ -124,15 +124,14 @@ impl Raytracer {
             start.elapsed().as_secs_f32()
         );
 
-        if result.image_settings.use_visibility() {
+        if let Some(visibility_settings) = &result.image_settings.visibility {
             let scene_version = result
                 .image_settings
                 .scene_version
                 .clone()
-                .expect("scene_version should be present when using visibility data")
-                .clone();
+                .expect("scene_version should be present when using visibility data");
 
-            let resolution = 16;
+            let resolution = visibility_settings.resolution;
             let mut dir = PathBuf::from("output/cache/");
             dir.push(resolution.to_string());
             let mut path = dir.clone();

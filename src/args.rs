@@ -70,6 +70,8 @@ impl Args {
                 arg!(--"spectral-importance-sampling" "Use visibility for spectral importance sampling"),
                 arg!(--"nee++-rejection" "Use visibility data for rejection sampling shadow rays"),
                 arg!(--"nee++-direct" "Use visibility data for importance sampling lights"),
+                arg!(--"visibility-resolution" <NUM> "Resolution of the voxel grid used in visibility calculation [default 16]")
+                    .value_parser(value_parser!(u8)),
                 arg!(--"visibility-debug" "Write computed visibility related data to disk for debugging"),
             ])
             .get_matches();
@@ -121,6 +123,7 @@ impl Args {
         let nee_rejection = matches.get_flag("nee++-rejection");
         let nee_direct = matches.get_flag("nee++-direct");
         let visibility_debug = matches.get_flag("visibility-debug");
+        let visibility_resolution = matches.get_one::<u8>("visibility-resolution").copied();
 
         let visibility = if spectral_importance_sampling || nee_rejection || nee_direct || visibility_debug {
             Some(VisibilitySettings {
@@ -128,8 +131,13 @@ impl Args {
                 spectral_importance_sampling,
                 nee_rejection,
                 nee_direct,
-             })
+                resolution: visibility_resolution.unwrap_or(16),
+            })
         } else {
+            if visibility_resolution.is_some() {
+                eprintln!("Specifying visibility resolution whe visibility isn't used is not valid");
+                std::process::exit(-1);
+            }
             None
         };
 
