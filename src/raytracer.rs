@@ -1,5 +1,6 @@
 use rand::{thread_rng, Rng};
 use std::{
+    cell::RefCell,
     io::Write,
     path::{Path, PathBuf},
     sync::{
@@ -52,6 +53,10 @@ use sampling::{
 use scene_statistics::SceneStatistics;
 use shadingframe::ShadingFrame;
 use working_image::WorkingImage;
+
+thread_local! {
+    static VOXEL_WEIGHTS: RefCell<Vec<f32>> = RefCell::new(Vec::new());
+}
 
 pub struct Textures {
     pub base_color_coefficients: Vec<CoefficientTexture>,
@@ -739,18 +744,22 @@ impl Raytracer {
 
         let hit_pos_voxel = stats.get_grid_position(hit_pos);
 
-        let weights: Vec<f32> = stats
-            .voxels_with_lights
-            .iter()
-            .map(|v| stats.get_estimated_visibility(hit_pos_voxel, v.voxel) * v.light_indices.len() as f32)
-            .collect();
+        // Sample a voxel, using a thread local Vec for the weights to prevent allocating it every time
+        let (voxel_index, voxel_pdf) = VOXEL_WEIGHTS.with(|cell| {
+            let mut weights = cell.borrow_mut();
+            weights.clear();
 
-        // Sample a voxel
-        let (voxel_index, voxel_pdf) = sample_item_from_weights(&weights).expect("weights should be non-empty.");
-        let v = &stats.voxels_with_lights[voxel_index];
+            stats.voxels_with_lights.iter().for_each(|v| {
+                weights.push(stats.get_estimated_visibility(hit_pos_voxel, v.voxel) * v.light_indices.len() as f32);
+            });
+
+            sample_item_from_weights(&weights).expect("weights should be non-empty.")
+        });
+
+        let voxel = &stats.voxels_with_lights[voxel_index];
 
         // Sample a light from the voxel
-        let (&light_index, light_pdf) = sample_value_from_slice_uniform(&v.light_indices);
+        let (&light_index, light_pdf) = sample_value_from_slice_uniform(&voxel.light_indices);
 
         (
             &lights[light_index],
