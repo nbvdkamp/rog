@@ -29,11 +29,7 @@ impl ImageSettings {
     }
 
     pub fn dump_visibility_data(&self) -> bool {
-        if let Some(VisibilitySettings { dump_debug_data, .. }) = self.visibility {
-            dump_debug_data
-        } else {
-            false
-        }
+        self.visibility.map_or(false, |v| v.dump_debug_data)
     }
 
     pub fn max_depth_reached(&self, depth: usize) -> bool {
