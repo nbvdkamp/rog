@@ -32,7 +32,7 @@ impl Args {
                     .value_parser(value_parser!(PathBuf))
                     .required(false),
                 arg!(-H --headless "Run without a window"),
-                arg!(--samples --spp <NUM> "Number of samples per pixel")
+                arg!(-s --samples <NUM> "Number of samples per pixel")
                     .value_parser(value_parser!(usize))
                     .required(false),
                 arg!(--time <NUM> "Number of seconds to render for")
