@@ -93,6 +93,20 @@ impl Spectrumf32 {
             / RESOLUTION as f32
     }
 
+    pub fn relative_mean_square_error(&self, reference: &Self) -> f32 {
+        let grayscale = reference.data.iter().sum::<f32>() / RESOLUTION as f32;
+
+        self.data
+            .iter()
+            .zip(reference.data.iter())
+            .map(|(s, r)| {
+                let e = s - r;
+                e * e / (grayscale * grayscale + 1.0e-5)
+            })
+            .sum::<f32>()
+            / RESOLUTION as f32
+    }
+
     pub fn mean(&self) -> f32 {
         self.data.iter().sum::<f32>() / RESOLUTION as f32
     }

@@ -192,6 +192,15 @@ impl WorkingImage {
             .sum::<f32>()
             / self.pixels.len() as f32
     }
+
+    pub fn relative_mean_square_error(&self, reference: &Self) -> f32 {
+        self.pixels
+            .iter()
+            .zip(reference.pixels.iter())
+            .map(|(s, r)| s.result_spectrum().relative_mean_square_error(&r.result_spectrum()))
+            .sum::<f32>()
+            / self.pixels.len() as f32
+    }
 }
 
 struct FileHeader {
