@@ -195,22 +195,28 @@ impl WorkingImage {
         }
     }
 
-    pub fn mean_square_error(&self, other: &Self) -> f32 {
-        self.pixels
-            .iter()
-            .zip(other.pixels.iter())
-            .map(|(s, o)| s.result_spectrum().mean_square_error(&o.result_spectrum()))
-            .sum::<f32>()
-            / self.pixels.len() as f32
+    fn error<F>(&self, other: &Self, f: F) -> SingleChannelImage
+    where
+        F: Fn(&Spectrumf32, &Spectrumf32) -> f32,
+    {
+        SingleChannelImage {
+            data: self
+                .pixels
+                .iter()
+                .zip(other.pixels.iter())
+                .map(|(s, o)| f(&s.result_spectrum(), &o.result_spectrum()))
+                .collect(),
+            width: self.settings.size.x,
+            height: self.settings.size.y,
+        }
     }
 
-    pub fn relative_mean_square_error(&self, reference: &Self) -> f32 {
-        self.pixels
-            .iter()
-            .zip(reference.pixels.iter())
-            .map(|(s, r)| s.result_spectrum().relative_mean_square_error(&r.result_spectrum()))
-            .sum::<f32>()
-            / self.pixels.len() as f32
+    pub fn mean_square_error(&self, other: &Self) -> SingleChannelImage {
+        self.error(other, Spectrumf32::mean_square_error)
+    }
+
+    pub fn relative_mean_square_error(&self, reference: &Self) -> SingleChannelImage {
+        self.error(reference, Spectrumf32::relative_mean_square_error)
     }
 }
 

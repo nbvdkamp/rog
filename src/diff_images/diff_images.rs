@@ -1,9 +1,5 @@
 mod structural_similarity;
-use renderer::raytracer::{
-    file_formatting::Error as FileFormatError,
-    single_channel_image::SingleChannelImage,
-    working_image::WorkingImage,
-};
+use renderer::raytracer::{file_formatting::Error as FileFormatError, working_image::WorkingImage};
 use structural_similarity::structural_similarity;
 
 #[derive(Debug)]
@@ -28,8 +24,8 @@ fn main() -> Result<(), Error> {
         return Err(Error::DimensionMismatch);
     }
 
-    let mean_square_error = image.mean_square_error(&reference);
-    let relative_mean_square_error = image.relative_mean_square_error(&reference);
+    let mean_square_error = image.mean_square_error(&reference).mean();
+    let relative_mean_square_error = image.relative_mean_square_error(&reference).mean();
     let mean_structural_similarity = structural_similarity(image.to_grayscale(), reference.to_grayscale()).mean();
 
     println!("MSE {mean_square_error}");
