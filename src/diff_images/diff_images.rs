@@ -1,11 +1,10 @@
-#[macro_use]
-extern crate impl_ops;
 mod structural_similarity;
-use renderer::raytracer::{file_formatting::Error as FileFormatError, working_image::WorkingImage};
-
-use structural_similarity::SingleChannelImage;
-
-use crate::structural_similarity::structural_similarity;
+use renderer::raytracer::{
+    file_formatting::Error as FileFormatError,
+    single_channel_image::SingleChannelImage,
+    working_image::WorkingImage,
+};
+use structural_similarity::structural_similarity;
 
 #[derive(Debug)]
 enum Error {

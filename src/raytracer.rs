@@ -25,6 +25,7 @@ mod ray;
 mod sampling;
 mod scene_statistics;
 mod shadingframe;
+pub mod single_channel_image;
 pub(crate) mod triangle;
 pub mod working_image;
 
