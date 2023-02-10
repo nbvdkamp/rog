@@ -11,7 +11,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     color::RGBf32,
-    raytracer::file_formatting::{Error, SectionHeader},
+    raytracer::{
+        file_formatting::{Error, SectionHeader},
+        single_channel_image::SingleChannelImage,
+    },
     render_settings::ImageSettings,
     scene_version::SceneVersion,
     spectrum::Spectrumf32,
@@ -182,6 +185,14 @@ impl WorkingImage {
         }
 
         Ok(image)
+    }
+
+    pub fn to_grayscale(&self) -> SingleChannelImage {
+        SingleChannelImage {
+            data: self.pixels.iter().map(|p| p.result_spectrum().mean()).collect(),
+            width: self.settings.size.x,
+            height: self.settings.size.y,
+        }
     }
 
     pub fn mean_square_error(&self, other: &Self) -> f32 {

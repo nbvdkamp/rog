@@ -28,24 +28,9 @@ fn main() -> Result<(), Error> {
         return Err(Error::DimensionMismatch);
     }
 
-    let width = image.settings.size.x;
-    let height = image.settings.size.y;
-
-    let image_x = SingleChannelImage {
-        data: image.pixels.iter().map(|p| p.result_spectrum().mean()).collect(),
-        width,
-        height,
-    };
-
-    let image_y = SingleChannelImage {
-        data: reference.pixels.iter().map(|p| p.result_spectrum().mean()).collect(),
-        width,
-        height,
-    };
-
     let mean_square_error = image.mean_square_error(&reference);
     let relative_mean_square_error = image.relative_mean_square_error(&reference);
-    let mean_structural_similarity = structural_similarity(image_x, image_y).mean();
+    let mean_structural_similarity = structural_similarity(image.to_grayscale(), reference.to_grayscale()).mean();
 
     println!("MSE {mean_square_error}");
     println!("relMSE {relative_mean_square_error}");
