@@ -675,9 +675,8 @@ impl Raytracer {
                 }
             }
 
-            let (local_bounce_dir, bsdf, pdf) = match sample {
-                Sample::Sample { incident, weight, pdf } => (incident, weight, pdf),
-                Sample::Null => break,
+            let Sample::Sample { incident: local_bounce_dir, weight: bsdf, pdf } = sample else {
+                break
             };
 
             let bounce_dir = frame.to_global(local_bounce_dir);
