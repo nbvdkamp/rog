@@ -63,7 +63,7 @@ pub struct Textures {
     pub base_color_coefficients: Vec<CoefficientTexture>,
     pub metallic_roughness: Vec<Texture>,
     pub transimission: Vec<Texture>,
-    pub emissive: Vec<Texture>,
+    pub emissive: Vec<CoefficientTexture>,
     pub normal: Vec<Texture>,
 }
 
@@ -545,6 +545,10 @@ impl Raytracer {
 
                 // Don't count alpha hits for max bounces
                 continue;
+            }
+
+            if let Some(emission) = &mat_sample.emissive {
+                result += path_weight * emission;
             }
 
             if self.image_settings.enable_dispersion && mat_sample.transmission > 0.0 {

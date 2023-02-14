@@ -16,8 +16,9 @@ pub struct Material {
     pub cauchy_coefficients: CauchyCoefficients,
     pub transmission_factor: f32,
     pub transmission_texture: Option<TextureRef>,
-    pub emissive: RGBf32,
+    pub emissive: EmissiveFactor,
     pub emissive_texture: Option<TextureRef>,
+    pub emissive_strength: Option<f32>,
     pub normal_texture: Option<TextureRef>,
 }
 
@@ -30,10 +31,17 @@ pub struct MaterialSample {
     pub ior: f32,
     pub cauchy_coefficients: CauchyCoefficients,
     pub transmission: f32,
-    pub emissive: RGBf32,
+    pub emissive: Option<Spectrumf32>,
     pub specular: f32,
     pub shading_normal: Option<Vector3<f32>>,
     pub sub_surface_scattering: f32,
+}
+
+#[derive(Clone)]
+pub enum EmissiveFactor {
+    Zero,
+    Value(Box<Spectrumf32>),
+    One,
 }
 
 pub const MAX_TEX_COORD_SETS: usize = 4;
@@ -77,6 +85,37 @@ impl Material {
             None => base_color_spectrum,
         };
 
+        let emissive = match &self.emissive {
+            EmissiveFactor::Zero => None,
+            EmissiveFactor::Value(spectrum) => match self.emissive_texture {
+                None => match self.emissive_strength {
+                    None => Some(spectrum.as_ref().clone()),
+                    Some(strength) => Some(spectrum.as_ref() * strength),
+                },
+                Some(tex) => {
+                    let uv = texture_coordinates[tex.texture_coordinate_set];
+                    let Point2 { x: u, y: v } = tex.transform_texture_coordinates(uv);
+                    let coeffs = textures.emissive[tex.index].sample(u, v).rgb().into();
+                    Some(match self.emissive_strength {
+                        Some(strength) => spectrum.as_ref() * Spectrumf32::from_coefficients(coeffs) * strength,
+                        None => spectrum.as_ref() * Spectrumf32::from_coefficients(coeffs),
+                    })
+                }
+            },
+            EmissiveFactor::One => match self.emissive_texture {
+                None => Some(Spectrumf32::constant(self.emissive_strength.unwrap_or(1.0))),
+                Some(tex) => {
+                    let uv = texture_coordinates[tex.texture_coordinate_set];
+                    let Point2 { x: u, y: v } = tex.transform_texture_coordinates(uv);
+                    let coeffs = textures.emissive[tex.index].sample(u, v).rgb().into();
+                    Some(match self.emissive_strength {
+                        Some(strength) => Spectrumf32::from_coefficients(coeffs) * strength,
+                        None => Spectrumf32::from_coefficients(coeffs),
+                    })
+                }
+            },
+        };
+
         MaterialSample {
             alpha,
             base_color_spectrum,
@@ -86,7 +125,7 @@ impl Material {
             ior: self.ior,
             cauchy_coefficients: self.cauchy_coefficients,
             transmission: self.transmission_factor * sample(self.transmission_texture, &textures.transimission).r,
-            emissive: self.emissive * sample(self.emissive_texture, &textures.emissive).rgb().srgb_to_linear(),
+            emissive,
             specular: 0.5,
             shading_normal,
             sub_surface_scattering: 0.0,

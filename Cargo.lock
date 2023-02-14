@@ -386,7 +386,7 @@ dependencies = [
 [[package]]
 name = "gltf"
 version = "1.0.0"
-source = "git+https://github.com/nbvdkamp/gltf#e3c6d391d7eb7ef88ef8bdd2e6446325b90277ce"
+source = "git+https://github.com/nbvdkamp/gltf#1a883c42eae8f4ab13ca2695f7cbe78badc9760a"
 dependencies = [
  "base64",
  "byteorder",
@@ -399,7 +399,7 @@ dependencies = [
 [[package]]
 name = "gltf-derive"
 version = "1.0.0"
-source = "git+https://github.com/nbvdkamp/gltf#e3c6d391d7eb7ef88ef8bdd2e6446325b90277ce"
+source = "git+https://github.com/nbvdkamp/gltf#1a883c42eae8f4ab13ca2695f7cbe78badc9760a"
 dependencies = [
  "inflections",
  "proc-macro2",
@@ -410,7 +410,7 @@ dependencies = [
 [[package]]
 name = "gltf-json"
 version = "1.0.0"
-source = "git+https://github.com/nbvdkamp/gltf#e3c6d391d7eb7ef88ef8bdd2e6446325b90277ce"
+source = "git+https://github.com/nbvdkamp/gltf#1a883c42eae8f4ab13ca2695f7cbe78badc9760a"
 dependencies = [
  "gltf-derive",
  "serde",

@@ -28,7 +28,7 @@ use crate::{
     color::RGBf32,
     environment::Environment,
     light::{Kind, Light},
-    material::{CauchyCoefficients, Material, TextureRef, TextureTransform},
+    material::{CauchyCoefficients, EmissiveFactor, Material, TextureRef, TextureTransform},
     mesh::{Instance, Mesh, Vertices},
     raytracer::{aabb::BoundingBox, triangle::Triangle, Textures},
     spectrum::Spectrumf32,
@@ -226,20 +226,20 @@ impl Scene {
                         }
                         TextureType::MetallicRoughness => sorted_textures.metallic_roughness.push(texture),
                         TextureType::Transmission => sorted_textures.transimission.push(texture),
-                        TextureType::Emissive => sorted_textures.emissive.push(texture),
+                        TextureType::Emissive => sorted_textures
+                            .emissive
+                            .push(texture.create_spectrum_coefficients(&rgb2spec)),
                         TextureType::Normal => sorted_textures.normal.push(texture),
                     };
 
                     let last_index = match texture_type {
                         // The index for the result scene texture is the same as for the coefficient texture because they are inserted together
-                        TextureType::BaseColor => &preview_textures,
-                        TextureType::MetallicRoughness => &sorted_textures.metallic_roughness,
-                        TextureType::Transmission => &sorted_textures.transimission,
-                        TextureType::Emissive => &sorted_textures.emissive,
-                        TextureType::Normal => &sorted_textures.normal,
-                    }
-                    .len()
-                        - 1;
+                        TextureType::BaseColor => &sorted_textures.base_color_coefficients.len() - 1,
+                        TextureType::MetallicRoughness => &sorted_textures.metallic_roughness.len() - 1,
+                        TextureType::Transmission => &sorted_textures.transimission.len() - 1,
+                        TextureType::Emissive => &sorted_textures.emissive.len() - 1,
+                        TextureType::Normal => &sorted_textures.normal.len() - 1,
+                    };
 
                     for tex_opt in opts {
                         match tex_opt {
@@ -401,6 +401,17 @@ impl Scene {
                 CauchyCoefficients::approx_from_ior(ior)
             };
 
+            let emissive = {
+                let e: RGBf32 = mat.emissive_factor().into();
+                if e == RGBf32::from_grayscale(0.0) {
+                    EmissiveFactor::Zero
+                } else if e == RGBf32::from_grayscale(1.0) {
+                    EmissiveFactor::One
+                } else {
+                    EmissiveFactor::Value(Box::new(Spectrumf32::from_coefficients(rgb2spec.fetch(e.into()))))
+                }
+            };
+
             let material = Material {
                 base_color,
                 base_color_coefficients,
@@ -412,8 +423,9 @@ impl Scene {
                 cauchy_coefficients,
                 transmission_factor,
                 transmission_texture,
-                emissive: mat.emissive_factor().into(),
+                emissive,
                 emissive_texture: mat.emissive_texture().map(get_tex_ref),
+                emissive_strength: mat.emissive_strength(),
                 normal_texture: mat.normal_texture().map(|t| TextureRef {
                     index: t.texture().source().index(),
                     texture_coordinate_set: t.tex_coord() as usize,
