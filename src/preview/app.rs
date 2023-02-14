@@ -341,6 +341,10 @@ impl App {
                 }
             }
 
+            if context.window.is_iconified() {
+                continue;
+            }
+
             let render = context
                 .new_pipeline_gate()
                 .pipeline(
