@@ -73,6 +73,8 @@ impl Light {
                     position: Some(sample_pos),
                     distance,
                     intensity: pdf * self.intensity / (4.0 * std::f32::consts::PI),
+                    // FIXME: I don't see how the pdf containing the falloff
+                    // makes any sense but it works so I'm leaving it for now
                     pdf: pdf * factor,
                     use_mis,
                 }

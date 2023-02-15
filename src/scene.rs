@@ -733,10 +733,13 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>,
 
     // TODO: rgb2spec is intended for reflectances, not emission,
     // so using it like this is not very physically accurate
-    // though it seems to be a reasonable placeholder / fallback method.
+    // though it seems to be a reasonable placeholder / fallback method
+    // because the light colors values are always in [0, 1].
     let spectrum = Spectrumf32::from_coefficients(rgb2spec.fetch(color.into()));
 
     Light {
+        // FIXME: Adjust intensity from candela to watts by dividing by 683
+        // See: https://github.com/KhronosGroup/glTF/pull/2214
         intensity: light.intensity(),
         range: light.range().unwrap_or(f32::INFINITY),
         spectrum,
