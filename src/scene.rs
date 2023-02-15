@@ -548,8 +548,10 @@ impl Scene {
 
                     for i in 0..vert_tangents.len() {
                         let t = vert_tangents[i];
+                        let n = normals[i];
+                        let orthogonalized = t - n * t.dot(n);
 
-                        if t == Vector3::zero() {
+                        if t == Vector3::zero() || orthogonalized == Vector3::zero() {
                             if !notified_of_error {
                                 println!(
                                     "Encountered an error in computing tangents for primitive {} of mesh {}.",
@@ -559,8 +561,11 @@ impl Scene {
                                 notified_of_error = true;
                             }
                         } else {
-                            let n = normals[i];
-                            vert_tangents[i] = (t - n * t.dot(n)).normalize();
+                            let t = orthogonalized.normalize();
+                            assert!(t.x.is_finite());
+                            assert!(t.y.is_finite());
+                            assert!(t.z.is_finite());
+                            vert_tangents[i] = t;
                         }
                     }
 
