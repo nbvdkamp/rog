@@ -20,6 +20,10 @@ path = "src/acceleration_benchmark.rs"
 name = "diff_images"
 path = "src/diff_images/diff_images.rs"
 
+[[bin]]
+name = "read_image"
+path = "src/read_image.rs"
+
 [dependencies]
 impl_ops = "0.1.1"
 image = "0.24"
