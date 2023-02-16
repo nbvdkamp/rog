@@ -153,6 +153,16 @@ impl ArrSpectrumf32 {
 
         Self { data }
     }
+
+    pub fn lerp_with_scalar(&self, s: f32, t: f32) -> Self {
+        let mut data = [0.0; RESOLUTION];
+
+        for i in 0..RESOLUTION {
+            data[i] = (1.0 - t) * self.data[i] + t * s;
+        }
+
+        Self { data }
+    }
 }
 
 impl_op_ex!(+ |a: &ArrSpectrumf32, b: &ArrSpectrumf32| -> ArrSpectrumf32 {

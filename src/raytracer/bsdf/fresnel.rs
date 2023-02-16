@@ -1,5 +1,4 @@
 use crate::{material::MaterialSample, spectrum::Spectrumf32};
-use lerp::Lerp;
 
 pub fn schlick_weight(cos_theta: f32) -> f32 {
     let one_min_cos_theta = (1.0 - cos_theta).clamp(0.0, 1.0);
@@ -61,11 +60,13 @@ pub fn dielectric(cos_theta_i: f32, medium_ior: f32, material_ior: f32) -> Refle
 
 pub fn disney(mat: &MaterialSample, m_dot_v: f32) -> Spectrumf32 {
     // Simplifying by assuming the specular tint factor = 0
-    let f0 = Spectrumf32::constant(f_zero(1.0, mat.ior)).lerp(mat.base_color_spectrum, mat.metallic);
+    let f0 = mat
+        .base_color_spectrum
+        .lerp_with_scalar(f_zero(1.0, mat.ior), 1.0 - mat.metallic);
     let dielectric = dielectric(m_dot_v.abs(), 1.0, mat.ior);
     // TODO: Schlick is inaccurate for TIR
     let metallic = f0 + (Spectrumf32::constant(1.0) - f0) * schlick_weight(m_dot_v);
-    Spectrumf32::constant(dielectric.reflectance()).lerp(metallic, mat.metallic)
+    metallic.lerp_with_scalar(dielectric.reflectance(), 1.0 - mat.metallic)
 }
 
 #[cfg(test)]
