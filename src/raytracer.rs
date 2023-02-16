@@ -687,7 +687,7 @@ impl Raytracer {
                 bump_shading_factor(normal, shading_normal, bounce_dir)
             });
 
-            path_weight *= bsdf * shadow_terminator / pdf;
+            path_weight *= bsdf * (shadow_terminator / pdf);
 
             let continue_prob = path_weight.max_value().max(1.0);
 

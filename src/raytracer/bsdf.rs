@@ -140,7 +140,7 @@ pub fn eval_specular_reflection(
     let fresnel = fresnel::disney(mat, m_dot_i);
 
     // Leaving o_dot_n out of the divisor to multiply the result by cos theta
-    let brdf = fresnel * shadow_masking * normal_distrib / (4.0 * n_dot_o);
+    let brdf = fresnel * (shadow_masking * normal_distrib / (4.0 * n_dot_o));
     // VNDF eq. 17 (Heitz 2018)
     let pdf = visible_normal_distrib / (4.0 * m_dot_i);
 
