@@ -1,11 +1,14 @@
 use std::{fs::File, path::PathBuf};
 
+use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use sha2::{digest::DynDigest, Digest, Sha256};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Derivative)]
+#[derivative(Debug)]
 pub struct SceneVersion {
     pub filepath: PathBuf,
+    #[derivative(Debug = "ignore")]
     pub hash: [u8; 32],
 }
 

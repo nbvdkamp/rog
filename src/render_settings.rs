@@ -1,11 +1,13 @@
 use std::{path::PathBuf, time::Duration};
 
 use cgmath::Vector2;
+use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 
 use crate::{raytracer::acceleration::Accel, scene_version::SceneVersion};
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy, Derivative)]
+#[derivative(Debug)]
 pub struct VisibilitySettings {
     pub dump_debug_data: bool,
     pub spectral_importance_sampling: bool,
@@ -14,7 +16,8 @@ pub struct VisibilitySettings {
     pub resolution: u8,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Derivative)]
+#[derivative(Debug)]
 pub struct ImageSettings {
     pub size: Vector2<usize>,
     pub enable_dispersion: bool,

@@ -1,3 +1,4 @@
+use derivative::Derivative;
 use rayon::prelude::*;
 
 use std::{
@@ -29,10 +30,12 @@ static_assertions::const_assert_eq!(TAG.len() % 4, 0);
 static_assertions::const_assert_eq!(JSON_TAG.len() % 4, 0);
 static_assertions::const_assert_eq!(PIXELS_TAG.len() % 4, 0);
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Derivative)]
+#[derivative(Debug)]
 pub struct WorkingImage {
     pub settings: ImageSettings,
     #[serde(skip)]
+    #[derivative(Debug = "ignore")]
     pub pixels: Vec<Pixel>,
     pub paths_sampled_per_pixel: u32,
     pub seconds_spent_rendering: f32,
