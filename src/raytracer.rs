@@ -633,9 +633,9 @@ impl Raytracer {
                     let (shadowed, rejection_pdf) = if rejection_sample
                             && let Some(stats) = &self.stats
                             && let Some(sample_position) = &light_sample.position {
-                        let offset_hit_pos_voxel = stats.get_grid_position(offset_hit_pos);
+                        let hit_pos_voxel = stats.get_grid_position(hit_pos);
                         let sample_pos_voxel = stats.get_grid_position(*sample_position);
-                        let pdf = stats.get_estimated_visibility(offset_hit_pos_voxel, sample_pos_voxel);
+                        let pdf = stats.get_estimated_visibility(hit_pos_voxel, sample_pos_voxel);
 
                         let shadowed = if thread_rng().gen_bool(pdf as f64) {
                             self.is_ray_obstructed(shadow_ray, light_sample.distance, settings.accel_structure)

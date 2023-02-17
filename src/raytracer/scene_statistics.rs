@@ -1,6 +1,6 @@
 use std::{
     cmp::Ordering,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::File,
     io::{Read, Write},
     path::Path,
@@ -13,7 +13,8 @@ use rayon::{iter::ParallelIterator, prelude::IntoParallelRefIterator};
 use serde::{Deserialize, Serialize};
 use static_assertions::const_assert;
 
-use cgmath::{point2, vec2, vec3, ElementWise, Point2, Point3, Vector3};
+use cgmath::{point2, vec2, vec3, ElementWise, Point2, Point3, Vector3, Zero};
+use itertools::Itertools;
 use rand::Rng;
 
 use crate::{
@@ -141,11 +142,29 @@ impl SceneStatistics {
         assert!(!self.materials.is_empty());
         assert!(!self.voxels_with_lights.is_empty() || !self.positionless_lights.is_empty());
 
-        let mut nonempty_voxels = self.materials.keys().copied().collect::<Vec<_>>();
+        let mut nonempty_voxels = self.materials.keys().copied().collect::<HashSet<_>>();
 
         for v in &self.voxels_with_lights {
-            if !nonempty_voxels.contains(&v.voxel) {
-                nonempty_voxels.push(v.voxel);
+            let mut stack = vec![v.voxel];
+
+            while let Some(voxel) = stack.pop() {
+                let bounds = BoundingBox {
+                    min: self.min_corner_of_voxel(voxel),
+                    max: self.max_corner_of_voxel(voxel),
+                };
+
+                let mut intersects_light = false;
+                for &light_index in &v.light_indices {
+                    let light = &raytracer.scene.lights[light_index];
+                    if bounds.intersects_sphere(light.position().unwrap(), light.radius().unwrap()) {
+                        intersects_light = true;
+                        break;
+                    }
+                }
+
+                if intersects_light && nonempty_voxels.insert(voxel) {
+                    stack.append(&mut self.voxel_neighbours(voxel));
+                }
             }
         }
 
@@ -252,6 +271,33 @@ impl SceneStatistics {
             y: y + 1,
             z: z + 1,
         })
+    }
+
+    fn voxel_neighbours(&self, voxel: VoxelId) -> Vec<VoxelId> {
+        let grid_range = 0..self.resolution as i32;
+
+        (-1..=1)
+            .cartesian_product((-1..=1).cartesian_product(-1..=1))
+            .flat_map(|(ox, (oy, oz))| {
+                let offset = Vector3::new(ox, oy, oz);
+
+                if offset == Vector3::zero() {
+                    return None;
+                }
+
+                let Point3 { x, y, z } = voxel.cast::<i32>().unwrap() + offset;
+
+                if !grid_range.contains(&x) || !grid_range.contains(&y) || !grid_range.contains(&z) {
+                    None
+                } else {
+                    Some(VoxelId {
+                        x: x as u8,
+                        y: y as u8,
+                        z: z as u8,
+                    })
+                }
+            })
+            .collect()
     }
 
     fn bounds_from_grid_position(&self, position: VoxelId) -> BoundingBox {

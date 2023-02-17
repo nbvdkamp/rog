@@ -156,6 +156,14 @@ impl Light {
             Kind::Directional { .. } => None,
         }
     }
+
+    pub fn radius(&self) -> Option<f32> {
+        match self.kind {
+            Kind::Point { radius, .. } => Some(radius),
+            Kind::Spot { .. } => Some(0.0),
+            Kind::Directional { .. } => None,
+        }
+    }
 }
 
 fn orthogonal_disk_sample(direction: Vector3<f32>) -> Vector3<f32> {
