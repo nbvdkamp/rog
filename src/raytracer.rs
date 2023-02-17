@@ -654,11 +654,13 @@ impl Raytracer {
                         let local_incident = frame.to_local(light_sample.direction);
                         let eval = bsdf::eval(&mat_sample, local_outgoing, local_incident);
 
-                        if let Evaluation::Evaluation { weight: bsdf, pdf } = eval {
-                            let light_pdf = light_pick_pdf * light_sample.pdf * rejection_pdf;
-
+                        if let Evaluation::Evaluation {
+                            weight: bsdf,
+                            pdf: bsdf_pdf,
+                        } = eval
+                        {
                             let mis_weight = if light_sample.use_mis {
-                                mis2(light_pdf, pdf)
+                                mis2(light_sample.pdf, bsdf_pdf)
                             } else {
                                 1.0
                             };
@@ -667,9 +669,11 @@ impl Raytracer {
                                 bump_shading_factor(normal, shading_normal, light_sample.direction)
                             });
 
-                            result += path_weight * mis_weight * light_sample.intensity * shadow_terminator * bsdf
-                                / light_pdf
-                                * light.spectrum;
+                            result += path_weight
+                                * light.spectrum
+                                * bsdf
+                                * (mis_weight * light_sample.intensity * shadow_terminator
+                                    / (light_pick_pdf * light_sample.pdf * rejection_pdf));
                         }
                     }
                 }
