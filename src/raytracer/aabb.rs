@@ -96,6 +96,22 @@ impl BoundingBox {
         }
     }
 
+    // From Graphics Gems: "Arvo, James, A Simple Method for Box-Sphere Intersection Testing"
+    pub fn intersects_sphere(&self, center: Point3<f32>, radius: f32) -> bool {
+        let mut dmin = 0.0;
+        let square = |x| x * x;
+
+        for i in 0..3 {
+            if center[i] < self.min[i] {
+                dmin += square(center[i] - self.min[i]);
+            } else if center[i] > self.max[i] {
+                dmin += square(center[i] - self.max[i]);
+            }
+        }
+
+        dmin <= square(radius)
+    }
+
     pub fn within_min_bound_with_epsilon(&self, point: Point3<f32>, epsilon: f32) -> (bool, Vector3<bool>) {
         let min = (point - self.min).map(|x| x > -epsilon);
         (min.x && min.y && min.z, min)
@@ -194,6 +210,41 @@ mod tests {
         let inv_dir = 1.0 / ray.direction;
 
         assert_eq!(bb.intersects_ray(ray.origin, inv_dir), Intersects::No);
+    }
+
+    #[test]
+    fn intersect_sphere() {
+        let mut bb = BoundingBox::new();
+        bb.add(Point3::new(-1.0, -1.0, -1.0));
+        bb.add(Point3::new(1.0, 1.0, 1.0));
+        assert_eq!(bb.intersects_sphere(Point3::origin(), 0.0), true);
+    }
+
+    #[test]
+    fn miss_sphere() {
+        let mut bb = BoundingBox::new();
+        bb.add(Point3::new(0.5, 0.5, 0.5));
+        bb.add(Point3::new(1.0, 1.0, 1.0));
+        assert_eq!(bb.intersects_sphere(Point3::origin(), 0.0), false);
+    }
+
+    #[test]
+    fn just_intersect_sphere() {
+        let mut bb = BoundingBox::new();
+        bb.add(Point3::new(0.5, 0.5, 0.5));
+        bb.add(Point3::new(1.0, 1.0, 1.0));
+        assert_eq!(bb.intersects_sphere(Point3::origin(), 3.0_f32.sqrt() / 2.0), true);
+    }
+
+    #[test]
+    fn just_miss_sphere() {
+        let mut bb = BoundingBox::new();
+        bb.add(Point3::new(0.5, 0.5, 0.5));
+        bb.add(Point3::new(1.0, 1.0, 1.0));
+        assert_eq!(
+            bb.intersects_sphere(Point3::origin(), 3.0_f32.sqrt() / 2.0 - 0.000001),
+            false
+        );
     }
 }
 
