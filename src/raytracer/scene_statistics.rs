@@ -173,11 +173,13 @@ impl SceneStatistics {
             .flat_map(|&b| {
                 nonempty_voxels
                     .iter()
-                    .map(|&a| {
-                        (
-                            VoxelPair::new(a, b),
-                            self.measure_visibility_between_voxels(a, b, raytracer, accel),
-                        )
+                    .flat_map(|&a| {
+                        let vis = self.measure_visibility_between_voxels(a, b, raytracer, accel);
+                        if vis.passed_tests > 0 {
+                            Some((VoxelPair::new(a, b), vis))
+                        } else {
+                            None
+                        }
                     })
                     .collect::<Vec<_>>()
             })
