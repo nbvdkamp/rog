@@ -348,7 +348,7 @@ impl SceneStatistics {
     pub fn compute_visibility_weighted_material_sums(&mut self) {
         self.spectral_distributions = self
             .materials
-            .iter()
+            .par_iter()
             .map(|(&voxel, spectrum)| {
                 let mut neighbour_vis_sum = 0.0;
                 let mut neigbour_material_sum = Spectrumf32::constant(0.0);

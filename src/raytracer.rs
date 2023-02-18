@@ -183,7 +183,12 @@ impl Raytracer {
                 stats.sample_visibility(&result, accel_structures_to_construct[0]);
                 println!("Computed visibility map in {} seconds", start.elapsed().as_secs_f32());
 
+                let start = Instant::now();
                 stats.compute_visibility_weighted_material_sums();
+                println!(
+                    "Computed weighted material sums in {} seconds",
+                    start.elapsed().as_secs_f32()
+                );
 
                 if let Err(e) = std::fs::create_dir_all(dir)
                     .map_err(Error::IO)
