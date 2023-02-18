@@ -250,6 +250,61 @@ impl DivAssign<f32> for ArrSpectrumf32 {
 }
 
 #[cfg(test)]
+mod bench {
+    extern crate test;
+    use test::Bencher;
+
+    use super::*;
+
+    #[bench]
+    fn add(b: &mut Bencher) {
+        b.iter(|| {
+            let p = ArrSpectrumf32::new([1.0; RESOLUTION]);
+            let q = ArrSpectrumf32::new([10.0; RESOLUTION]);
+            p + q
+        });
+    }
+
+    #[bench]
+    fn add_ref(b: &mut Bencher) {
+        b.iter(|| {
+            let p = ArrSpectrumf32::new([1.0; RESOLUTION]);
+            let q = ArrSpectrumf32::new([10.0; RESOLUTION]);
+            &p + &q
+        });
+    }
+
+    #[bench]
+    fn mul_then_div(b: &mut Bencher) {
+        let p = ArrSpectrumf32::new([1.0; RESOLUTION]);
+        b.iter(|| p * 10.0 / 3.0);
+    }
+
+    #[bench]
+    fn div_then_mul(b: &mut Bencher) {
+        let p = ArrSpectrumf32::new([1.0; RESOLUTION]);
+        b.iter(|| p * (10.0 / 3.0));
+    }
+
+    #[bench]
+    fn lerp_with_constant_spectrum(b: &mut Bencher) {
+        let p = ArrSpectrumf32::new([1.0; RESOLUTION]);
+        let q = ArrSpectrumf32::constant(7.0);
+        use lerp::Lerp;
+
+        b.iter(|| p.lerp(q, 0.5));
+    }
+
+    #[bench]
+    fn lerp_with_scalar(b: &mut Bencher) {
+        let p = ArrSpectrumf32::new([1.0; RESOLUTION]);
+        let q = 7.0;
+
+        b.iter(|| p.lerp_with_scalar(q, 0.5));
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
