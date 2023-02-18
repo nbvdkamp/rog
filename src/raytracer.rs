@@ -145,9 +145,11 @@ impl Raytracer {
             );
             path.set_extension("vis");
 
+            let start = Instant::now();
             let cached_stats = SceneStatistics::read_from_file(path.clone(), &scene_version, resolution);
 
             let stats = if let Ok(stats) = cached_stats {
+                println!("Loaded scene statistics in {} seconds", start.elapsed().as_secs_f32());
                 stats
             } else {
                 // If we can't find matching cached visibilty data, compute it
