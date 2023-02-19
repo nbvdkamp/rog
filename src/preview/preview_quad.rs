@@ -204,7 +204,17 @@ impl PreviewQuad {
                 }
             }
             WindowEvent::Scroll(_, y_offset) => {
+                let screen_space_mouse_position =
+                    2.0 * vec2(
+                        self.mouse_position.x / self.window_size.x as f32,
+                        (self.window_size.y as f32 - self.mouse_position.y) / self.window_size.y as f32,
+                    ) - vec2(1.0, 1.0);
+                let quad_space_mouse_position = (screen_space_mouse_position - self.translation) / self.scale;
+
+                let old_scale = self.scale;
                 self.scale *= if y_offset > 0.0 { 1.2 } else { 0.8 };
+
+                self.translation -= quad_space_mouse_position * (self.scale - old_scale);
             }
             WindowEvent::Key(Key::Space, _, Action::Press, _) => {
                 self.scale = 1.0;
