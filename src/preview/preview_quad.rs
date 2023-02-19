@@ -212,7 +212,7 @@ impl PreviewQuad {
                 let quad_space_mouse_position = (screen_space_mouse_position - self.translation) / self.scale;
 
                 let old_scale = self.scale;
-                self.scale *= if y_offset > 0.0 { 1.2 } else { 0.8 };
+                self.scale *= 1.0 + 0.2 * y_offset as f32;
 
                 self.translation -= quad_space_mouse_position * (self.scale - old_scale);
             }

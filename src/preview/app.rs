@@ -517,7 +517,7 @@ impl Movement {
                 self.mouse_position = pos;
             }
             WindowEvent::Scroll(_, y_offset) => {
-                self.speed *= if y_offset > 0.0 { 1.2 } else { 0.8 };
+                self.speed *= 1.0 + 0.2 * y_offset as f32;
             }
             _ => (),
         }
