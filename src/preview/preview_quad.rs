@@ -53,7 +53,7 @@ pub struct PreviewQuad {
     texture: Option<Texture<Dim2, NormRGB8UI>>,
     zoomed_texture: Option<Texture<Dim2, NormRGB8UI>>,
     texture_aspect_ratio: f32,
-    pub window_aspect_ratio: f32,
+    window_size: Vector2<usize>,
     scale: f32,
     translation: Vector2<f32>,
     mouse_delta: Vector2<f32>,
@@ -64,7 +64,7 @@ pub struct PreviewQuad {
 }
 
 impl PreviewQuad {
-    pub fn create<C>(context: &mut C, window_aspect_ratio: f32) -> Result<Self, TessError>
+    pub fn create<C>(context: &mut C, window_size: Vector2<usize>) -> Result<Self, TessError>
     where
         C: GraphicsContext<Backend = Backend>,
     {
@@ -116,7 +116,7 @@ impl PreviewQuad {
             texture: None,
             zoomed_texture: None,
             texture_aspect_ratio: 1.0,
-            window_aspect_ratio,
+            window_size,
             scale: 1.0,
             translation: vec2(0.0, 0.0),
             mouse_position: vec2(0.0, 0.0),
@@ -124,6 +124,10 @@ impl PreviewQuad {
             dragging: false,
             dummy_texture,
         })
+    }
+
+    pub fn set_window_size(&mut self, size: Vector2<usize>) {
+        self.window_size = size;
     }
 
     pub fn reset(&mut self) {
@@ -159,7 +163,8 @@ impl PreviewQuad {
     }
 
     fn render_scale(&self) -> [f32; 2] {
-        let s = vec2(self.texture_aspect_ratio / self.window_aspect_ratio, 1.0);
+        let window_aspect_ratio = self.window_size.x as f32 / self.window_size.y as f32;
+        let s = vec2(self.texture_aspect_ratio / window_aspect_ratio, 1.0);
         let s = self.scale * s / if s.x > 1.0 { s.x } else { 1.0 };
         [s.x, s.y]
     }
@@ -191,7 +196,11 @@ impl PreviewQuad {
                 self.mouse_position = pos;
 
                 if self.dragging {
-                    self.translation += 0.002 * vec2(self.mouse_delta.x, -self.mouse_delta.y);
+                    self.translation += 2.0
+                        * vec2(
+                            self.mouse_delta.x / self.window_size.x as f32,
+                            -self.mouse_delta.y / self.window_size.y as f32,
+                        );
                 }
             }
             WindowEvent::Scroll(_, y_offset) => {

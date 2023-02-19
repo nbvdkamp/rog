@@ -175,8 +175,11 @@ impl App {
         // Unlock it again
         drop(raytracer);
 
-        let (width, height) = context.window.get_size();
-        let mut progress_display_quad = PreviewQuad::create(&mut context, width as f32 / height as f32).unwrap();
+        let mut progress_display_quad = {
+            let (width, height) = context.window.get_size();
+            let window_size = vec2(width, height);
+            PreviewQuad::create(&mut context, window_size.cast().unwrap()).unwrap()
+        };
 
         let sampler = Sampler {
             wrap_r: Wrap::Repeat,
@@ -258,7 +261,7 @@ impl App {
                     WindowEvent::Size(width, height) => {
                         let ratio = width as f32 / height as f32;
                         self.camera.aspect_ratio = ratio;
-                        progress_display_quad.window_aspect_ratio = ratio;
+                        progress_display_quad.set_window_size(vec2(width, height).cast().unwrap());
                         back_buffer = context.back_buffer().expect("Unable to create new back buffer");
                     }
                     WindowEvent::Key(Key::Enter, _, Action::Press, _) => {
