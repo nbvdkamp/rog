@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use cgmath::{point2, point3, EuclideanSpace, InnerSpace, Point2, Point3, Vector3};
 use rand::{thread_rng, Rng};
 
@@ -10,7 +12,7 @@ pub fn cos_weighted_sample_hemisphere() -> Vector3<f32> {
     let radius = rand.sqrt();
     let z = (1.0 - rand).sqrt();
 
-    let theta: f32 = 2.0 * std::f32::consts::PI * rng.gen::<f32>();
+    let theta: f32 = 2.0 * PI * rng.gen::<f32>();
 
     Vector3::new(radius * theta.cos(), radius * theta.sin(), z)
 }
@@ -20,7 +22,7 @@ pub fn sample_orthogonal_disk(direction: Vector3<f32>) -> Vector3<f32> {
     let bitangent = direction.cross(tangent);
 
     let mut rng = rand::thread_rng();
-    let theta: f32 = 2.0 * std::f32::consts::PI * rng.gen::<f32>();
+    let theta: f32 = 2.0 * PI * rng.gen::<f32>();
     let r = rng.gen::<f32>().sqrt();
 
     r * (theta.cos() * tangent + theta.sin() * bitangent)
@@ -28,7 +30,7 @@ pub fn sample_orthogonal_disk(direction: Vector3<f32>) -> Vector3<f32> {
 
 pub fn sample_uniform_in_unit_sphere(center: Point3<f32>, radius: f32) -> Point3<f32> {
     let mut rng = rand::thread_rng();
-    let theta: f32 = 2.0 * std::f32::consts::PI * rng.gen::<f32>();
+    let theta: f32 = 2.0 * PI * rng.gen::<f32>();
     let z = 2.0 * rng.gen::<f32>() - 1.0;
     let p = (1.0 - z * z).sqrt();
     let r = radius * rng.gen::<f32>().cbrt();
