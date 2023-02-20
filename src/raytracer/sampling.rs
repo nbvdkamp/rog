@@ -1,4 +1,4 @@
-use cgmath::{point2, InnerSpace, Point2, Vector3};
+use cgmath::{point2, point3, EuclideanSpace, InnerSpace, Point2, Point3, Vector3};
 use rand::{thread_rng, Rng};
 
 use super::geometry::orthogonal_vector;
@@ -24,6 +24,16 @@ pub fn sample_orthogonal_disk(direction: Vector3<f32>) -> Vector3<f32> {
     let r = rng.gen::<f32>().sqrt();
 
     r * (theta.cos() * tangent + theta.sin() * bitangent)
+}
+
+pub fn sample_uniform_in_unit_sphere(center: Point3<f32>, radius: f32) -> Point3<f32> {
+    let mut rng = rand::thread_rng();
+    let theta: f32 = 2.0 * std::f32::consts::PI * rng.gen::<f32>();
+    let z = 2.0 * rng.gen::<f32>() - 1.0;
+    let p = (1.0 - z * z).sqrt();
+    let r = radius * rng.gen::<f32>().cbrt();
+
+    r * point3(p * theta.cos(), p * theta.sin(), z) + center.to_vec()
 }
 
 pub fn tent_sample() -> f32 {

@@ -1,4 +1,4 @@
-use super::axis::Axis;
+use super::{axis::Axis, sampling::sample_uniform_in_unit_sphere};
 use crate::util::*;
 use cgmath::{ElementWise, EuclideanSpace, Point3, Vector3};
 use serde::{Deserialize, Serialize};
@@ -110,6 +110,22 @@ impl BoundingBox {
         }
 
         dmin <= square(radius)
+    }
+
+    /// Returns volume relative to the total volume of the sphere,
+    /// so 1.0 if the whole sphere is contained in the BoundingBox.
+    pub fn estimate_volume_of_intersection_with_sphere(&self, center: Point3<f32>, radius: f32, samples: usize) -> f32 {
+        let mut hits = 0;
+
+        for _ in 0..samples {
+            let sample = sample_uniform_in_unit_sphere(center, radius);
+
+            if self.contains(sample) {
+                hits += 1;
+            }
+        }
+
+        hits as f32 / samples as f32
     }
 
     pub fn within_min_bound_with_epsilon(&self, point: Point3<f32>, epsilon: f32) -> (bool, Vector3<bool>) {
@@ -244,6 +260,30 @@ mod tests {
         assert_eq!(
             bb.intersects_sphere(Point3::origin(), 3.0_f32.sqrt() / 2.0 - 0.000001),
             false
+        );
+    }
+
+    #[test]
+    fn sphere_volume_contained() {
+        let mut bb = BoundingBox::new();
+        bb.add(Point3::new(-1.0, -1.0, -1.0));
+        bb.add(Point3::new(1.0, 1.0, 1.0));
+
+        assert_eq!(
+            bb.estimate_volume_of_intersection_with_sphere(Point3::origin(), 1.0, 100),
+            1.0
+        );
+    }
+
+    #[test]
+    fn sphere_volume_no_intersection() {
+        let mut bb = BoundingBox::new();
+        bb.add(Point3::new(2.0, 2.0, 2.0));
+        bb.add(Point3::new(4.0, 4.0, 4.0));
+
+        assert_eq!(
+            bb.estimate_volume_of_intersection_with_sphere(Point3::origin(), 1.0, 100),
+            0.0
         );
     }
 }
