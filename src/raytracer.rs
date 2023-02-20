@@ -598,6 +598,7 @@ impl Raytracer {
 
             if backfacing {
                 normal = -normal;
+                geom_normal = -geom_normal;
 
                 // Swap IORs
                 (mat_sample.ior, mat_sample.medium_ior) = (mat_sample.medium_ior, mat_sample.ior);
