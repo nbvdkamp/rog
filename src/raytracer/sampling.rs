@@ -1,5 +1,7 @@
-use cgmath::{point2, Point2, Vector3};
+use cgmath::{point2, InnerSpace, Point2, Vector3};
 use rand::{thread_rng, Rng};
+
+use super::geometry::orthogonal_vector;
 
 pub fn cos_weighted_sample_hemisphere() -> Vector3<f32> {
     let mut rng = thread_rng();
@@ -11,6 +13,17 @@ pub fn cos_weighted_sample_hemisphere() -> Vector3<f32> {
     let theta: f32 = 2.0 * std::f32::consts::PI * rng.gen::<f32>();
 
     Vector3::new(radius * theta.cos(), radius * theta.sin(), z)
+}
+
+pub fn sample_orthogonal_disk(direction: Vector3<f32>) -> Vector3<f32> {
+    let tangent = orthogonal_vector(direction).normalize();
+    let bitangent = direction.cross(tangent);
+
+    let mut rng = rand::thread_rng();
+    let theta: f32 = 2.0 * std::f32::consts::PI * rng.gen::<f32>();
+    let r = rng.gen::<f32>().sqrt();
+
+    r * (theta.cos() * tangent + theta.sin() * bitangent)
 }
 
 pub fn tent_sample() -> f32 {

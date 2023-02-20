@@ -1,9 +1,8 @@
 use crate::{
-    raytracer::{aabb::BoundingBox, geometry::orthogonal_vector},
+    raytracer::{aabb::BoundingBox, sampling::sample_orthogonal_disk},
     spectrum::Spectrumf32,
 };
 use cgmath::{vec3, InnerSpace, Point3, Vector3};
-use rand::Rng;
 
 #[derive(Clone)]
 pub struct Light {
@@ -51,7 +50,7 @@ impl Light {
                 let dir_to_center = (position - hit_position).normalize();
 
                 if area > 0.0 {
-                    sample_pos = position + radius * orthogonal_disk_sample(dir_to_center);
+                    sample_pos = position + radius * sample_orthogonal_disk(dir_to_center);
                     use_mis = true;
                     pdf = 1.0 / area;
                 } else {
@@ -89,7 +88,7 @@ impl Light {
                 let use_mis;
 
                 if area > 0.0 {
-                    sample_dir = (direction + radius * orthogonal_disk_sample(direction)).normalize();
+                    sample_dir = (direction + radius * sample_orthogonal_disk(direction)).normalize();
                     use_mis = true;
 
                     let cos_theta = sample_dir.dot(direction);
@@ -164,15 +163,4 @@ impl Light {
             Kind::Directional { .. } => None,
         }
     }
-}
-
-fn orthogonal_disk_sample(direction: Vector3<f32>) -> Vector3<f32> {
-    let tangent = orthogonal_vector(direction).normalize();
-    let bitangent = direction.cross(tangent);
-
-    let mut rng = rand::thread_rng();
-    let theta: f32 = 2.0 * std::f32::consts::PI * rng.gen::<f32>();
-    let r = rng.gen::<f32>().sqrt();
-
-    r * (theta.cos() * tangent + theta.sin() * bitangent)
 }

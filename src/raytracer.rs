@@ -22,7 +22,7 @@ mod bsdf;
 pub mod file_formatting;
 pub mod geometry;
 mod ray;
-mod sampling;
+pub(crate) mod sampling;
 mod scene_statistics;
 mod shadingframe;
 pub mod single_channel_image;
