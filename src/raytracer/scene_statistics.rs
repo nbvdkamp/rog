@@ -18,6 +18,7 @@ use itertools::Itertools;
 use rand::Rng;
 
 use crate::{
+    cie_data as CIE,
     color::RGBf32,
     raytracer::{geometry::triangle_area, sampling::sample_coordinates_on_triangle},
     scene::Scene,
@@ -57,6 +58,17 @@ const_assert!(u8::MAX as usize >= VISIBILITY_SAMPLES);
 pub struct Distribution {
     pub probabilities: Spectrumf32,
     pub cumulative_probabilities: Spectrumf32,
+}
+
+impl Distribution {
+    pub fn sample_wavelength(&self) -> (f32, f32) {
+        let i = sample_item_from_cumulative_probabilities(&self.cumulative_probabilities.data)
+            .expect("data can't be empty");
+
+        let pdf = self.probabilities.data[i] * Spectrumf32::RESOLUTION as f32;
+        let value = CIE::LAMBDA_MIN + Spectrumf32::STEP_SIZE * (i as f32 + rand::thread_rng().gen::<f32>());
+        (value, pdf)
+    }
 }
 
 #[derive(Serialize, Deserialize)]

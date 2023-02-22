@@ -135,6 +135,7 @@ pub struct ArrSpectrumf32 {
 
 impl ArrSpectrumf32 {
     pub const RESOLUTION: usize = RESOLUTION;
+    pub const STEP_SIZE: f32 = STEP_SIZE;
 
     pub fn new(data: [f32; RESOLUTION]) -> Self {
         ArrSpectrumf32 { data }

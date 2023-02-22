@@ -45,12 +45,7 @@ use acceleration::{structure::TraceResultMesh, Accel, AccelerationStructures};
 use bsdf::{mis2, Evaluation, Sample};
 use geometry::{ensure_valid_reflection, orthogonal_vector};
 use ray::Ray;
-use sampling::{
-    sample_item_from_cumulative_probabilities,
-    sample_item_from_weights,
-    sample_value_from_slice_uniform,
-    tent_sample,
-};
+use sampling::{sample_item_from_weights, sample_value_from_slice_uniform, tent_sample};
 use scene_statistics::SceneStatistics;
 use shadingframe::ShadingFrame;
 use working_image::WorkingImage;
@@ -516,18 +511,12 @@ impl Raytracer {
 
                     let value = if importance_sample && let Some(stats) = &self.stats {
                         let voxel = &stats.get_grid_position(hit_pos);
-
                         let distribution = stats.spectral_distributions.get(voxel)
                             .expect("voxel should have distributions");
+                        let (value, pdf) = distribution.sample_wavelength();
 
-                        let i = sample_item_from_cumulative_probabilities(&distribution.cumulative_probabilities.data)
-                            .expect("data can't be empty");
-
-                        path_weight /= distribution.probabilities.data[i] * Spectrumf32::RESOLUTION as f32;
-
-                        const STEP_SIZE: f32 = CIE::LAMBDA_RANGE / Spectrumf32::RESOLUTION as f32;
-
-                        CIE::LAMBDA_MIN + STEP_SIZE * (i as f32 + thread_rng().gen::<f32>())
+                        path_weight /= pdf;
+                        value
                     } else {
                         // Sample uniformly
                         CIE::LAMBDA_MIN + CIE::LAMBDA_RANGE * thread_rng().gen::<f32>()
