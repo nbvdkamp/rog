@@ -56,7 +56,6 @@ const_assert!(u8::MAX as usize >= VISIBILITY_SAMPLES);
 
 #[derive(Serialize, Deserialize)]
 pub struct Distribution {
-    pub probabilities: Spectrumf32,
     pub cumulative_probabilities: Spectrumf32,
 }
 
@@ -394,7 +393,6 @@ impl SceneStatistics {
                 (
                     voxel,
                     Distribution {
-                        probabilities,
                         cumulative_probabilities,
                     },
                 )
