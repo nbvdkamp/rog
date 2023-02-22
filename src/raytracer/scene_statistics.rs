@@ -62,12 +62,11 @@ pub struct Distribution {
 
 impl Distribution {
     pub fn sample_wavelength(&self) -> (f32, f32) {
-        let i = sample_item_from_cumulative_probabilities(&self.cumulative_probabilities.data)
+        let (i, discrete_pdf) = sample_item_from_cumulative_probabilities(&self.cumulative_probabilities.data)
             .expect("data can't be empty");
 
-        let pdf = self.probabilities.data[i] * Spectrumf32::RESOLUTION as f32;
         let value = CIE::LAMBDA_MIN + Spectrumf32::STEP_SIZE * (i as f32 + rand::thread_rng().gen::<f32>());
-        (value, pdf)
+        (value, discrete_pdf * Spectrumf32::RESOLUTION as f32)
     }
 }
 
@@ -689,7 +688,8 @@ fn sample_triangle_materials(tris: Vec<ClippedTri>, raytracer: &Raytracer) -> Sp
     let mut samples = 0.0;
 
     for _ in 0..MATERIAL_SAMPLES {
-        let triangle = tris[sample_item_from_cumulative_probabilities(&cumulative_probabilities).unwrap()];
+        let (i, _) = sample_item_from_cumulative_probabilities(&cumulative_probabilities).unwrap();
+        let triangle = tris[i];
         let instance = &raytracer.scene.instances[triangle.instance_index];
         let mesh = &raytracer.scene.meshes[instance.mesh_index as usize];
         let original_tri = &mesh.triangles[triangle.tri_index];

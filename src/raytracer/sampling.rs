@@ -76,7 +76,7 @@ pub fn cumulative_probabilities_from_weights(weights: &[f32]) -> Vec<f32> {
     cumulative_probabilities
 }
 
-pub fn sample_item_from_cumulative_probabilities(cumulative_probabilities: &[f32]) -> Option<usize> {
+pub fn sample_item_from_cumulative_probabilities(cumulative_probabilities: &[f32]) -> Option<(usize, f32)> {
     if cumulative_probabilities.is_empty() {
         return None;
     }
@@ -87,11 +87,18 @@ pub fn sample_item_from_cumulative_probabilities(cumulative_probabilities: &[f32
     //TODO: This sampling is linear in the number of items, we can improve it if necessary
     for (i, &c) in cumulative_probabilities.iter().enumerate() {
         if c >= sample {
-            return Some(i);
+            let pdf = if i == 0 { c } else { c - cumulative_probabilities[i - 1] };
+            return Some((i, pdf));
         }
     }
 
-    Some(cumulative_probabilities.len() - 1)
+    let last_i = cumulative_probabilities.len() - 1;
+    let pdf = if last_i == 0 {
+        1.0
+    } else {
+        1.0 - cumulative_probabilities[last_i - 1]
+    };
+    Some((last_i, pdf))
 }
 
 /// When a set of weights is sampled only once this is faster than
