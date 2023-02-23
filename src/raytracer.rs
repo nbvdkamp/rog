@@ -690,9 +690,14 @@ impl Raytracer {
 
             path_weight *= bsdf * (shadow_terminator / pdf);
 
-            let continue_prob = path_weight.max_value().max(1.0);
+            let continue_prob = if let Wavelength::Sampled { value } = wavelength {
+                path_weight.at_wavelength_lerp(value)
+            } else {
+                path_weight.max_value()
+            }
+            .min(1.0);
 
-            if thread_rng().gen::<f32>() < continue_prob {
+            if thread_rng().gen_bool(continue_prob as f64) {
                 path_weight /= continue_prob;
             } else {
                 break;
