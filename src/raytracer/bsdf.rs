@@ -211,7 +211,7 @@ fn eval_disney_specular_transmission(
         let jacobian = 1.0 / (4.0 * m_dot_i.abs());
 
         Evaluation::Evaluation {
-            // Leaving n_dot_l out of the divisor to multiply the result by cos theta
+            // Leaving n_dot_i out of the divisor to multiply the result by cos theta
             weight: Spectrumf32::constant(fresnel * shadow_masking * normal_distrib / (4.0 * n_dot_o)),
             pdf: fresnel * visible_normal_distrib * jacobian,
         }
@@ -222,7 +222,8 @@ fn eval_disney_specular_transmission(
         let c = m_dot_i.abs() * m_dot_o.abs() / (n_dot_i.abs() * n_dot_o.abs());
         let t = square(mat.medium_ior) / square(mat.ior * m_dot_i + mat.medium_ior * m_dot_o);
         // Walter et al. 2007 eq. 17
-        let jacobian = m_dot_i.abs() * t;
+        // TODO: without m_dot_i.abs() here because it breaks conservation of energy
+        let jacobian = t;
 
         if (1.0 - fresnel) == 0.0 {
             Evaluation::Null
@@ -367,7 +368,7 @@ pub fn bsdf_sample_specular_transmission(mat: &MaterialSample, outgoing: Vector3
         incident = reflect(outgoing, micronormal);
         let g_i = ggx::smith_shadow_term(incident.z, alpha_squared);
 
-        // Leaving n_dot_l out of the divisor to multiply the result by cos theta
+        // Leaving n_dot_i out of the divisor to multiply the result by cos theta
         weight = Spectrumf32::constant(fresnel * g_o * g_i * normal_distrib / (4.0 * n_dot_o));
         let jacobian = 1.0 / (4.0 * n_dot_o.abs());
         pdf = fresnel * visible_normal_distrib * jacobian;
@@ -388,7 +389,8 @@ pub fn bsdf_sample_specular_transmission(mat: &MaterialSample, outgoing: Vector3
                 let c = m_dot_i.abs() * m_dot_o.abs() / (n_dot_i.abs() * n_dot_o.abs());
                 let t = square(mat.medium_ior) / square(mat.ior * m_dot_i + mat.medium_ior * m_dot_o);
                 // Walter et al. 2007 eq. 17
-                let jacobian = n_dot_i.abs() * t;
+                // TODO: without m_dot_i.abs() here because it breaks conservation of energy
+                let jacobian = t;
 
                 weight = (1.0 - fresnel) * c * t * g_i * g_o * normal_distrib * mat.base_color_spectrum.sqrt();
                 pdf = (1.0 - fresnel) * visible_normal_distrib * jacobian;
