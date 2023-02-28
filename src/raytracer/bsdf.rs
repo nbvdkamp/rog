@@ -347,7 +347,6 @@ pub fn bsdf_sample_specular_transmission(mat: &MaterialSample, outgoing: Vector3
     let alpha_squared = alpha.x * alpha.x;
 
     let micronormal = ggx::sample_micronormal(outgoing, alpha);
-    let n_dot_o = micronormal.dot(outgoing);
 
     let relative_ior = mat.medium_ior / mat.ior;
 
