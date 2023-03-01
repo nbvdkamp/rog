@@ -690,17 +690,20 @@ impl Raytracer {
 
             path_weight *= bsdf * (shadow_terminator / pdf);
 
-            let continue_prob = if let Wavelength::Sampled { value } = wavelength {
+            let max_weight = if let Wavelength::Sampled { value } = wavelength {
                 path_weight.at_wavelength_lerp(value)
             } else {
                 path_weight.max_value()
-            }
-            .min(1.0);
+            };
 
-            if thread_rng().gen_bool(continue_prob as f64) {
-                path_weight /= continue_prob;
-            } else {
-                break;
+            let continue_probability = (5.0 * max_weight).min(1.0);
+
+            if continue_probability < 1.0 {
+                if thread_rng().gen_bool(continue_probability as f64) {
+                    path_weight /= continue_probability;
+                } else {
+                    break;
+                }
             }
 
             ray = Ray {
