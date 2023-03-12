@@ -378,8 +378,11 @@ impl SceneStatistics {
 
                 let neighbour_materials_mean = neigbour_material_sum / neighbour_vis_sum;
                 let base_chance = 0.1;
-                let weights = Spectrumf32::constant(base_chance) + spectrum * neighbour_materials_mean;
-                let probabilities = weights / weights.data.iter().sum::<f32>();
+                let base = Spectrumf32::constant(base_chance / Spectrumf32::RESOLUTION as f32);
+
+                let weights = spectrum * neighbour_materials_mean;
+                let normalized_weights = weights / weights.data.iter().sum::<f32>();
+                let probabilities = (base + normalized_weights) / (1.0 + base_chance);
 
                 let mut cumulative_probabilities = Spectrumf32::constant(0.0);
                 let mut acc = 0.0;
