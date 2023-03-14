@@ -13,7 +13,7 @@ use rayon::{iter::ParallelIterator, prelude::IntoParallelRefIterator};
 use serde::{Deserialize, Serialize};
 use static_assertions::const_assert;
 
-use cgmath::{point2, vec2, vec3, ElementWise, Point2, Point3, Vector3, Zero};
+use cgmath::{point2, vec2, vec3, ElementWise, InnerSpace, Point2, Point3, Vector3, Zero};
 use itertools::Itertools;
 use rand::Rng;
 
@@ -357,15 +357,36 @@ impl SceneStatistics {
         }
     }
 
-    pub fn compute_visibility_weighted_material_sums(&mut self) {
+    pub fn compute_importance_sampling_distributions(&mut self, scene: &Scene) {
+        let voxels_with_geometry: Vec<_> = self.materials.keys().copied().collect();
+
+        let direct_incident_light: HashMap<_, _> = voxels_with_geometry
+            .iter()
+            .map(|&voxel| {
+                let mut l = Spectrumf32::constant(0.0);
+                let center = self.bounds_from_grid_position(voxel).center();
+
+                for voxel_lights in &self.voxels_with_lights {
+                    let vis = self.get_estimated_visibility(voxel, voxel_lights.voxel);
+                    for &light_index in &voxel_lights.light_indices {
+                        let light = &scene.lights[light_index];
+                        let distance_squared = (light.position().unwrap() - center).magnitude2();
+                        l += vis * light.spectrum * light.intensity / distance_squared;
+                    }
+                }
+
+                (voxel, l)
+            })
+            .collect();
+
         self.spectral_distributions = self
             .materials
             .par_iter()
             .map(|(&voxel, spectrum)| {
                 let mut neighbour_vis_sum = 0.0;
-                let mut neigbour_material_sum = Spectrumf32::constant(0.0);
+                let mut neigbour_light_sum = Spectrumf32::constant(0.0);
 
-                for (&other_voxel, other_spectrum) in self.materials.iter() {
+                for (&other_voxel, &other_spectrum) in &self.materials {
                     if voxel == other_voxel {
                         continue;
                     }
@@ -373,14 +394,19 @@ impl SceneStatistics {
                     let pair = VoxelPair::new(voxel, other_voxel);
                     let vis = self.get_raw_visibility(pair).value();
                     neighbour_vis_sum += vis;
-                    neigbour_material_sum += vis * *other_spectrum;
+
+                    let direct = direct_incident_light.get(&other_voxel).unwrap();
+                    let ambient = Spectrumf32::constant(1.0);
+                    neigbour_light_sum += vis * other_spectrum * (ambient + direct);
                 }
 
-                let neighbour_materials_mean = neigbour_material_sum / neighbour_vis_sum;
+                let indirect_light = neigbour_light_sum / neighbour_vis_sum;
+                let direct_light = direct_incident_light.get(&voxel).unwrap();
+
                 let base_chance = 0.1;
                 let base = Spectrumf32::constant(base_chance / Spectrumf32::RESOLUTION as f32);
 
-                let weights = spectrum * neighbour_materials_mean;
+                let weights = spectrum * (direct_light + indirect_light);
                 let normalized_weights = weights / weights.data.iter().sum::<f32>();
                 let probabilities = (base + normalized_weights) / (1.0 + base_chance);
 

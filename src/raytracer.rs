@@ -181,7 +181,7 @@ impl Raytracer {
                 println!("Computed visibility map in {} seconds", start.elapsed().as_secs_f32());
 
                 let start = Instant::now();
-                stats.compute_visibility_weighted_material_sums();
+                stats.compute_importance_sampling_distributions(&result.scene);
                 println!(
                     "Computed weighted material sums in {} seconds",
                     start.elapsed().as_secs_f32()
