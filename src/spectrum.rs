@@ -217,13 +217,7 @@ impl_op_ex_commutative!(*|a: &ArrSpectrumf32, b: f32| -> ArrSpectrumf32 {
 });
 
 impl_op_ex_commutative!(/ |a: &ArrSpectrumf32, b: f32| -> ArrSpectrumf32 {
-    let mut data = [0.0; RESOLUTION];
-
-    for i in 0..RESOLUTION {
-        data[i] = a.data[i] / b;
-    }
-
-    ArrSpectrumf32 { data }
+    a * (1.0 / b)
 });
 
 impl AddAssign for ArrSpectrumf32 {
@@ -246,7 +240,7 @@ impl MulAssign<f32> for ArrSpectrumf32 {
 
 impl DivAssign<f32> for ArrSpectrumf32 {
     fn div_assign(&mut self, s: f32) {
-        self.data.iter_mut().for_each(|a| *a /= s);
+        *self *= 1.0 / s;
     }
 }
 
