@@ -1,6 +1,11 @@
 #![allow(clippy::needless_range_loop)]
-use std::ops::{self, AddAssign, DivAssign, MulAssign};
+use std::{
+    ops::{self, AddAssign, DivAssign, MulAssign},
+    path::Path,
+};
 
+use itertools::Itertools;
+use lerp::Lerp;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -11,6 +16,13 @@ use crate::{
 pub struct Spectrumf32WithAlpha {
     pub spectrum: Spectrumf32,
     pub alpha: f32,
+}
+
+#[derive(Debug)]
+pub enum ReadError {
+    IO(std::io::Error),
+    Format(String),
+    FloatParsing(std::num::ParseFloatError),
 }
 
 impl_op_ex!(+ |a: &Spectrumf32WithAlpha, b: &Spectrumf32WithAlpha| -> Spectrumf32WithAlpha {
@@ -135,6 +147,77 @@ impl Spectrumf32 {
         }
 
         y
+    }
+
+    /// Reads a spectrum from a csv file with two columns:
+    /// wavelength and intensity.
+    ///
+    /// Rows should be in order of ascending wavelength.
+    /// The first row of the file should be the column labels.
+    ///
+    /// The result is normalized to unit luminance for the
+    /// CIE 1931 standard observer.
+    ///
+    /// Interpolates linearly between the samples in the file.
+    /// When spectrum samples are outside the range they clamp
+    /// to the nearest available value instead.
+    pub fn read_from_csv<P>(path: P) -> Result<Self, ReadError>
+    where
+        P: AsRef<Path>,
+    {
+        use ReadError::{FloatParsing, Format, IO};
+
+        let mut data = [0.0; RESOLUTION];
+        let s = std::fs::read_to_string(path).map_err(IO)?;
+
+        struct SpectrumSample {
+            wavelength: f32,
+            value: f32,
+        }
+
+        let mut samples = Vec::new();
+
+        for line in s.lines().skip(1) {
+            let parts: Vec<_> = line.split(',').collect();
+            let [first, second] = parts[..] else {
+                return Err(Format(format!("Line should contain two comma separated numbers: {}", line)));
+            };
+
+            let wavelength = first.parse::<f32>().map_err(FloatParsing)?;
+            let value = second.parse::<f32>().map_err(FloatParsing)?;
+
+            samples.push(SpectrumSample { wavelength, value });
+        }
+
+        if samples.is_empty() {
+            return Err(Format("File has no entries".to_string()));
+        }
+
+        let first = samples.first().unwrap();
+        let last = samples.last().unwrap();
+
+        'outer: for i in 0..RESOLUTION {
+            let wavelength = CIE::LAMBDA_MIN + i as f32 * STEP_SIZE;
+
+            if wavelength < first.wavelength {
+                data[i] = first.value;
+                continue;
+            }
+
+            for (left, right) in samples.iter().tuple_windows() {
+                if wavelength > left.wavelength && wavelength <= right.wavelength {
+                    let t = (wavelength - left.wavelength) / (right.wavelength - left.wavelength);
+                    data[i] = left.value.lerp(right.value, t);
+                    continue 'outer;
+                }
+            }
+
+            data[i] = last.value;
+        }
+
+        // Normalize to unit luminance
+        let spectrum = Self { data };
+        Ok(spectrum / spectrum.luminance())
     }
 }
 
