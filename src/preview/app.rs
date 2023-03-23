@@ -148,7 +148,7 @@ impl App {
         let raytracer = self.raytracer.lock().unwrap();
 
         let background_color = {
-            let c = raytracer.scene.environment.color.linear_to_srgb();
+            let c = raytracer.scene.environment.color.srgb_linear_to_gamma_compressed();
             [c.r, c.g, c.b, 1.0]
         };
 

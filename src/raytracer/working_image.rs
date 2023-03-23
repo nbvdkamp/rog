@@ -85,7 +85,7 @@ impl WorkingImage {
                     return RGBf32::new(1.0, 0.5, 0.0);
                 }
 
-                let c = pixel.result_spectrum().to_srgb().linear_to_srgb();
+                let c = pixel.result_spectrum().to_srgb().srgb_linear_to_gamma_compressed();
                 if c.has_nan_component() {
                     RGBf32::new(0.0, 1.0, 0.0)
                 } else {

@@ -122,7 +122,7 @@ impl Scene {
             .collect::<Vec<Texture>>();
 
         let environment = {
-            let color = RGBf32::from_hex("#404040").srgb_to_linear();
+            let color = RGBf32::from_hex("#404040").srgb_gamma_compressed_to_linear();
             let coeffs = rgb2spec.fetch(color.into());
 
             Environment {

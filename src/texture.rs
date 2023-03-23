@@ -103,7 +103,7 @@ impl Texture {
                     .map(|slice: &[u8]| {
                         let coeffs = rgb2spec.fetch(
                             (RGBf32::new(slice[0] as f32, slice[1] as f32, slice[2] as f32) / 255.0)
-                                .srgb_to_linear()
+                                .srgb_gamma_compressed_to_linear()
                                 .into(),
                         );
                         CoefficientPixelAlpha {

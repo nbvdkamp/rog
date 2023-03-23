@@ -212,7 +212,7 @@ pub const SRGB8_TO_LINEAR_TABLE: [f32; 256] = [
 ];
 
 impl RGBf32 {
-    pub fn linear_to_srgb(&self) -> Self {
+    pub fn srgb_linear_to_gamma_compressed(&self) -> Self {
         let m = |c: f32| {
             if c <= 0.0031308 {
                 if c < 0.0 {
@@ -232,7 +232,7 @@ impl RGBf32 {
         }
     }
 
-    pub fn srgb_to_linear(&self) -> Self {
+    pub fn srgb_gamma_compressed_to_linear(&self) -> Self {
         let m = |c| {
             if c <= 0.04045 {
                 if c < 0.0 {
