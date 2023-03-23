@@ -119,6 +119,12 @@ impl Spectrumf32 {
             / RESOLUTION as f32
     }
 
+    pub fn rgb_mean_square_error(&self, other: &Self) -> f32 {
+        let diff = self.to_srgb() - other.to_srgb();
+        let square = diff * diff;
+        (square.r + square.g + square.b) / 3.0
+    }
+
     pub fn mean(&self) -> f32 {
         self.data.iter().sum::<f32>() / RESOLUTION as f32
     }

@@ -218,6 +218,10 @@ impl WorkingImage {
         self.error(other, Spectrumf32::mean_square_error)
     }
 
+    pub fn rgb_mean_square_error(&self, other: &Self) -> SingleChannelImage {
+        self.error(other, Spectrumf32::rgb_mean_square_error)
+    }
+
     pub fn relative_mean_square_error(&self, reference: &Self) -> SingleChannelImage {
         self.error(reference, Spectrumf32::relative_mean_square_error)
     }

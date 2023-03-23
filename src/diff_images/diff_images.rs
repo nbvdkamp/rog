@@ -25,6 +25,7 @@ fn main() -> Result<(), Error> {
     }
 
     let mean_square_error = image.mean_square_error(&reference).mean();
+    let rgb_mean_square_error = image.rgb_mean_square_error(&reference).mean();
     let relative_mean_square_error = image.relative_mean_square_error(&reference).mean();
     let img_grayscale = image.to_grayscale();
     let ref_grayscale = reference.to_grayscale();
@@ -33,6 +34,7 @@ fn main() -> Result<(), Error> {
     let mean_structural_similarity = structural_similarity(img_grayscale, ref_grayscale).mean();
 
     println!("MSE {mean_square_error}");
+    println!("rgb_MSE {rgb_mean_square_error}");
     println!("grayscale_MSE {grayscale_mean_square_error}");
     println!("relMSE {relative_mean_square_error}");
     println!("MSSIM {mean_structural_similarity}");
