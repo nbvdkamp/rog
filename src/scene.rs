@@ -85,7 +85,7 @@ impl Scene {
 
         let start = Instant::now();
 
-        let (document, buffers, images) = match gltf::import(path) {
+        let (document, buffers, images) = match gltf::import(&path) {
             Ok(result) => result,
             Err(e) => {
                 let hint = if let gltf::Error::Io(_) = e {
@@ -155,6 +155,7 @@ impl Scene {
             Matrix4::identity(),
             &mut accessor_indices_map,
             &rgb2spec,
+            &path,
         );
 
         let sorted_textures = &mut scene.textures;
@@ -275,14 +276,17 @@ impl Scene {
         Ok((scene, preview_textures))
     }
 
-    fn parse_nodes(
+    fn parse_nodes<P>(
         &mut self,
         nodes: Vec<gltf::Node>,
         buffers: &[gltf::buffer::Data],
         base_transform: Matrix4<f32>,
         accessor_indices_map: &mut HashMap<AttributeAccessorIndices, Vec<usize>>,
         rgb2spec: &RGB2Spec,
-    ) {
+        scene_path: &P,
+    ) where
+        P: AsRef<Path>,
+    {
         for node in nodes {
             let transform = base_transform * transform_to_mat(node.transform());
 
@@ -302,7 +306,7 @@ impl Scene {
                     println!("Non-perspective cameras are not supported");
                 }
             } else if let Some(light) = node.light() {
-                self.lights.push(parse_light(light, transform, rgb2spec));
+                self.lights.push(parse_light(light, transform, rgb2spec, scene_path));
             }
 
             self.parse_nodes(
@@ -311,6 +315,7 @@ impl Scene {
                 transform,
                 accessor_indices_map,
                 rgb2spec,
+                scene_path,
             );
         }
     }
@@ -688,9 +693,18 @@ impl Scene {
 struct LightExtras {
     radius: Option<f32>,
     angular_diameter: Option<f32>,
+    spectrum: Option<String>,
 }
 
-fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>, rgb2spec: &RGB2Spec) -> Light {
+fn parse_light<P>(
+    light: gltf::khr_lights_punctual::Light,
+    transform: Matrix4<f32>,
+    rgb2spec: &RGB2Spec,
+    scene_path: P,
+) -> Light
+where
+    P: AsRef<Path>,
+{
     let extras: Option<LightExtras> = light
         .extras()
         .as_ref()
@@ -701,14 +715,17 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>,
 
     let kind = match light.kind() {
         GltfKind::Point => {
-            let radius = (|| extras?.radius)().unwrap_or(0.0);
+            let radius = extras.as_ref().and_then(|e| e.radius).unwrap_or(0.0);
             Kind::Point { radius, position }
         }
         GltfKind::Directional => {
             let normal_transform = normal_transform_from_mat4(transform);
             let direction = -(normal_transform * vec3(0.0, 0.0, -1.0)).normalize();
 
-            let angular_diameter = (|| extras?.angular_diameter)().map_or(0.0, |degrees| degrees.to_radians());
+            let angular_diameter = extras
+                .as_ref()
+                .and_then(|e| e.angular_diameter)
+                .map_or(0.0, |degrees| degrees.to_radians());
             let angle = angular_diameter / 2.0;
             let radius = angle.tan();
             let area = std::f32::consts::PI * radius * radius;
@@ -729,13 +746,25 @@ fn parse_light(light: gltf::khr_lights_punctual::Light, transform: Matrix4<f32>,
         },
     };
 
-    let color: RGBf32 = light.color().into();
+    let spectrum = if let Some(relative_path) = extras.as_ref().and_then(|e| e.spectrum.as_ref()) {
+        let scene_parent = scene_path.as_ref().parent().expect("scene path should have parent");
+        let path = scene_parent.join(relative_path);
 
-    // TODO: rgb2spec is intended for reflectances, not emission,
-    // so using it like this is not very physically accurate
-    // though it seems to be a reasonable placeholder / fallback method
-    // because the light colors values are always in [0, 1].
-    let spectrum = Spectrumf32::from_coefficients(rgb2spec.fetch(color.into()));
+        match Spectrumf32::read_from_csv(path) {
+            Ok(spectrum) => spectrum,
+            Err(e) => {
+                eprintln!("Can't read light spectrum: {relative_path}, error: {e:?}");
+                std::process::exit(-1);
+            }
+        }
+    } else {
+        // rgb2spec is intended for reflectances, not emission,
+        // so using it like this is not very physically accurate
+        // though it seems to be a reasonable placeholder / fallback method
+        // because the light colors values are always in [0, 1].
+        let color: RGBf32 = light.color().into();
+        Spectrumf32::from_coefficients(rgb2spec.fetch(color.into()))
+    };
 
     Light {
         // FIXME: Adjust intensity from candela to watts by dividing by 683

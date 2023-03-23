@@ -1,6 +1,8 @@
 # Custom glTF properties
 
 - Lights:
+    - All
+        - spectrum: relative path to a csv with two columns; wavelength and relative intensity. The spectrum is normalized to unit luminance for the CIE 1931 standard observer.
     - Point
         - radius: meters as float - default: 0.0
     - Directional
