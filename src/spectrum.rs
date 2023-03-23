@@ -125,6 +125,17 @@ impl Spectrumf32 {
         let factor = x - x.floor();
         self.data[i] * (1.0 - factor) + self.data[i + 1] * factor
     }
+
+    pub fn luminance(&self) -> f32 {
+        let mut y = 0.0;
+
+        for i in 0..RESOLUTION {
+            let wavelength = CIE::LAMBDA_MIN + i as f32 * STEP_SIZE;
+            y += self.data[i] * CIE::observer_1931_interp(wavelength).y * STEP_SIZE;
+        }
+
+        y
+    }
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
