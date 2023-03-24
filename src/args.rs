@@ -145,6 +145,15 @@ impl Args {
         let intermediate_read_path = matches.get_one::<PathBuf>("read-intermediate").cloned();
         let intermediate_write_path = matches.get_one::<PathBuf>("write-intermediate").cloned();
 
+        if let Some(path) = &intermediate_write_path {
+            let parent = path.parent().unwrap();
+
+            if !parent.exists() {
+                eprintln!("Directory {} doesn't exist", parent.display());
+                std::process::exit(-1);
+            }
+        }
+
         if !headless && intermediate_read_path.is_some() {
             eprintln!("Resuming rendering currently only works in --headless mode");
             std::process::exit(-1);
