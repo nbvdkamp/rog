@@ -502,6 +502,23 @@ impl Raytracer {
                 + v * verts.positions[indices[2]].to_vec();
             let hit_pos = Point3::from_homogeneous(instance.transform * hit_pos.to_homogeneous());
 
+            let texture_coordinates = intersected_mesh
+                .vertices
+                .tex_coords
+                .iter()
+                .map(|t| w * t[indices[0]] + u * t[indices[1]].to_vec() + v * t[indices[2]].to_vec())
+                .collect();
+
+            let mut mat_sample = material.sample(texture_coordinates, &self.scene.textures);
+
+            if thread_rng().gen::<f32>() > mat_sample.alpha {
+                // Offset to the back of the triangle
+                ray.origin = hit_pos + ray.direction * 0.0002;
+
+                // Don't count alpha hits for max bounces
+                continue;
+            }
+
             if let Wavelength::Undecided = wavelength {
                 if self.image_settings.always_sample_single_wavelength {
                     let importance_sample = self
@@ -524,23 +541,6 @@ impl Raytracer {
 
                     wavelength = Wavelength::Sampled { value };
                 }
-            }
-
-            let texture_coordinates = intersected_mesh
-                .vertices
-                .tex_coords
-                .iter()
-                .map(|t| w * t[indices[0]] + u * t[indices[1]].to_vec() + v * t[indices[2]].to_vec())
-                .collect();
-
-            let mut mat_sample = material.sample(texture_coordinates, &self.scene.textures);
-
-            if thread_rng().gen::<f32>() > mat_sample.alpha {
-                // Offset to the back of the triangle
-                ray.origin = hit_pos + ray.direction * 0.0002;
-
-                // Don't count alpha hits for max bounces
-                continue;
             }
 
             if let Some(emission) = &mat_sample.emissive {
