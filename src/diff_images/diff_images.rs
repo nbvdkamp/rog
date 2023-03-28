@@ -1,5 +1,9 @@
 mod structural_similarity;
-use renderer::raytracer::{file_formatting::Error as FileFormatError, working_image::WorkingImage};
+use renderer::raytracer::{
+    file_formatting::Error as FileFormatError,
+    single_channel_image::SingleChannelImage,
+    working_image::WorkingImage,
+};
 use structural_similarity::structural_similarity;
 
 #[derive(Debug)]
@@ -24,20 +28,20 @@ fn main() -> Result<(), Error> {
         return Err(Error::DimensionMismatch);
     }
 
-    let mean_square_error = image.mean_square_error(&reference).mean();
-    let rgb_mean_square_error = image.rgb_mean_square_error(&reference).mean();
-    let relative_mean_square_error = image.relative_mean_square_error(&reference).mean();
+    output_error("MSE", image.mean_square_error(&reference));
+    output_error("rgb_MSE", image.rgb_mean_square_error(&reference));
+    output_error("relMSE", image.relative_mean_square_error(&reference));
+
     let img_grayscale = image.to_grayscale();
     let ref_grayscale = reference.to_grayscale();
     let grayscale_diff = &img_grayscale - &ref_grayscale;
-    let grayscale_mean_square_error = (&grayscale_diff * &grayscale_diff).mean();
-    let mean_structural_similarity = structural_similarity(img_grayscale, ref_grayscale).mean();
-
-    println!("MSE {mean_square_error}");
-    println!("rgb_MSE {rgb_mean_square_error}");
-    println!("grayscale_MSE {grayscale_mean_square_error}");
-    println!("relMSE {relative_mean_square_error}");
-    println!("MSSIM {mean_structural_similarity}");
+    output_error("grayscale_MSE", &grayscale_diff * &grayscale_diff);
+    output_error("MSSIM", structural_similarity(img_grayscale, ref_grayscale));
 
     Ok(())
+}
+
+fn output_error(name: &str, error_image: SingleChannelImage) {
+    let mean = error_image.mean();
+    println!("{name} {mean}");
 }
