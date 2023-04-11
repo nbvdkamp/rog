@@ -367,7 +367,8 @@ impl SceneStatistics {
                 let center = self.bounds_from_grid_position(voxel).center();
 
                 for voxel_lights in &self.voxels_with_lights {
-                    let vis = self.get_estimated_visibility(voxel, voxel_lights.voxel);
+                    let pair = VoxelPair::new(voxel, voxel_lights.voxel);
+                    let vis = self.get_raw_visibility(pair).value();
                     for &light_index in &voxel_lights.light_indices {
                         let light = &scene.lights[light_index];
                         let distance_squared = (light.position().unwrap() - center).magnitude2();
