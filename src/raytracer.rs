@@ -530,7 +530,7 @@ impl Raytracer {
                         let voxel = &stats.get_grid_position(hit_pos);
                         let distribution = stats.spectral_distributions.get(voxel)
                             .expect("voxel should have distributions");
-                        let (value, pdf) = distribution.sample_wavelength();
+                        let (value, pdf) = distribution.sample_wavelength(mat_sample.base_color_spectrum);
 
                         path_weight /= pdf;
                         value

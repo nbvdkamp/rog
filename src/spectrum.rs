@@ -241,7 +241,7 @@ impl ArrSpectrumf32 {
         ArrSpectrumf32 { data }
     }
 
-    pub fn constant(v: f32) -> Self {
+    pub const fn constant(v: f32) -> Self {
         ArrSpectrumf32 { data: [v; RESOLUTION] }
     }
 

@@ -124,6 +124,28 @@ pub fn sample_item_from_weights(weights: &[f32]) -> Option<(usize, f32)> {
     Some((last_i, weights[last_i] / weights_sum))
 }
 
+/// When a set of probabilities is sampled only once this is faster than
+/// [sample_item_from_cumulative_probabilities] because it doesn't require allocating
+pub fn sample_item_from_probabilities(probabilities: &[f32]) -> Option<(usize, f32)> {
+    if probabilities.is_empty() {
+        return None;
+    }
+
+    let sample = rand::thread_rng().gen::<f32>();
+
+    let mut sum = 0.0;
+
+    for (i, &w) in probabilities.iter().enumerate() {
+        sum += w;
+        if sum >= sample {
+            return Some((i, probabilities[i]));
+        }
+    }
+
+    let last_i = probabilities.len() - 1;
+    Some((last_i, probabilities[last_i]))
+}
+
 pub fn sample_value_from_slice_uniform<T>(slice: &[T]) -> (&T, f32) {
     let value = &slice[thread_rng().gen_range(0..slice.len())];
     let pdf = 1.0 / slice.len() as f32;

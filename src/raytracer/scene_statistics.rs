@@ -20,7 +20,10 @@ use rand::Rng;
 use crate::{
     cie_data as CIE,
     color::RGBf32,
-    raytracer::{geometry::triangle_area, sampling::sample_coordinates_on_triangle},
+    raytracer::{
+        geometry::triangle_area,
+        sampling::{sample_coordinates_on_triangle, sample_item_from_probabilities},
+    },
     scene::Scene,
     scene_version::SceneVersion,
     spectrum::Spectrumf32,
@@ -56,16 +59,26 @@ const_assert!(u8::MAX as usize >= VISIBILITY_SAMPLES);
 
 #[derive(Serialize, Deserialize)]
 pub struct Distribution {
-    pub cumulative_probabilities: Spectrumf32,
+    pub approximate_light: Spectrumf32,
 }
 
 impl Distribution {
-    pub fn sample_wavelength(&self) -> (f32, f32) {
-        let (i, discrete_pdf) = sample_item_from_cumulative_probabilities(&self.cumulative_probabilities.data)
-            .expect("data can't be empty");
+    pub fn sample_wavelength(&self, albedo: Spectrumf32) -> (f32, f32) {
+        let distribution = albedo * self.approximate_light;
+        let sum: f32 = distribution.data.iter().sum();
+
+        const BASE_PROBABILITY: f32 = 0.1;
+        const OFFSET_DIVISOR: f32 = 1.0 + BASE_PROBABILITY;
+        const OFFSET: Spectrumf32 =
+            Spectrumf32::constant(BASE_PROBABILITY / (Spectrumf32::RESOLUTION as f32 * OFFSET_DIVISOR));
+        // Unoptimized form: p = (constant(BASE_PROBABILITY / RESOLUTION) + (distribution / sum)) / OFFSET_DIVISOR
+        let probability_distribution = OFFSET + distribution / (sum * OFFSET_DIVISOR);
+        let (i, discrete_pdf) =
+            sample_item_from_probabilities(&probability_distribution.data).expect("data can't be empty");
 
         let value = CIE::LAMBDA_MIN + Spectrumf32::STEP_SIZE * (i as f32 + rand::thread_rng().gen::<f32>());
-        (value, discrete_pdf * Spectrumf32::RESOLUTION as f32)
+        let pdf = discrete_pdf * Spectrumf32::RESOLUTION as f32;
+        (value, pdf)
     }
 }
 
@@ -380,10 +393,9 @@ impl SceneStatistics {
             })
             .collect();
 
-        self.spectral_distributions = self
-            .materials
+        self.spectral_distributions = voxels_with_geometry
             .par_iter()
-            .map(|(&voxel, &spectrum)| {
+            .map(|&voxel| {
                 let mut neighbour_vis_sum = 0.0;
                 let mut neigbour_light_sum = Spectrumf32::constant(0.0);
                 let voxel_center = self.bounds_from_grid_position(voxel).center();
@@ -408,26 +420,10 @@ impl SceneStatistics {
                 let indirect_light = neigbour_light_sum / neighbour_vis_sum;
                 let direct_light = direct_incident_light.get(&voxel).unwrap();
 
-                let base_chance = 0.1;
-                let base = Spectrumf32::constant(base_chance / Spectrumf32::RESOLUTION as f32);
-
-                let weights = spectrum * (direct_light + indirect_light);
-                let normalized_weights = weights / weights.data.iter().sum::<f32>();
-                let probabilities = (base + normalized_weights) / (1.0 + base_chance);
-
-                let mut cumulative_probabilities = Spectrumf32::constant(0.0);
-                let mut acc = 0.0;
-
-                for i in 0..Spectrumf32::RESOLUTION {
-                    acc += probabilities.data[i];
-
-                    cumulative_probabilities.data[i] = acc;
-                }
-
                 (
                     voxel,
                     Distribution {
-                        cumulative_probabilities,
+                        approximate_light: direct_light + indirect_light,
                     },
                 )
             })
