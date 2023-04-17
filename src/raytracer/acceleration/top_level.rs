@@ -19,7 +19,7 @@ use super::{
 
 pub struct TopLevelBVH {
     children: Vec<Box<dyn AccelerationStructure + Send + Sync>>,
-    tree_root: Node,
+    tree_root: Option<Node>,
     stats: Statistics,
 }
 
@@ -45,6 +45,14 @@ impl Node {
 
 impl<'a> TopLevelBVH {
     pub fn new(accel_type: Accel, meshes: &[Mesh], instances: Vec<Instance>) -> Self {
+        if instances.is_empty() {
+            return Self {
+                children: Vec::new(),
+                tree_root: None,
+                stats: Statistics::new(),
+            };
+        }
+
         let mut children: Vec<Box<dyn AccelerationStructure + Send + Sync>> = Vec::new();
 
         for mesh in meshes {
@@ -130,7 +138,7 @@ impl<'a> TopLevelBVH {
 
         Self {
             children,
-            tree_root: nodes.pop().unwrap(),
+            tree_root: nodes.pop(),
             stats,
         }
     }
@@ -138,7 +146,10 @@ impl<'a> TopLevelBVH {
     pub fn intersect(&self, ray: &Ray, meshes: &[Mesh]) -> TraceResultMesh {
         self.stats.count_ray();
 
-        self.intersect_node(&self.tree_root, ray, 1.0 / ray.direction, meshes)
+        match &self.tree_root {
+            Some(root) => self.intersect_node(root, ray, 1.0 / ray.direction, meshes),
+            None => TraceResultMesh::Miss,
+        }
     }
 
     pub fn get_statistics(&self) -> StatisticsStore {
