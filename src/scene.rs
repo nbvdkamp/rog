@@ -122,12 +122,9 @@ impl Scene {
             .collect::<Vec<Texture>>();
 
         let environment = {
-            let color = RGBf32::from_hex("#404040").srgb_gamma_compressed_to_linear();
-            let coeffs = rgb2spec.fetch(color.into());
-
             Environment {
-                color,
-                spectrum: Spectrumf32::from_coefficients(coeffs),
+                color: RGBf32::from_grayscale(0.0),
+                spectrum: Spectrumf32::constant(0.0),
             }
         };
 
@@ -149,6 +146,13 @@ impl Scene {
         let mut accessor_indices_map = HashMap::new();
 
         let gltf_scene = document.default_scene().unwrap_or(document.scenes().next().unwrap());
+
+        if let Some(background_node) = gltf_scene.nodes().find(|n| n.name() == Some("background")) {
+            if let Some(environment) = parse_environment(&background_node, &rgb2spec) {
+                scene.environment = environment;
+            }
+        }
+
         scene.parse_nodes(
             gltf_scene.nodes().collect(),
             &buffers,
@@ -773,6 +777,52 @@ where
         range: light.range().unwrap_or(f32::INFINITY),
         spectrum,
         kind,
+    }
+}
+
+fn parse_environment(background_node: &gltf::Node, rgb2spec: &RGB2Spec) -> Option<Environment> {
+    #[derive(Deserialize)]
+    struct BackgroundExtras {
+        rgb: Option<String>,
+        spectrum: Option<String>,
+        intensity: Option<f32>,
+    }
+
+    let extras: Option<BackgroundExtras> = background_node
+        .extras()
+        .as_ref()
+        .and_then(|extras| serde_json::from_str(extras.as_ref().get()).ok());
+
+    if let Some(extras) = extras {
+        let intensity = extras.intensity.unwrap_or(1.0);
+
+        if let Some(spectrum_path) = extras.spectrum {
+            let spectrum = intensity
+                * match Spectrumf32::read_from_csv(spectrum_path) {
+                    Ok(spectrum) => spectrum,
+                    Err(e) => {
+                        eprintln!("Can't read spectrum file: {e:?}");
+                        std::process::exit(-1);
+                    }
+                };
+
+            Some(Environment {
+                color: spectrum.to_srgb(),
+                spectrum,
+            })
+        } else if let Some(rgb) = extras.rgb {
+            let color = RGBf32::from_hex(&rgb).srgb_gamma_compressed_to_linear();
+            let coeffs = rgb2spec.fetch(color.into());
+
+            Some(Environment {
+                color,
+                spectrum: Spectrumf32::from_coefficients(coeffs),
+            })
+        } else {
+            None
+        }
+    } else {
+        None
     }
 }
 
