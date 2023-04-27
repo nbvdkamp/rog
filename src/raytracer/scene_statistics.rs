@@ -393,10 +393,23 @@ impl SceneStatistics {
             })
             .collect();
 
+        let ambient = scene
+            .lights
+            .iter()
+            .map(|light| light.intensity * light.spectrum.data.iter().copied().reduce(f32::max).unwrap())
+            .reduce(f32::max)
+            .unwrap()
+            / 100.0;
+
+        let ambient = Spectrumf32::constant(ambient);
+        let num_voxels = {
+            let r = self.resolution as f32;
+            r * r * r
+        };
+
         self.spectral_distributions = voxels_with_geometry
             .par_iter()
             .map(|&voxel| {
-                let mut neighbour_vis_sum = 0.0;
                 let mut neigbour_light_sum = Spectrumf32::constant(0.0);
                 let voxel_center = self.bounds_from_grid_position(voxel).center();
 
@@ -410,14 +423,12 @@ impl SceneStatistics {
 
                     let pair = VoxelPair::new(voxel, other_voxel);
                     let vis = self.get_raw_visibility(pair).value();
-                    neighbour_vis_sum += vis;
 
                     let direct = direct_incident_light.get(&other_voxel).unwrap();
-                    let ambient = Spectrumf32::constant(1.0);
                     neigbour_light_sum += vis * other_spectrum / distance_squared * (ambient + direct);
                 }
 
-                let indirect_light = neigbour_light_sum / neighbour_vis_sum;
+                let indirect_light = neigbour_light_sum / num_voxels;
                 let direct_light = direct_incident_light.get(&voxel).unwrap();
 
                 (
