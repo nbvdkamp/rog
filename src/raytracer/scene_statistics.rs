@@ -162,9 +162,6 @@ impl SceneStatistics {
     }
 
     pub fn sample_visibility(&mut self, raytracer: &Raytracer, accel: Accel) {
-        assert!(!self.materials.is_empty());
-        assert!(!self.voxels_with_lights.is_empty() || !self.positionless_lights.is_empty());
-
         let mut nonempty_voxels = self.materials.keys().copied().collect::<HashSet<_>>();
 
         for v in &self.voxels_with_lights {
@@ -401,7 +398,6 @@ impl SceneStatistics {
             .unwrap()
             / 100.0;
 
-        let ambient = Spectrumf32::constant(ambient);
         let num_voxels = {
             let r = self.resolution as f32;
             r * r * r
