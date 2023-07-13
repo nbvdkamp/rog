@@ -441,7 +441,7 @@ impl Raytracer {
         let mut image = lock.into_inner().expect("Cannot unlock image mutex");
         let time_spent = start.elapsed().as_secs_f32();
 
-        image.paths_sampled_per_pixel += *current_sample.lock().unwrap() as u32 - 1;
+        image.paths_sampled_per_pixel += *current_sample.lock().unwrap() as u32 + 1;
         image.seconds_spent_rendering += time_spent;
 
         (image, time_spent)
