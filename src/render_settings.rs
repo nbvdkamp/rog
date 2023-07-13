@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Duration};
+use std::{path::PathBuf, str::FromStr, time::Duration};
 
 use cgmath::Vector2;
 use derivative::Derivative;
@@ -6,11 +6,31 @@ use serde::{Deserialize, Serialize};
 
 use crate::{raytracer::acceleration::Accel, scene_version::SceneVersion};
 
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+pub enum ImportanceSamplingMode {
+    Visibility,
+    MeanEmitterSpectrum,
+    MeanEmitterSpectrumAlbedo,
+}
+
+impl FromStr for ImportanceSamplingMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "visibility" => Ok(ImportanceSamplingMode::Visibility),
+            "mean-spectrum" => Ok(ImportanceSamplingMode::MeanEmitterSpectrum),
+            "mean-spectrum-albedo" => Ok(ImportanceSamplingMode::MeanEmitterSpectrumAlbedo),
+            _ => Err(format!("Invalid importance sampling mode: {s}")),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Copy, Derivative)]
 #[derivative(Debug)]
 pub struct VisibilitySettings {
     pub dump_debug_data: bool,
-    pub spectral_importance_sampling: bool,
+    pub spectral_importance_sampling: Option<ImportanceSamplingMode>,
     pub nee_rejection: bool,
     pub nee_direct: bool,
     pub resolution: u8,

@@ -33,7 +33,7 @@ use crate::{
     cie_data as CIE,
     light::Light,
     raytracer::{file_formatting::Error, working_image::Pixel},
-    render_settings::{ImageSettings, RenderSettings, TerminationCondition},
+    render_settings::{ImageSettings, ImportanceSamplingMode, RenderSettings, TerminationCondition},
     scene::Scene,
     spectrum::Spectrumf32,
     texture::{CoefficientTexture, Texture},
@@ -46,7 +46,7 @@ use bsdf::{mis2, Evaluation, Sample};
 use geometry::{ensure_valid_reflection, orthogonal_vector};
 use ray::Ray;
 use sampling::{sample_item_from_weights, sample_value_from_slice_uniform, tent_sample};
-use scene_statistics::SceneStatistics;
+use scene_statistics::{importance_sample_wavelength, SceneStatistics};
 use shadingframe::ShadingFrame;
 use working_image::WorkingImage;
 
@@ -521,16 +521,26 @@ impl Raytracer {
 
             if let Wavelength::Undecided = wavelength {
                 if self.image_settings.always_sample_single_wavelength {
-                    let importance_sample = self
+                    let importance_sampling_mode = self
                         .image_settings
                         .visibility
-                        .map_or(false, |v| v.spectral_importance_sampling);
+                        .map_or(None, |v| v.spectral_importance_sampling);
 
-                    let value = if importance_sample && let Some(stats) = &self.stats {
-                        let voxel = &stats.get_grid_position(hit_pos);
-                        let distribution = stats.spectral_distributions.get(voxel)
-                            .expect("voxel should have distributions");
-                        let (value, pdf) = distribution.sample_wavelength(mat_sample.base_color_spectrum);
+                    let value = if importance_sampling_mode.is_some() && let Some(stats) = &self.stats {
+                        let (value, pdf) = match importance_sampling_mode.unwrap() {
+                            ImportanceSamplingMode::Visibility => {
+                                let voxel = &stats.get_grid_position(hit_pos);
+                                let distribution = stats.spectral_distributions.get(voxel)
+                                    .expect("voxel should have distributions");
+                                distribution.sample_wavelength(mat_sample.base_color_spectrum)
+                            },
+                            ImportanceSamplingMode::MeanEmitterSpectrum => {
+                                importance_sample_wavelength(stats.mean_light_spectrum)
+                            },
+                            ImportanceSamplingMode::MeanEmitterSpectrumAlbedo => {
+                                importance_sample_wavelength(stats.mean_light_spectrum * mat_sample.base_color_spectrum)
+                            },
+                        };
 
                         path_weight /= pdf;
                         value

@@ -65,21 +65,25 @@ pub struct Distribution {
 impl Distribution {
     pub fn sample_wavelength(&self, albedo: Spectrumf32) -> (f32, f32) {
         let distribution = albedo * self.approximate_light;
-        let sum: f32 = distribution.data.iter().sum();
-
-        const BASE_PROBABILITY: f32 = 0.1;
-        const OFFSET_DIVISOR: f32 = 1.0 + BASE_PROBABILITY;
-        const OFFSET: Spectrumf32 =
-            Spectrumf32::constant(BASE_PROBABILITY / (Spectrumf32::RESOLUTION as f32 * OFFSET_DIVISOR));
-        // Unoptimized form: p = (constant(BASE_PROBABILITY / RESOLUTION) + (distribution / sum)) / OFFSET_DIVISOR
-        let probability_distribution = OFFSET + distribution / (sum * OFFSET_DIVISOR);
-        let (i, discrete_pdf) =
-            sample_item_from_probabilities(&probability_distribution.data).expect("data can't be empty");
-
-        let value = CIE::LAMBDA_MIN + Spectrumf32::STEP_SIZE * (i as f32 + rand::thread_rng().gen::<f32>());
-        let pdf = discrete_pdf * Spectrumf32::RESOLUTION as f32;
-        (value, pdf)
+        importance_sample_wavelength(distribution)
     }
+}
+
+pub fn importance_sample_wavelength(distribution: Spectrumf32) -> (f32, f32) {
+    let sum: f32 = distribution.data.iter().sum();
+
+    const BASE_PROBABILITY: f32 = 0.1;
+    const OFFSET_DIVISOR: f32 = 1.0 + BASE_PROBABILITY;
+    const OFFSET: Spectrumf32 =
+        Spectrumf32::constant(BASE_PROBABILITY / (Spectrumf32::RESOLUTION as f32 * OFFSET_DIVISOR));
+    // Unoptimized form: p = (constant(BASE_PROBABILITY / RESOLUTION) + (distribution / sum)) / OFFSET_DIVISOR
+    let probability_distribution = OFFSET + distribution / (sum * OFFSET_DIVISOR);
+    let (i, discrete_pdf) =
+        sample_item_from_probabilities(&probability_distribution.data).expect("data can't be empty");
+
+    let value = CIE::LAMBDA_MIN + Spectrumf32::STEP_SIZE * (i as f32 + rand::thread_rng().gen::<f32>());
+    let pdf = discrete_pdf * Spectrumf32::RESOLUTION as f32;
+    (value, pdf)
 }
 
 #[derive(Serialize, Deserialize)]
@@ -133,6 +137,7 @@ pub struct SceneStatistics {
     visibility: FnvHashMap<VoxelPair, Visibility>,
     materials: HashMap<VoxelId, Spectrumf32>,
     pub spectral_distributions: HashMap<VoxelId, Distribution>,
+    pub mean_light_spectrum: Spectrumf32,
 }
 
 impl SceneStatistics {
@@ -152,6 +157,7 @@ impl SceneStatistics {
             visibility: FnvHashMap::default(),
             materials: HashMap::new(),
             spectral_distributions: HashMap::new(),
+            mean_light_spectrum: Spectrumf32::constant(0.0),
         }
     }
 
@@ -343,6 +349,7 @@ impl SceneStatistics {
         for (i, light) in scene.lights.iter().enumerate() {
             // TODO: Account for radius
             if let Some(position) = light.position() {
+                self.mean_light_spectrum += light.intensity * light.spectrum;
                 let voxel = self.get_grid_position(position);
 
                 if let Some(v) = self.voxels_with_lights.iter_mut().find(|v| v.voxel == voxel) {
@@ -357,6 +364,8 @@ impl SceneStatistics {
                 self.positionless_lights.push(i);
             }
         }
+
+        self.mean_light_spectrum /= (scene.lights.len() - self.positionless_lights.len()) as f32;
     }
 
     fn get_raw_visibility(&self, pair: VoxelPair) -> Visibility {
