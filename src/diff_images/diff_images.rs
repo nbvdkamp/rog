@@ -1,31 +1,36 @@
 mod structural_similarity;
-use renderer::raytracer::{
-    file_formatting::Error as FileFormatError,
-    single_channel_image::SingleChannelImage,
-    working_image::WorkingImage,
-};
+use renderer::raytracer::{single_channel_image::SingleChannelImage, working_image::WorkingImage};
 use structural_similarity::structural_similarity;
 
-#[derive(Debug)]
-enum Error {
-    File(FileFormatError),
-    DimensionMismatch,
-    ArgumentCount(usize),
-}
-
-fn main() -> Result<(), Error> {
+fn main() {
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() < 3 {
-        return Err(Error::ArgumentCount(args.len()));
+        eprintln!("Not enough arguments, useage: diff_images image.specimg reference.specimg");
+        std::process::exit(-1);
     }
 
-    use Error::File;
-    let image = WorkingImage::read_from_file(&args[1], &None).map_err(File)?;
-    let reference = WorkingImage::read_from_file(&args[2], &image.settings.scene_version).map_err(File)?;
+    let image = match WorkingImage::read_from_file(&args[1], &None) {
+        Ok(image) => image,
+        Err(e) => {
+            eprintln!("Error while opening image: {e}");
+            std::process::exit(-1);
+        }
+    };
+    let reference = match WorkingImage::read_from_file(&args[2], &image.settings.scene_version) {
+        Ok(image) => image,
+        Err(e) => {
+            eprintln!("Error while opening reference image: {e}");
+            std::process::exit(-1);
+        }
+    };
 
     if image.settings.size != reference.settings.size {
-        return Err(Error::DimensionMismatch);
+        eprintln!(
+            "Dimension mismatch: {:?} != {:?}",
+            image.settings.size, reference.settings.size
+        );
+        std::process::exit(-1);
     }
 
     output_error("MSE", image.mean_square_error(&reference));
@@ -37,8 +42,6 @@ fn main() -> Result<(), Error> {
     let grayscale_diff = &img_grayscale - &ref_grayscale;
     output_error("grayscale_MSE", &grayscale_diff * &grayscale_diff);
     output_error("MSSIM", structural_similarity(img_grayscale, ref_grayscale));
-
-    Ok(())
 }
 
 fn output_error(name: &str, error_image: SingleChannelImage) {
