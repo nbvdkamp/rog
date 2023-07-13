@@ -151,7 +151,7 @@ impl Args {
             })
         } else {
             if visibility_resolution.is_some() {
-                eprintln!("Specifying visibility resolution whe visibility isn't used is not valid");
+                eprintln!("Specifying visibility resolution when visibility isn't used is not valid");
                 std::process::exit(-1);
             }
             None
