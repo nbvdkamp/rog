@@ -6,7 +6,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() < 3 {
-        eprintln!("Not enough arguments, useage: diff_images image.specimg reference.specimg");
+        eprintln!("Not enough arguments, usage: diff_images image.specimg reference.specimg");
         std::process::exit(-1);
     }
 
