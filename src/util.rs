@@ -75,7 +75,13 @@ where
     P: AsRef<Path>,
 {
     let pixels: Vec<RGBu8> = buffer.iter().map(|c| c.normalized()).collect();
+    save_u8_image(&pixels, image_size, path, true)
+}
 
+pub fn save_u8_image<P>(pixels: &[RGBu8], image_size: Vector2<usize>, path: P, success_message: bool)
+where
+    P: AsRef<Path>,
+{
     let byte_buffer: &[u8] = unsafe {
         std::slice::from_raw_parts(
             pixels.as_ptr() as *const u8,
@@ -92,8 +98,12 @@ where
     );
 
     match save_result {
-        Ok(_) => println!("File was saved succesfully: {}", path.as_ref().display()),
-        Err(e) => println!("Couldn't save file: {e}"),
+        Ok(_) => {
+            if success_message {
+                println!("File was saved succesfully: {}", path.as_ref().display())
+            }
+        }
+        Err(e) => eprintln!("Couldn't save file: {e}"),
     }
 }
 
