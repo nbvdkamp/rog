@@ -152,6 +152,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
 
 [[package]]
+name = "colorous"
+version = "1.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7eb0838c7c2f4548ff2218bfdcc6ce3d34ffabd0128bfb9eb44cf27de1ec38b3"
+
+[[package]]
 name = "cpufeatures"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -906,6 +912,7 @@ dependencies = [
  "byteorder",
  "cgmath",
  "clap",
+ "colorous",
  "crossbeam-deque",
  "derivative",
  "fnv",

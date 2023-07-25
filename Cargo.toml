@@ -40,6 +40,7 @@ byteorder = "1.4.3"
 fnv = "1.0.7"
 derivative = "2.2.0"
 itertools = "0.10.5"
+colorous = "1.0.12"
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
