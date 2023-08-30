@@ -43,18 +43,47 @@ fn main() {
         std::process::exit(-1);
     }
 
-    output_error("MSE", image.mean_square_error(&reference), path);
-    output_error("rgb_MSE", image.rgb_mean_square_error(&reference), path);
-    output_error("relMSE", image.relative_mean_square_error(&reference), path);
+    output_error("MSE", image.mean_square_error(&reference), range(0.0, 1.0), path);
+    output_error(
+        "rgb_MSE",
+        image.rgb_mean_square_error(&reference),
+        range(0.0, 0.5),
+        path,
+    );
+    output_error(
+        "relMSE",
+        image.relative_mean_square_error(&reference),
+        range(0.0, 10.0),
+        path,
+    );
 
     let img_grayscale = image.to_grayscale();
     let ref_grayscale = reference.to_grayscale();
     let grayscale_diff = &img_grayscale - &ref_grayscale;
-    output_error("grayscale_MSE", &grayscale_diff * &grayscale_diff, path);
-    output_error("MSSIM", structural_similarity(img_grayscale, ref_grayscale), path);
+    output_error(
+        "grayscale_MSE",
+        &grayscale_diff * &grayscale_diff,
+        range(0.0, 0.05),
+        path,
+    );
+    output_error(
+        "MSSIM",
+        structural_similarity(img_grayscale, ref_grayscale),
+        range(1.0, 0.0),
+        path,
+    );
 }
 
-fn output_error<P>(name: &str, error_image: SingleChannelImage, path: P)
+struct Range {
+    start: f32,
+    end: f32,
+}
+
+fn range(start: f32, end: f32) -> Range {
+    Range { start, end }
+}
+
+fn output_error<P>(name: &str, error_image: SingleChannelImage, r: Range, path: P)
 where
     PathBuf: From<P>,
 {
@@ -67,7 +96,8 @@ where
         .data
         .into_iter()
         .map(|v| {
-            let c = colorous::VIRIDIS.eval_continuous(v.clamp(0.0, 1.0) as f64);
+            let x = (v - r.start) / (r.end - r.start);
+            let c = colorous::VIRIDIS.eval_continuous(x.clamp(0.0, 1.0) as f64);
             RGBu8::new(c.r, c.g, c.b)
         })
         .collect_vec();
