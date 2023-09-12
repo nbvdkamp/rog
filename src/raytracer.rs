@@ -477,8 +477,13 @@ impl Raytracer {
         // Hard cap bounces to prevent endless bouncing inside perfectly reflective surfaces
         while !self.image_settings.max_depth_reached(depth) && depth < 100 {
             let TraceResultMesh::Hit {
-                instance, triangle_index, u, v, ..
-            } = self.trace(&ray, settings.accel_structure) else {
+                instance,
+                triangle_index,
+                u,
+                v,
+                ..
+            } = self.trace(&ray, settings.accel_structure)
+            else {
                 result += path_weight * self.scene.environment.sample(ray.direction);
                 break;
             };
@@ -686,8 +691,13 @@ impl Raytracer {
                 }
             }
 
-            let Sample::Sample { incident: local_bounce_dir, weight: bsdf, pdf } = sample else {
-                break
+            let Sample::Sample {
+                incident: local_bounce_dir,
+                weight: bsdf,
+                pdf,
+            } = sample
+            else {
+                break;
             };
 
             let bounce_dir = frame.to_global(local_bounce_dir);

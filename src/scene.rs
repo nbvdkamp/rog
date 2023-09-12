@@ -333,7 +333,10 @@ impl Scene {
         rgb2spec: &RGB2Spec,
     ) {
         let Some(inverse_transform) = transform.invert() else {
-            eprintln!("Singular transform matrix for mesh: {}, skipping it", mesh.name().unwrap_or(&mesh.index().to_string()));
+            eprintln!(
+                "Singular transform matrix for mesh: {}, skipping it",
+                mesh.name().unwrap_or(&mesh.index().to_string())
+            );
             return;
         };
 

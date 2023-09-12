@@ -162,7 +162,7 @@ impl KdTree {
         let first_result = self.intersect(first_hit_child, ray, inv_dir, positions, triangles, first_bounds);
 
         let TraceResult::Hit { t: t_first, .. } = first_result else {
-            return self.intersect(second_hit_child, ray, inv_dir, positions, triangles, second_bounds)
+            return self.intersect(second_hit_child, ray, inv_dir, positions, triangles, second_bounds);
         };
 
         if t_first < dist_to_second_box {

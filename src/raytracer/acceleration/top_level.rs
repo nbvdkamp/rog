@@ -229,7 +229,7 @@ impl<'a> TopLevelBVH {
         let first_result = self.intersect_node(first_hit_child, ray, inv_dir, meshes);
 
         let TraceResultMesh::Hit { t: t_first, .. } = first_result else {
-            return self.intersect_node(second_hit_child, ray, inv_dir, meshes)
+            return self.intersect_node(second_hit_child, ray, inv_dir, meshes);
         };
 
         if t_first < dist_to_second_box {

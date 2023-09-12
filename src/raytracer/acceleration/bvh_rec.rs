@@ -124,7 +124,7 @@ impl BoundingVolumeHierarchyRec {
         let first_result = self.intersect(first_hit_child, ray, inv_dir, positions, triangles);
 
         let TraceResult::Hit { t: t_first, .. } = first_result else {
-            return self.intersect(second_hit_child, ray, inv_dir, positions, triangles)
+            return self.intersect(second_hit_child, ray, inv_dir, positions, triangles);
         };
 
         if t_first < dist_to_second_box {

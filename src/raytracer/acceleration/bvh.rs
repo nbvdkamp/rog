@@ -80,7 +80,8 @@ impl BoundingVolumeHierarchy {
                 left_child,
                 right_child,
                 bounds,
-            } = node else {
+            } = node
+            else {
                 unreachable!();
             };
 

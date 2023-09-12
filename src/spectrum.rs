@@ -186,7 +186,10 @@ impl Spectrumf32 {
         for line in s.lines().skip(1) {
             let parts: Vec<_> = line.split(',').collect();
             let [first, second] = parts[..] else {
-                return Err(Format(format!("Line should contain two comma separated numbers: {}", line)));
+                return Err(Format(format!(
+                    "Line should contain two comma separated numbers: {}",
+                    line
+                )));
             };
 
             let wavelength = first.parse::<f32>().map_err(FloatParsing)?;

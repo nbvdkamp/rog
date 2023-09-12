@@ -104,7 +104,7 @@ impl VoxelPair {
     pub fn new(a: VoxelId, b: VoxelId) -> Self {
         fn cmp(a: VoxelId, b: VoxelId) -> Ordering {
             let x = a.x.cmp(&b.x);
-            let Ordering::Equal = x  else {
+            let Ordering::Equal = x else {
                 return x;
             };
 
