@@ -24,6 +24,10 @@ path = "src/diff_images/diff_images.rs"
 name = "read_image"
 path = "src/read_image.rs"
 
+[[bin]]
+name = "read_image_pixel"
+path = "src/read_image_pixel.rs"
+
 [dependencies]
 impl_ops = "0.1.1"
 image = "0.24"
