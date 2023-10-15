@@ -1,5 +1,6 @@
 target/
 output/
 res/test/
+test_scripts/
 *.svg
 *.data
