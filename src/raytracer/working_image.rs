@@ -198,6 +198,22 @@ impl WorkingImage {
         }
     }
 
+    pub fn normalized(&self) -> Self {
+        Self {
+            pixels: self
+                .pixels
+                .iter()
+                .map(|p| Pixel {
+                    spectrum: p.spectrum.normalized(),
+                    samples: p.samples,
+                })
+                .collect(),
+            settings: self.settings.clone(),
+            paths_sampled_per_pixel: self.paths_sampled_per_pixel,
+            seconds_spent_rendering: self.seconds_spent_rendering,
+        }
+    }
+
     fn error<F>(&self, other: &Self, f: F) -> SingleChannelImage
     where
         F: Fn(&Spectrumf32, &Spectrumf32) -> f32,
