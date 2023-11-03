@@ -51,35 +51,20 @@ fn main() {
         std::process::exit(-1);
     }
 
-    output_error("MSE", image.mean_square_error(&reference), range(0.0, 1.0), path);
-    output_error(
-        "rgb_MSE",
-        image.rgb_mean_square_error(&reference),
-        range(0.0, 0.5),
-        path,
-    );
-    output_error(
-        "relMSE",
-        image.relative_mean_square_error(&reference),
-        range(0.0, 10.0),
-        path,
-    );
+    let mse = image.mean_square_error(&reference);
+    let rgb_mse = image.rgb_mean_square_error(&reference);
+    let rel_mse = image.relative_mean_square_error(&reference);
+    output_error("MSE", mse, range(0.00, 1.0), path);
+    output_error("rgb_MSE", rgb_mse, range(0.0, 0.5), path);
+    output_error("relMSE", rel_mse, range(0.0, 10.0), path);
 
     let img_grayscale = image.to_grayscale();
     let ref_grayscale = reference.to_grayscale();
     let grayscale_diff = &img_grayscale - &ref_grayscale;
-    output_error(
-        "grayscale_MSE",
-        &grayscale_diff * &grayscale_diff,
-        range(0.0, 0.05),
-        path,
-    );
-    output_error(
-        "MSSIM",
-        structural_similarity(img_grayscale, ref_grayscale),
-        range(1.0, 0.0),
-        path,
-    );
+    let grayscale_mse = &grayscale_diff * &grayscale_diff;
+    let mssim = structural_similarity(img_grayscale, ref_grayscale);
+    output_error("grayscale_MSE", grayscale_mse, range(0.0, 0.05), path);
+    output_error("MSSIM", mssim, range(1.0, 0.0), path);
 }
 
 struct Range {
