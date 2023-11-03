@@ -19,6 +19,7 @@ fn main() {
     }
 
     let path = &args[1];
+    let reference_path = &args[2];
     let normalize_images = false;
 
     let image = match WorkingImage::read_from_file(path, &None) {
@@ -28,20 +29,17 @@ fn main() {
             std::process::exit(-1);
         }
     };
-    let image = if normalize_images { image.normalized() } else { image };
 
-    let reference = match WorkingImage::read_from_file(&args[2], &image.settings.scene_version) {
+    let r = match WorkingImage::read_from_file(reference_path, &image.settings.scene_version) {
         Ok(image) => image,
         Err(e) => {
             eprintln!("Error while opening reference image: {e}");
             std::process::exit(-1);
         }
     };
-    let reference = if normalize_images {
-        reference.normalized()
-    } else {
-        reference
-    };
+
+    let image = if normalize_images { image.normalized() } else { image };
+    let reference = if normalize_images { r.normalized() } else { r };
 
     if image.settings.size != reference.settings.size {
         eprintln!(
