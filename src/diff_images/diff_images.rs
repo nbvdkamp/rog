@@ -2,6 +2,7 @@ mod structural_similarity;
 use std::{fs::create_dir_all, path::PathBuf};
 
 use cgmath::vec2;
+use clap::{arg, Command};
 use itertools::Itertools;
 use renderer::{
     color::RGBu8,
@@ -11,16 +12,17 @@ use renderer::{
 use structural_similarity::structural_similarity;
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
+    let matches = Command::new("diff_images")
+        .args(&[
+            arg!(image: <FILE>),
+            arg!(reference: <FILE>),
+            arg!(-n --normalize "normalizes images before comparison so pixel luminance is not a factor"),
+        ])
+        .get_matches();
 
-    if args.len() < 3 {
-        eprintln!("Not enough arguments, usage: diff_images image.specimg reference.specimg");
-        std::process::exit(-1);
-    }
-
-    let path = &args[1];
-    let reference_path = &args[2];
-    let normalize_images = false;
+    let path = matches.get_one::<String>("image").expect("image is required");
+    let reference_path = matches.get_one::<String>("reference").expect("reference is required");
+    let normalize_images = matches.get_flag("normalize");
 
     let image = match WorkingImage::read_from_file(path, &None) {
         Ok(image) => image,
