@@ -1,15 +1,12 @@
-use std::{fs::File, path::PathBuf};
+use std::{fmt, fs::File, path::PathBuf};
 
-use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use sha2::{digest::DynDigest, Digest, Sha256};
 
-#[derive(Serialize, Deserialize, Clone, Derivative)]
-#[derivative(Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SceneVersion {
     pub filepath: PathBuf,
-    #[derivative(Debug = "ignore")]
-    pub hash: [u8; 32],
+    pub hash: Hash,
 }
 
 impl SceneVersion {
@@ -20,9 +17,19 @@ impl SceneVersion {
         let _ = std::io::copy(&mut file, &mut hasher)?;
 
         assert_eq!(hasher.output_size(), 32);
-        let mut hash = [0; 32];
-        hash.copy_from_slice(&hasher.finalize());
+        let mut hash_buf = [0; 32];
+        hash_buf.copy_from_slice(&hasher.finalize());
+        let hash = Hash(hash_buf);
 
         Ok(SceneVersion { filepath, hash })
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+pub struct Hash([u8; 32]);
+
+impl fmt::Debug for Hash {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("Hash {{ {:x?} }}", self.0))
     }
 }
