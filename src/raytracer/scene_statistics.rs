@@ -13,7 +13,7 @@ use rayon::{iter::ParallelIterator, prelude::IntoParallelRefIterator};
 use serde::{Deserialize, Serialize};
 use static_assertions::const_assert;
 
-use cgmath::{point2, vec2, vec3, ElementWise, InnerSpace, Point2, Point3, Vector3, Zero};
+use cgmath::{point2, vec2, vec3, ElementWise, InnerSpace, Point2, Point3, Vector3};
 use itertools::Itertools;
 use rand::Rng;
 
@@ -124,6 +124,68 @@ impl VoxelPair {
     }
 }
 
+pub struct VoxelNeighbours {
+    offsets: std::array::IntoIter<(i32, i32, i32), 26>,
+    resolution: u8,
+    voxel: VoxelId,
+}
+
+impl VoxelNeighbours {
+    pub fn new(resolution: u8, voxel: VoxelId) -> Self {
+        let offsets = [
+            (1, 0, 0),
+            (-1, 0, 0),
+            (0, 1, 0),
+            (0, -1, 0),
+            (0, 0, 1),
+            (0, 0, -1),
+            (1, 1, 0),
+            (-1, 1, 0),
+            (1, -1, 0),
+            (-1, -1, 0),
+            (1, 0, 1),
+            (-1, 0, 1),
+            (1, 0, -1),
+            (-1, 0, -1),
+            (0, 1, 1),
+            (0, -1, 1),
+            (0, 1, -1),
+            (0, -1, -1),
+            (1, 1, 1),
+            (-1, 1, 1),
+            (1, -1, 1),
+            (1, 1, -1),
+            (-1, 1, -1),
+            (-1, -1, 1),
+            (1, -1, -1),
+            (-1, -1, -1),
+        ]
+        .into_iter();
+
+        VoxelNeighbours {
+            offsets,
+            resolution,
+            voxel,
+        }
+    }
+}
+
+impl Iterator for VoxelNeighbours {
+    type Item = VoxelId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some((x, y, z)) = self.offsets.next() {
+            let p = self.voxel.cast::<i32>().unwrap() + Vector3::new(x, y, z);
+
+            let grid_range = 0..self.resolution as i32;
+            if grid_range.contains(&p.x) && grid_range.contains(&p.y) && grid_range.contains(&p.z) {
+                return Some(p.cast::<u8>().unwrap());
+            }
+        }
+        None
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct SceneStatistics {
     resolution: u8,
@@ -189,7 +251,7 @@ impl SceneStatistics {
                 }
 
                 if intersects_light && nonempty_voxels.insert(voxel) {
-                    stack.append(&mut self.voxel_neighbours(voxel));
+                    stack.append(&mut self.voxel_neighbours(voxel).collect_vec());
                 }
             }
         }
@@ -301,31 +363,8 @@ impl SceneStatistics {
         })
     }
 
-    fn voxel_neighbours(&self, voxel: VoxelId) -> Vec<VoxelId> {
-        let grid_range = 0..self.resolution as i32;
-
-        (-1..=1)
-            .cartesian_product((-1..=1).cartesian_product(-1..=1))
-            .flat_map(|(ox, (oy, oz))| {
-                let offset = Vector3::new(ox, oy, oz);
-
-                if offset == Vector3::zero() {
-                    return None;
-                }
-
-                let Point3 { x, y, z } = voxel.cast::<i32>().unwrap() + offset;
-
-                if !grid_range.contains(&x) || !grid_range.contains(&y) || !grid_range.contains(&z) {
-                    None
-                } else {
-                    Some(VoxelId {
-                        x: x as u8,
-                        y: y as u8,
-                        z: z as u8,
-                    })
-                }
-            })
-            .collect()
+    pub fn voxel_neighbours(&self, voxel: VoxelId) -> VoxelNeighbours {
+        VoxelNeighbours::new(self.resolution, voxel)
     }
 
     fn bounds_from_grid_position(&self, position: VoxelId) -> BoundingBox {
