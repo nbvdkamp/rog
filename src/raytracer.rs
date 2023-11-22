@@ -534,9 +534,22 @@ impl Raytracer {
                     let value = if importance_sampling_mode.is_some() && let Some(stats) = &self.stats {
                         let (value, pdf) = match importance_sampling_mode.unwrap() {
                             ImportanceSamplingMode::Visibility => {
-                                let voxel = &stats.get_grid_position(hit_pos);
-                                let distribution = stats.spectral_distributions.get(voxel)
-                                    .expect("voxel should have distributions");
+                                let voxel = stats.get_grid_position(hit_pos);
+                                let distribution = stats.spectral_distributions.get(&voxel)
+                                    .or_else(|| {
+                                        // Float precision issues when a tri is on the border of voxels
+                                        // can cause cases where the collision position is in a
+                                        // different voxel than the tri is counted for, this hacks around that
+                                        // by just finding a nearby voxel that does have a distribution.
+                                        for neighbour in stats.voxel_neighbours(voxel) {
+                                            let distribution = stats.spectral_distributions.get(&neighbour);
+                                            if distribution.is_some() {
+                                                return distribution;
+                                            }
+                                        }
+                                        None
+                                    }).expect("voxel should have distributions");
+
                                 distribution.sample_wavelength(mat_sample.base_color_spectrum)
                             },
                             ImportanceSamplingMode::MeanEmitterSpectrum => {
