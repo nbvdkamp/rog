@@ -457,7 +457,7 @@ impl SceneStatistics {
         let ambient = scene
             .lights
             .iter()
-            .map(|light| light.intensity * light.spectrum)
+            .map(|light| light.spectrum)
             .reduce(Spectrumf32::max_elementwise)
             .unwrap()
             / 100.0;
