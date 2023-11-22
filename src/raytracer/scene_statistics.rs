@@ -283,8 +283,8 @@ impl SceneStatistics {
     ) -> Visibility {
         let passed_tests = (0..VISIBILITY_SAMPLES)
             .map(|_| {
-                let start = self.sample_point_in_voxel(a);
-                let end = self.sample_point_in_voxel(b);
+                let start = self.sample_point_on_voxel(a);
+                let end = self.sample_point_on_voxel(b);
 
                 let ray = Ray {
                     origin: start,
@@ -374,14 +374,30 @@ impl SceneStatistics {
         }
     }
 
-    fn sample_point_in_voxel(&self, voxel: VoxelId) -> Point3<f32> {
+    /// Samples a point on a voxel's boundary
+    fn sample_point_on_voxel(&self, voxel: VoxelId) -> Point3<f32> {
         let VoxelId { x, y, z } = voxel;
-        let voxel_offset = self.voxel_extent.mul_element_wise(vec3(x as f32, y as f32, z as f32));
+        let voxel_min_corner = self.voxel_extent.mul_element_wise(vec3(x as f32, y as f32, z as f32));
+
+        let x = vec3(self.voxel_extent.x, 0.0, 0.0);
+        let y = vec3(0.0, self.voxel_extent.y, 0.0);
+        let z = vec3(0.0, 0.0, self.voxel_extent.z);
 
         let mut rng = rand::thread_rng();
-        let random_offset = vec3(rng.gen::<f32>(), rng.gen::<f32>(), rng.gen::<f32>());
+        let i = rng.gen::<f32>();
+        let j = rng.gen::<f32>();
 
-        self.scene_bounds.min + voxel_offset + self.voxel_extent.mul_element_wise(random_offset)
+        let voxel_side_offset = match rng.gen_range(0..6u8) {
+            0 => i * x + j * y,
+            1 => i * x + j * y + z,
+            2 => i * x + j * z,
+            3 => i * x + j * z + y,
+            4 => i * y + j * z,
+            5 => i * y + j * z + x,
+            _ => unreachable!(),
+        };
+
+        self.scene_bounds.min + voxel_min_corner + voxel_side_offset
     }
 
     pub fn compute_light_voxel_distribution(&mut self, scene: &Scene) {
