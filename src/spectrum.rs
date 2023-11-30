@@ -140,17 +140,17 @@ impl Spectrumf32 {
     }
 
     pub fn add_at_wavelength_lerp(&mut self, value: f32, wavelength: f32) {
-        let x = (wavelength - CIE::LAMBDA_MIN) / CIE::LAMBDA_RANGE * (RESOLUTION - 2) as f32;
-        let i = x.floor() as usize;
-        let factor = x - x.floor();
+        let x = (wavelength - CIE::LAMBDA_MIN) / CIE::LAMBDA_RANGE * (RESOLUTION - 1) as f32;
+        let i = (x.floor() as usize).min(RESOLUTION - 2);
+        let factor = x - i as f32;
         self.data[i] += (1.0 - factor) * value;
         self.data[i + 1] += factor * value;
     }
 
     pub fn at_wavelength_lerp(&self, wavelength: f32) -> f32 {
-        let x = (wavelength - CIE::LAMBDA_MIN) / CIE::LAMBDA_RANGE * (RESOLUTION - 2) as f32;
-        let i = x.floor() as usize;
-        let factor = x - x.floor();
+        let x = (wavelength - CIE::LAMBDA_MIN) / CIE::LAMBDA_RANGE * (RESOLUTION - 1) as f32;
+        let i = (x.floor() as usize).min(RESOLUTION - 2);
+        let factor = x - i as f32;
         self.data[i] * (1.0 - factor) + self.data[i + 1] * factor
     }
 
