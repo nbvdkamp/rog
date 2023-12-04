@@ -31,7 +31,8 @@ fn main() -> Result<(), Error> {
     }
 
     let spectrum = image.pixels[y * size.x + x].spectrum.data;
-    println!("{spectrum:#?}");
+    let samples = image.pixels[y * size.x + x].samples;
+    println!("{spectrum:#?}, {samples}");
 
     Ok(())
 }
