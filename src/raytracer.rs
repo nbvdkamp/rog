@@ -30,12 +30,11 @@ pub(crate) mod triangle;
 pub mod working_image;
 
 use crate::{
-    cie_data as CIE,
     light::Light,
     raytracer::{file_formatting::Error, working_image::Pixel},
     render_settings::{ImageSettings, ImportanceSamplingMode, RenderSettings, TerminationCondition},
     scene::Scene,
-    spectrum::Spectrumf32,
+    spectrum::{Spectrumf32, Wavelength},
     texture::{CoefficientTexture, Texture},
     util::normal_transform_from_mat4,
 };
@@ -46,7 +45,7 @@ use bsdf::{mis2, Evaluation, Sample};
 use geometry::{ensure_valid_reflection, orthogonal_vector};
 use ray::Ray;
 use sampling::{sample_item_from_weights, sample_value_from_slice_uniform, tent_sample};
-use scene_statistics::{importance_sample_wavelength, SceneStatistics};
+use scene_statistics::SceneStatistics;
 use shadingframe::ShadingFrame;
 use working_image::WorkingImage;
 
@@ -87,11 +86,11 @@ pub enum RenderMessage {
 
 enum RadianceResult {
     Spectrum(Spectrumf32),
-    SingleValue { value: f32, wavelength: f32 },
+    SingleValue { value: f32, wavelength: Wavelength },
 }
-pub enum Wavelength {
+pub enum WavelengthState {
     Undecided,
-    Sampled { value: f32 },
+    Sampled { value: Wavelength },
 }
 
 impl Raytracer {
@@ -319,7 +318,7 @@ impl Raytracer {
                                     }
                                     RadianceResult::SingleValue { value, wavelength } => {
                                         // wavelength is sampled in range so no bounds checks necessary
-                                        pixel.spectrum.add_at_wavelength_lerp(value, wavelength);
+                                        pixel.spectrum.add_at_wavelength(value, wavelength);
                                         pixel.samples += 1;
                                     }
                                 }
@@ -471,7 +470,7 @@ impl Raytracer {
         let mut path_weight = Spectrumf32::constant(1.0);
         let mut ray = ray;
 
-        let mut wavelength = Wavelength::Undecided;
+        let mut wavelength = WavelengthState::Undecided;
         let mut depth = 0;
 
         // Hard cap bounces to prevent endless bouncing inside perfectly reflective surfaces
@@ -524,15 +523,15 @@ impl Raytracer {
                 continue;
             }
 
-            if let Wavelength::Undecided = wavelength {
+            if let WavelengthState::Undecided = wavelength {
                 if self.image_settings.always_sample_single_wavelength {
                     let importance_sampling_mode = self
                         .image_settings
                         .visibility
                         .map_or(None, |v| v.spectral_importance_sampling);
 
-                    let value = if importance_sampling_mode.is_some() && let Some(stats) = &self.stats {
-                        let (value, pdf) = match importance_sampling_mode.unwrap() {
+                    let (value, pdf) = if importance_sampling_mode.is_some() && let Some(stats) = &self.stats {
+                        match importance_sampling_mode.unwrap() {
                             ImportanceSamplingMode::Visibility => {
                                 let voxel = stats.get_grid_position(hit_pos);
                                 let distribution = stats.spectral_distributions.get(&voxel)
@@ -553,21 +552,19 @@ impl Raytracer {
                                 distribution.sample_wavelength(mat_sample.base_color_spectrum)
                             },
                             ImportanceSamplingMode::MeanEmitterSpectrum => {
-                                importance_sample_wavelength(stats.mean_light_spectrum)
+                                stats.mean_light_spectrum.importance_sample_wavelength()
                             },
                             ImportanceSamplingMode::MeanEmitterSpectrumAlbedo => {
-                                importance_sample_wavelength(stats.mean_light_spectrum * mat_sample.base_color_spectrum)
+                                let x = stats.mean_light_spectrum * mat_sample.base_color_spectrum;
+                                x.importance_sample_wavelength()
                             },
-                        };
-
-                        path_weight /= pdf;
-                        value
+                        }
                     } else {
-                        // Sample uniformly
-                        CIE::LAMBDA_MIN + CIE::LAMBDA_RANGE * thread_rng().gen::<f32>()
+                        Wavelength::sample_uniform_visible()
                     };
+                    path_weight /= pdf * Spectrumf32::RESOLUTION as f32;
 
-                    wavelength = Wavelength::Sampled { value };
+                    wavelength = WavelengthState::Sampled { value };
                 }
             }
 
@@ -579,11 +576,14 @@ impl Raytracer {
                 let lambda;
 
                 match wavelength {
-                    Wavelength::Undecided => {
-                        lambda = CIE::LAMBDA_MIN + CIE::LAMBDA_RANGE * thread_rng().gen::<f32>();
-                        wavelength = Wavelength::Sampled { value: lambda }
+                    WavelengthState::Undecided => {
+                        // Ignoring pdf as we it is constant with uniform sampling and we would have to correct by RESOLUTION again
+                        let (w, _pdf) = Wavelength::sample_uniform_visible();
+                        // path_weight /= pdf;
+                        lambda = w.value();
+                        wavelength = WavelengthState::Sampled { value: w }
                     }
-                    Wavelength::Sampled { value } => lambda = value,
+                    WavelengthState::Sampled { value } => lambda = value.value(),
                 }
 
                 mat_sample.ior = mat_sample.cauchy_coefficients.ior_for_wavelength(lambda);
@@ -723,8 +723,8 @@ impl Raytracer {
 
             path_weight *= bsdf * (shadow_terminator / pdf);
 
-            let max_weight = if let Wavelength::Sampled { value } = wavelength {
-                path_weight.at_wavelength_lerp(value)
+            let max_weight = if let WavelengthState::Sampled { value } = wavelength {
+                path_weight.at_wavelength(value)
             } else {
                 path_weight.max_value()
             };
@@ -748,9 +748,9 @@ impl Raytracer {
         }
 
         match wavelength {
-            Wavelength::Undecided => RadianceResult::Spectrum(result),
-            Wavelength::Sampled { value: wavelength } => RadianceResult::SingleValue {
-                value: result.at_wavelength_lerp(wavelength),
+            WavelengthState::Undecided => RadianceResult::Spectrum(result),
+            WavelengthState::Sampled { value: wavelength } => RadianceResult::SingleValue {
+                value: result.at_wavelength(wavelength),
                 wavelength,
             },
         }

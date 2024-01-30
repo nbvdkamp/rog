@@ -18,15 +18,11 @@ use itertools::Itertools;
 use rand::Rng;
 
 use crate::{
-    cie_data as CIE,
     color::RGBf32,
-    raytracer::{
-        geometry::triangle_area,
-        sampling::{sample_coordinates_on_triangle, sample_item_from_probabilities},
-    },
+    raytracer::{geometry::triangle_area, sampling::sample_coordinates_on_triangle},
     scene::Scene,
     scene_version::SceneVersion,
-    spectrum::Spectrumf32,
+    spectrum::{Spectrumf32, Wavelength},
     util::save_image,
 };
 
@@ -63,27 +59,10 @@ pub struct Distribution {
 }
 
 impl Distribution {
-    pub fn sample_wavelength(&self, albedo: Spectrumf32) -> (f32, f32) {
+    pub fn sample_wavelength(&self, albedo: Spectrumf32) -> (Wavelength, f32) {
         let distribution = albedo * self.approximate_light;
-        importance_sample_wavelength(distribution)
+        distribution.importance_sample_wavelength()
     }
-}
-
-pub fn importance_sample_wavelength(distribution: Spectrumf32) -> (f32, f32) {
-    let sum: f32 = distribution.data.iter().sum();
-
-    const BASE_PROBABILITY: f32 = 0.1;
-    const OFFSET_DIVISOR: f32 = 1.0 + BASE_PROBABILITY;
-    const OFFSET: Spectrumf32 =
-        Spectrumf32::constant(BASE_PROBABILITY / (Spectrumf32::RESOLUTION as f32 * OFFSET_DIVISOR));
-    // Unoptimized form: p = (constant(BASE_PROBABILITY / RESOLUTION) + (distribution / sum)) / OFFSET_DIVISOR
-    let probability_distribution = OFFSET + distribution / (sum * OFFSET_DIVISOR);
-    let (i, discrete_pdf) =
-        sample_item_from_probabilities(&probability_distribution.data).expect("data can't be empty");
-
-    let value = CIE::LAMBDA_MIN + Spectrumf32::STEP_SIZE * (i as f32 + rand::thread_rng().gen::<f32>());
-    let pdf = discrete_pdf * Spectrumf32::RESOLUTION as f32;
-    (value, pdf)
 }
 
 #[derive(Serialize, Deserialize)]

@@ -6,11 +6,13 @@ use std::{
 
 use itertools::Itertools;
 use lerp::Lerp;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     cie_data as CIE,
     color::{RGBf32, XYZf32},
+    raytracer::sampling::sample_item_from_probabilities,
 };
 
 pub struct Spectrumf32WithAlpha {
@@ -139,19 +141,12 @@ impl Spectrumf32 {
         }
     }
 
-    pub fn add_at_wavelength_lerp(&mut self, value: f32, wavelength: f32) {
-        let x = (wavelength - CIE::LAMBDA_MIN) / CIE::LAMBDA_RANGE * (RESOLUTION - 1) as f32;
-        let i = (x.floor() as usize).min(RESOLUTION - 2);
-        let factor = x - i as f32;
-        self.data[i] += (1.0 - factor) * value;
-        self.data[i + 1] += factor * value;
+    pub fn add_at_wavelength(&mut self, value: f32, wavelength: Wavelength) {
+        self.data[wavelength.index as usize] += value;
     }
 
-    pub fn at_wavelength_lerp(&self, wavelength: f32) -> f32 {
-        let x = (wavelength - CIE::LAMBDA_MIN) / CIE::LAMBDA_RANGE * (RESOLUTION - 1) as f32;
-        let i = (x.floor() as usize).min(RESOLUTION - 2);
-        let factor = x - i as f32;
-        self.data[i] * (1.0 - factor) + self.data[i + 1] * factor
+    pub fn at_wavelength(&self, wavelength: Wavelength) -> f32 {
+        self.data[wavelength.index as usize]
     }
 
     pub fn luminance(&self) -> f32 {
@@ -286,6 +281,44 @@ impl ArrSpectrumf32 {
         }
 
         Self { data }
+    }
+
+    pub fn importance_sample_wavelength(&self) -> (Wavelength, f32) {
+        let sum: f32 = self.data.iter().sum();
+
+        if sum == 0.0 {
+            return Wavelength::sample_uniform_visible();
+        }
+
+        const BASE_PROBABILITY: f32 = 0.1;
+        const OFFSET_DIVISOR: f32 = 1.0 + BASE_PROBABILITY;
+        const OFFSET: Spectrumf32 =
+            Spectrumf32::constant(BASE_PROBABILITY / (Spectrumf32::RESOLUTION as f32 * OFFSET_DIVISOR));
+        // Unoptimized form: p = (constant(BASE_PROBABILITY / RESOLUTION) + (distribution / sum)) / OFFSET_DIVISOR
+        let probability_distribution = OFFSET + self / (sum * OFFSET_DIVISOR);
+        let (i, pdf) = sample_item_from_probabilities(&probability_distribution.data).expect("data can't be empty");
+
+        (Wavelength { index: i as u8 }, pdf)
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Wavelength {
+    index: u8,
+}
+
+impl Wavelength {
+    pub fn sample_uniform_visible() -> (Self, f32) {
+        return (
+            Self {
+                index: rand::thread_rng().gen_range(0..RESOLUTION as u8),
+            },
+            1.0 / RESOLUTION as f32,
+        );
+    }
+
+    pub fn value(&self) -> f32 {
+        CIE::LAMBDA_MIN + Spectrumf32::STEP_SIZE * self.index as f32
     }
 }
 
@@ -491,5 +524,73 @@ mod tests {
         }
 
         assert!(max_error.max_component() < 0.01);
+    }
+}
+
+#[cfg(test)]
+mod importance_sampling_tests {
+    use super::*;
+    use cgmath::assert_relative_eq;
+
+    fn assert_approx_equal(s1: Spectrumf32, s2: Spectrumf32, epsilon: f32) {
+        for (x, y) in s1.data.iter().zip(s2.data.iter()) {
+            assert_relative_eq!(*x, *y, epsilon = epsilon);
+        }
+    }
+
+    const N: usize = 1_000_000;
+
+    #[test]
+    fn linear() {
+        let mut x = Spectrumf32::constant(0.0);
+        for (i, f) in x.data.iter_mut().enumerate() {
+            *f = i as f32;
+        }
+        let mut sampled = Spectrumf32::constant(0.0);
+        let mut sampled_pdf = Spectrumf32::constant(0.0);
+
+        for _ in 0..N {
+            let (lambda, pdf) = x.importance_sample_wavelength();
+            sampled.add_at_wavelength(1.0, lambda);
+            sampled_pdf.add_at_wavelength(pdf, lambda);
+        }
+
+        let pdf_integral = (sampled_pdf / sampled).data.iter().sum::<f32>();
+        assert_relative_eq!(pdf_integral, 1.0, epsilon = 0.0001);
+        assert_approx_equal(x.normalized(), sampled.normalized(), 0.01)
+    }
+
+    #[test]
+    fn uniform() {
+        let x = Spectrumf32::constant(1.0);
+        let mut sampled = Spectrumf32::constant(0.0);
+        let mut sampled_pdf = Spectrumf32::constant(0.0);
+
+        for _ in 0..N {
+            let (lambda, pdf) = x.importance_sample_wavelength();
+            sampled.add_at_wavelength(1.0, lambda);
+            sampled_pdf.add_at_wavelength(pdf, lambda);
+        }
+
+        let pdf_integral = (sampled_pdf / sampled).data.iter().sum::<f32>();
+        assert_relative_eq!(pdf_integral, 1.0, epsilon = 0.0001);
+        assert_approx_equal(x.normalized(), sampled.normalized(), 0.001);
+    }
+
+    #[test]
+    fn zero() {
+        let x = Spectrumf32::constant(0.0);
+        let mut sampled = Spectrumf32::constant(0.0);
+        let mut sampled_pdf = Spectrumf32::constant(0.0);
+
+        for _ in 0..N {
+            let (lambda, pdf) = x.importance_sample_wavelength();
+            sampled.add_at_wavelength(1.0, lambda);
+            sampled_pdf.add_at_wavelength(pdf, lambda);
+        }
+
+        let pdf_integral = (sampled_pdf / sampled).data.iter().sum::<f32>();
+        assert_relative_eq!(pdf_integral, 1.0, epsilon = 0.0001);
+        assert_approx_equal(Spectrumf32::constant(1.0).normalized(), sampled.normalized(), 0.001)
     }
 }
