@@ -9,6 +9,7 @@ use crate::{raytracer::acceleration::Accel, scene_version::SceneVersion};
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub enum ImportanceSamplingMode {
     Visibility,
+    VisibilityNEE,
     MeanEmitterSpectrum,
     MeanEmitterSpectrumAlbedo,
 }
@@ -19,6 +20,7 @@ impl FromStr for ImportanceSamplingMode {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_ascii_lowercase().as_str() {
             "visibility" => Ok(ImportanceSamplingMode::Visibility),
+            "visibility-nee" => Ok(ImportanceSamplingMode::VisibilityNEE),
             "mean-spectrum" => Ok(ImportanceSamplingMode::MeanEmitterSpectrum),
             "mean-spectrum-albedo" => Ok(ImportanceSamplingMode::MeanEmitterSpectrumAlbedo),
             _ => Err(format!("Invalid importance sampling mode: {s}")),

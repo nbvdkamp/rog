@@ -523,51 +523,6 @@ impl Raytracer {
                 continue;
             }
 
-            if let WavelengthState::Undecided = wavelength {
-                if self.image_settings.always_sample_single_wavelength {
-                    let importance_sampling_mode = self
-                        .image_settings
-                        .visibility
-                        .map_or(None, |v| v.spectral_importance_sampling);
-
-                    let (value, pdf) = if importance_sampling_mode.is_some() && let Some(stats) = &self.stats {
-                        match importance_sampling_mode.unwrap() {
-                            ImportanceSamplingMode::Visibility => {
-                                let voxel = stats.get_grid_position(hit_pos);
-                                let distribution = stats.spectral_distributions.get(&voxel)
-                                    .or_else(|| {
-                                        // Float precision issues when a tri is on the border of voxels
-                                        // can cause cases where the collision position is in a
-                                        // different voxel than the tri is counted for, this hacks around that
-                                        // by just finding a nearby voxel that does have a distribution.
-                                        for neighbour in stats.voxel_neighbours(voxel) {
-                                            let distribution = stats.spectral_distributions.get(&neighbour);
-                                            if distribution.is_some() {
-                                                return distribution;
-                                            }
-                                        }
-                                        None
-                                    }).expect("voxel should have distributions");
-
-                                distribution.sample_wavelength(mat_sample.base_color_spectrum)
-                            },
-                            ImportanceSamplingMode::MeanEmitterSpectrum => {
-                                stats.mean_light_spectrum.importance_sample_wavelength()
-                            },
-                            ImportanceSamplingMode::MeanEmitterSpectrumAlbedo => {
-                                let x = stats.mean_light_spectrum * mat_sample.base_color_spectrum;
-                                x.importance_sample_wavelength()
-                            },
-                        }
-                    } else {
-                        Wavelength::sample_uniform_visible()
-                    };
-                    path_weight /= pdf * Spectrumf32::RESOLUTION as f32;
-
-                    wavelength = WavelengthState::Sampled { value };
-                }
-            }
-
             if let Some(emission) = &mat_sample.emissive {
                 result += path_weight * emission;
             }
@@ -635,6 +590,8 @@ impl Raytracer {
 
             let sample = bsdf::sample(&mat_sample, local_outgoing);
 
+            let mut nee_result = Spectrumf32::constant(0.0);
+
             // Next event estimation (directly sampling lights)
             if let Some((light, light_pick_pdf)) = self.sample_light(hit_pos) {
                 let light_sample = light.sample(hit_pos);
@@ -694,8 +651,7 @@ impl Raytracer {
                                 bump_shading_factor(normal, shading_normal, light_sample.direction)
                             });
 
-                            result += path_weight
-                                * light.spectrum
+                            nee_result += light.spectrum
                                 * bsdf
                                 * (mis_weight * light_sample.intensity * shadow_terminator
                                     / (light_pick_pdf * light_sample.pdf * rejection_pdf));
@@ -703,6 +659,73 @@ impl Raytracer {
                     }
                 }
             }
+
+            if let WavelengthState::Undecided = wavelength {
+                if self.image_settings.always_sample_single_wavelength {
+                    let importance_sampling_mode = self
+                        .image_settings
+                        .visibility
+                        .map_or(None, |v| v.spectral_importance_sampling);
+
+                    let (value, pdf) = if importance_sampling_mode.is_some() && let Some(stats) = &self.stats {
+                        match importance_sampling_mode.unwrap() {
+                            ImportanceSamplingMode::Visibility => {
+                                let voxel = stats.get_grid_position(hit_pos);
+                                let distribution = stats.spectral_distributions.get(&voxel)
+                                    .or_else(|| {
+                                        // Float precision issues when a tri is on the border of voxels
+                                        // can cause cases where the collision position is in a
+                                        // different voxel than the tri is counted for, this hacks around that
+                                        // by just finding a nearby voxel that does have a distribution.
+                                        for neighbour in stats.voxel_neighbours(voxel) {
+                                            let distribution = stats.spectral_distributions.get(&neighbour);
+                                            if distribution.is_some() {
+                                                return distribution;
+                                            }
+                                        }
+                                        None
+                                    }).expect("voxel should have distributions");
+
+                                distribution.sample_wavelength(mat_sample.base_color_spectrum)
+                            },
+                            ImportanceSamplingMode::VisibilityNEE => {
+                                let voxel = stats.get_grid_position(hit_pos);
+                                let distribution = stats.spectral_distributions.get(&voxel)
+                                    .or_else(|| {
+                                        // Float precision issues when a tri is on the border of voxels
+                                        // can cause cases where the collision position is in a
+                                        // different voxel than the tri is counted for, this hacks around that
+                                        // by just finding a nearby voxel that does have a distribution.
+                                        for neighbour in stats.voxel_neighbours(voxel) {
+                                            let distribution = stats.spectral_distributions.get(&neighbour);
+                                            if distribution.is_some() {
+                                                return distribution;
+                                            }
+                                        }
+                                        None
+                                    }).expect("voxel should have distributions");
+
+                                let d =  0.5 * distribution.approximate_light + 0.5 * nee_result;
+                                (mat_sample.base_color_spectrum * d).importance_sample_wavelength()
+                            },
+                            ImportanceSamplingMode::MeanEmitterSpectrum => {
+                                stats.mean_light_spectrum.importance_sample_wavelength()
+                            },
+                            ImportanceSamplingMode::MeanEmitterSpectrumAlbedo => {
+                                let x = stats.mean_light_spectrum * mat_sample.base_color_spectrum;
+                                x.importance_sample_wavelength()
+                            },
+                        }
+                    } else {
+                        Wavelength::sample_uniform_visible()
+                    };
+                    path_weight /= pdf * Spectrumf32::RESOLUTION as f32;
+
+                    wavelength = WavelengthState::Sampled { value };
+                }
+            }
+
+            result += path_weight * nee_result;
 
             let Sample::Sample {
                 incident: local_bounce_dir,

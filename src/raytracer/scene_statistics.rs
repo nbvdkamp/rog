@@ -473,7 +473,7 @@ impl SceneStatistics {
                 (
                     voxel,
                     Distribution {
-                        approximate_light: direct_light + indirect_light,
+                        approximate_light: (direct_light + indirect_light).normalized(),
                     },
                 )
             })
