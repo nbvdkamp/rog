@@ -77,10 +77,7 @@ impl<'a> TopLevelBVH {
                     )));
                 }
                 Accel::BvhRecursive => {
-                    children.push(Box::new(BoundingVolumeHierarchyRec::new(
-                        mesh.triangles.len(),
-                        &triangle_bounds,
-                    )));
+                    children.push(Box::new(BoundingVolumeHierarchyRec::new(&triangle_bounds)));
                 }
                 Accel::KdTree => {
                     children.push(Box::new(KdTree::new(

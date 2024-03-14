@@ -52,11 +52,12 @@ impl AccelerationStructure for BoundingVolumeHierarchyRec {
 }
 
 impl BoundingVolumeHierarchyRec {
-    pub fn new(triangle_count: usize, triangle_bounds: &[BoundingBox]) -> Self {
+    pub fn new(triangle_bounds: &[BoundingBox]) -> Self {
         let mut stats = Statistics::new();
+        let triangle_indices = (0..triangle_bounds.len()).collect();
 
         BoundingVolumeHierarchyRec {
-            root: create_node(triangle_bounds, (0..triangle_count).collect(), 0, &mut stats),
+            root: create_node(triangle_bounds, triangle_indices, 0, &mut stats),
             stats,
         }
     }
