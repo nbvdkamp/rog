@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use cgmath::{point2, point3, EuclideanSpace, InnerSpace, Point2, Point3, Vector3};
 use rand::{thread_rng, Rng};
 
-use super::geometry::orthogonal_vector;
+use super::geometry::{orthogonal_vector, spherical_to_cartesian};
 
 pub fn cos_weighted_sample_hemisphere() -> Vector3<f32> {
     let mut rng = thread_rng();
@@ -36,6 +36,14 @@ pub fn sample_uniform_in_unit_sphere(center: Point3<f32>, radius: f32) -> Point3
     let r = radius * rng.gen::<f32>().cbrt();
 
     r * point3(p * theta.cos(), p * theta.sin(), z) + center.to_vec()
+}
+
+pub fn sample_uniform_on_unit_sphere() -> Vector3<f32> {
+    let mut rng = rand::thread_rng();
+    let theta: f32 = 2.0 * PI * rng.gen::<f32>();
+    let phi = (1.0 - 2.0 * rng.gen::<f32>()).acos();
+
+    spherical_to_cartesian(theta, phi)
 }
 
 pub fn tent_sample() -> f32 {

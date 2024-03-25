@@ -6,6 +6,8 @@ use std::{
     path::Path,
 };
 
+mod voxel_geometry;
+
 use arrayvec::ArrayVec;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use fnv::FnvHashMap;
@@ -25,6 +27,8 @@ use crate::{
     spectrum::{Spectrumf32, Wavelength},
     util::save_image,
 };
+
+use voxel_geometry::{SampleResult, VoxelGeometry};
 
 use super::{
     aabb::BoundingBox,
@@ -176,7 +180,7 @@ pub struct SceneStatistics {
     pub voxels_with_lights: Vec<VoxelLights>,
     pub positionless_lights: Vec<usize>,
     visibility: FnvHashMap<VoxelPair, Visibility>,
-    materials: HashMap<VoxelId, Spectrumf32>,
+    voxel_material_samples: HashMap<VoxelId, SampleResult>,
     pub spectral_distributions: HashMap<VoxelId, Distribution>,
     pub mean_light_spectrum: Spectrumf32,
 }
@@ -196,7 +200,7 @@ impl SceneStatistics {
             voxels_with_lights: Vec::new(),
             positionless_lights: Vec::new(),
             visibility: FnvHashMap::default(),
-            materials: HashMap::new(),
+            voxel_material_samples: HashMap::new(),
             spectral_distributions: HashMap::new(),
             mean_light_spectrum: Spectrumf32::constant(0.0),
         }
@@ -209,7 +213,7 @@ impl SceneStatistics {
     }
 
     pub fn sample_visibility(&mut self, raytracer: &Raytracer, accel: Accel) {
-        let mut nonempty_voxels = self.materials.keys().copied().collect::<HashSet<_>>();
+        let mut nonempty_voxels = self.voxel_material_samples.keys().copied().collect::<HashSet<_>>();
 
         for v in &self.voxels_with_lights {
             let mut stack = vec![v.voxel];
@@ -306,8 +310,8 @@ impl SceneStatistics {
         let mut file = File::create(path)?;
         writeln!(file, "resolution {}", self.resolution)?;
 
-        for (&VoxelId { x, y, z }, spectrum) in &self.materials {
-            let RGBf32 { r, g, b } = spectrum.to_srgb();
+        for (&VoxelId { x, y, z }, s) in &self.voxel_material_samples {
+            let RGBf32 { r, g, b } = s.albedo_mean.to_srgb();
             writeln!(file, "{x} {y} {z} {r} {g} {b}")?;
         }
 
@@ -411,7 +415,7 @@ impl SceneStatistics {
     }
 
     pub fn compute_importance_sampling_distributions(&mut self, scene: &Scene) {
-        let voxels_with_geometry: Vec<_> = self.materials.keys().copied().collect();
+        let voxels_with_geometry: Vec<_> = self.voxel_material_samples.keys().copied().collect();
 
         let direct_incident_light: HashMap<_, _> = voxels_with_geometry
             .iter()
@@ -452,7 +456,7 @@ impl SceneStatistics {
                 let mut neigbour_light_sum = Spectrumf32::constant(0.0);
                 let voxel_center = self.bounds_from_grid_position(voxel).center();
 
-                for (&other_voxel, &other_spectrum) in &self.materials {
+                for (&other_voxel, other_sample) in &self.voxel_material_samples {
                     if voxel == other_voxel {
                         continue;
                     }
@@ -464,7 +468,7 @@ impl SceneStatistics {
                     let vis = self.get_raw_visibility(pair).value();
 
                     let direct = direct_incident_light.get(&other_voxel).unwrap();
-                    neigbour_light_sum += vis * other_spectrum / distance_squared * (ambient + direct);
+                    neigbour_light_sum += vis * other_sample.albedo_mean / distance_squared * (ambient + direct);
                 }
 
                 let indirect_light = neigbour_light_sum / num_voxels;
@@ -481,10 +485,14 @@ impl SceneStatistics {
     }
 
     pub fn sample_materials(&mut self, raytracer: &Raytracer) {
-        self.materials = self
+        self.voxel_material_samples = self
             .split_triangles_into_voxels(&raytracer.scene)
             .into_iter()
-            .map(|(voxel, tris)| (voxel, sample_triangle_materials(tris, raytracer)))
+            .map(|(voxel, tris)| {
+                let bounds = self.bounds_from_grid_position(voxel);
+                let geometry = VoxelGeometry::new(bounds, tris);
+                (voxel, geometry.sample_rays(&raytracer))
+            })
             .collect();
     }
 
