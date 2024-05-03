@@ -274,7 +274,7 @@ impl SceneStatistics {
                     direction: end - start,
                 };
 
-                let occluded = raytracer.is_ray_obstructed(ray, 1.0, accel);
+                let occluded = raytracer.is_ray_obstructed(&ray, 1.0, accel);
 
                 u8::from(!occluded)
             })

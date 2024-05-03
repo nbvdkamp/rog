@@ -620,7 +620,7 @@ impl Raytracer {
                         let pdf = stats.get_estimated_visibility(hit_pos_voxel, sample_pos_voxel);
 
                         let shadowed = if thread_rng().gen_bool(pdf as f64) {
-                            self.is_ray_obstructed(shadow_ray, light_sample.distance, settings.accel_structure)
+                            self.is_ray_obstructed(&shadow_ray, light_sample.distance, settings.accel_structure)
                         } else {
                             true
                         };
@@ -628,7 +628,7 @@ impl Raytracer {
                         (shadowed, pdf)
                     } else {
                         let shadowed =
-                            self.is_ray_obstructed(shadow_ray, light_sample.distance, settings.accel_structure);
+                            self.is_ray_obstructed(&shadow_ray, light_sample.distance, settings.accel_structure);
                         (shadowed, 1.0)
                     };
 
@@ -838,9 +838,9 @@ impl Raytracer {
     /// Checks if distance to the nearest obstructing triangle is less than the distance
     /// Handles alpha by checking if R ~ U(0, 1) is greater than the texture's alpha and ignoring
     /// the triangle if it is.
-    fn is_ray_obstructed(&self, ray: Ray, distance: f32, accel: Accel) -> bool {
+    fn is_ray_obstructed(&self, ray: &Ray, distance: f32, accel: Accel) -> bool {
         let mut distance = distance;
-        let mut ray = ray;
+        let mut ray = *ray;
 
         while let TraceResultMesh::Hit {
             instance,
