@@ -1,7 +1,5 @@
 use std::ops::{self, AddAssign, DivAssign, MulAssign};
 
-use luminance::shader::types::Vec4;
-
 #[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
 pub struct RGBf32 {
     pub r: f32,
@@ -167,13 +165,6 @@ impl_f32_color_tuple!(RGBAf32 { r, g, b, a });
 impl_u8_color_tuple!(RGBu8 { r, g, b });
 
 impl_f32_color_tuple!(XYZf32 { x, y, z });
-
-impl From<RGBf32> for Vec4<f32> {
-    #[inline]
-    fn from(v: RGBf32) -> Self {
-        Vec4::new(v.r, v.g, v.b, 1.0)
-    }
-}
 
 #[rustfmt::skip]
 pub const SRGB8_TO_LINEAR_TABLE: [f32; 256] = [

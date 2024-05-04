@@ -1,0 +1,17 @@
+[package]
+name = "preview"
+version = "0.1.0"
+authors = ["kamp <nbvdkamp@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+renderer = { path = "../renderer" }
+cgmath = { workspace = true }
+
+glfw = "0.44.0"
+
+luminance = "0.47.0"
+luminance-derive = "0.10.0"
+luminance-front = "0.6.1"
+luminance-glfw = "0.18.2"
+luminance-windowing = "0.10.1"

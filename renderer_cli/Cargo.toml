@@ -1,0 +1,13 @@
+[package]
+name = "renderer_cli"
+version = "0.1.0"
+authors = ["kamp <nbvdkamp@gmail.com>"]
+edition = "2021"
+default-run = "renderer_cli"
+
+[features]
+stats = []
+
+[dependencies]
+renderer = { path = "../renderer" }
+preview = { path = "../preview" }

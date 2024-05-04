@@ -2,8 +2,7 @@ use std::{
     path::PathBuf,
     sync::{
         mpsc::{channel, Sender, TryRecvError},
-        Arc,
-        Mutex,
+        Arc, Mutex,
     },
     thread,
     time::Duration,
@@ -25,21 +24,31 @@ use luminance_front::{
         Uniform,
     },
     tess::{Interleaved, Tess},
-    texture::{Dim2, MagFilter, MinFilter, Sampler, TexelUpload, Texture as LuminanceTexture, Wrap},
+    texture::{
+        Dim2, MagFilter, MinFilter, Sampler, TexelUpload, Texture as LuminanceTexture, Wrap,
+    },
 };
 use luminance_glfw::{GlfwSurface, GlfwSurfaceError};
 
-use crate::{
+use renderer::{
     args::Args,
     camera::PerspectiveCamera,
     color::RGBu8,
-    mesh::{LuminanceVertex, VertexIndex, VertexSemantics},
-    preview::preview_quad::PreviewQuad,
-    raytracer::{render_and_save, working_image::WorkingImage, ImageUpdateReporting, Raytracer, RenderMessage},
+    mesh::VertexIndex,
+    raytracer::{
+        render_and_save, working_image::WorkingImage, ImageUpdateReporting, Raytracer,
+        RenderMessage,
+    },
     render_settings::{ImageSettings, RenderSettings},
     scene::Scene,
     texture::{Format, Texture},
-    util::{mat3_to_shader_type, mat_to_shader_type, normal_transform_from_mat4},
+    util::normal_transform_from_mat4,
+};
+
+use crate::{
+    preview_quad::PreviewQuad,
+    util::{mat3_to_shader_type, mat_to_shader_type, vec4_from_rgb},
+    vertex::{mesh_to_tess, LuminanceVertex, VertexSemantics},
 };
 
 #[derive(Debug, UniformInterface)]
@@ -135,7 +144,9 @@ impl App {
 
             let (mut window, events) = glfw
                 .create_window(width, height, "Rust renderer", WindowMode::Windowed)
-                .ok_or(GlfwSurfaceError::UserError(PlatformError::CannotCreateWindow))?;
+                .ok_or(GlfwSurfaceError::UserError(
+                    PlatformError::CannotCreateWindow,
+                ))?;
 
             window.make_current();
             window.set_all_polling(true);
@@ -148,7 +159,11 @@ impl App {
         let raytracer = self.raytracer.lock().unwrap();
 
         let background_color = {
-            let c = raytracer.scene.environment.color.srgb_linear_to_gamma_compressed();
+            let c = raytracer
+                .scene
+                .environment
+                .color
+                .srgb_linear_to_gamma_compressed();
             [c.r, c.g, c.b, 1.0]
         };
 
@@ -167,7 +182,7 @@ impl App {
             .scene
             .meshes
             .iter()
-            .map(|mesh| mesh.to_tess(&mut context).unwrap())
+            .map(|mesh| mesh_to_tess(&mesh, &mut context).unwrap())
             .collect::<Vec<Tess<LuminanceVertex, VertexIndex, (), Interleaved>>>();
 
         let instances = raytracer.scene.instances.clone();
@@ -262,7 +277,9 @@ impl App {
                         let ratio = width as f32 / height as f32;
                         self.camera.aspect_ratio = ratio;
                         progress_display_quad.set_window_size(vec2(width, height).cast().unwrap());
-                        back_buffer = context.back_buffer().expect("Unable to create new back buffer");
+                        back_buffer = context
+                            .back_buffer()
+                            .expect("Unable to create new back buffer");
                     }
                     WindowEvent::Key(Key::Enter, _, Action::Press, _) => {
                         let mut rendering = self.rendering.lock().unwrap();
@@ -358,38 +375,67 @@ impl App {
                             for instance in &instances {
                                 let tess = &tesses[instance.mesh_index as usize];
                                 let material = &instance.material;
-                                let tex = material.base_color_texture.and_then(|tex| textures[tex.index].as_mut());
+                                let tex = material
+                                    .base_color_texture
+                                    .and_then(|tex| textures[tex.index].as_mut());
 
                                 let bound_tex = match tex {
-                                    Some(Tex::Rgb(rgb)) => Some(BoundTex::Rgb(pipeline.bind_texture(rgb)?)),
-                                    Some(Tex::Rgba(rgba)) => Some(BoundTex::Rgba(pipeline.bind_texture(rgba)?)),
+                                    Some(Tex::Rgb(rgb)) => {
+                                        Some(BoundTex::Rgb(pipeline.bind_texture(rgb)?))
+                                    }
+                                    Some(Tex::Rgba(rgba)) => {
+                                        Some(BoundTex::Rgba(pipeline.bind_texture(rgba)?))
+                                    }
                                     None => None,
                                 };
 
                                 shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
-                                    iface.set(&unif.u_projection, mat_to_shader_type(self.camera.projection()));
+                                    iface.set(
+                                        &unif.u_projection,
+                                        mat_to_shader_type(self.camera.projection()),
+                                    );
                                     iface.set(&unif.u_view, mat_to_shader_type(self.camera.view));
-                                    iface.set(&unif.u_model, mat_to_shader_type(instance.transform));
-                                    let normal_transform = normal_transform_from_mat4(instance.transform);
-                                    iface.set(&unif.u_normal_transform, mat3_to_shader_type(normal_transform));
+                                    iface
+                                        .set(&unif.u_model, mat_to_shader_type(instance.transform));
+                                    let normal_transform =
+                                        normal_transform_from_mat4(instance.transform);
+                                    iface.set(
+                                        &unif.u_normal_transform,
+                                        mat3_to_shader_type(normal_transform),
+                                    );
                                     let uv_transform = instance
                                         .material
                                         .base_color_texture
-                                        .map_or(Matrix3::identity(), |tex_ref| tex_ref.transform_matrix());
-                                    iface.set(&unif.u_uv_transform, mat3_to_shader_type(uv_transform));
-                                    iface.set(&unif.u_base_color, material.base_color.into());
+                                        .map_or(Matrix3::identity(), |tex_ref| {
+                                            tex_ref.transform_matrix()
+                                        });
+                                    iface.set(
+                                        &unif.u_uv_transform,
+                                        mat3_to_shader_type(uv_transform),
+                                    );
+                                    iface.set(
+                                        &unif.u_base_color,
+                                        vec4_from_rgb(material.base_color),
+                                    );
                                     iface.set(&unif.u_light_position, light_position);
 
                                     bound_tex.iter().for_each(|tex| match tex {
-                                        BoundTex::Rgb(t) => iface.set(&unif.u_base_color_texture, t.binding()),
-                                        BoundTex::Rgba(t) => iface.set(&unif.u_base_color_texture, t.binding()),
+                                        BoundTex::Rgb(t) => {
+                                            iface.set(&unif.u_base_color_texture, t.binding())
+                                        }
+                                        BoundTex::Rgba(t) => {
+                                            iface.set(&unif.u_base_color_texture, t.binding())
+                                        }
                                     });
 
                                     iface.set(&unif.u_use_texture, bound_tex.is_some());
 
-                                    let render_state = RenderState::default().set_blending(blending);
+                                    let render_state =
+                                        RenderState::default().set_blending(blending);
 
-                                    rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(tess))
+                                    rdr_gate.render(&render_state, |mut tess_gate| {
+                                        tess_gate.render(tess)
+                                    })
                                 })?;
                             }
                         } else {
@@ -510,7 +556,9 @@ impl Movement {
     fn handle_event(&mut self, event: WindowEvent) {
         match event {
             WindowEvent::Key(key, _, action, _) => self.handle_key_event(key, action),
-            WindowEvent::MouseButton(button, action, _) => self.handle_mousebutton_event(button, action),
+            WindowEvent::MouseButton(button, action, _) => {
+                self.handle_mousebutton_event(button, action)
+            }
             WindowEvent::CursorPos(x, y) => {
                 let pos = vec2(x, y);
                 self.mouse_delta = pos - self.mouse_position;

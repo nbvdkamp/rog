@@ -15,7 +15,6 @@ pub mod environment;
 pub mod light;
 pub mod material;
 pub mod mesh;
-pub mod preview;
 pub mod raytracer;
 pub mod render_settings;
 pub mod scene;

@@ -1,8 +1,6 @@
 use std::path::Path;
 
 use cgmath::{Matrix, Matrix3, Matrix4, Point3, SquareMatrix, Vector2, Vector3};
-use luminance::shader::types::Mat33;
-use luminance_front::shader::types::Mat44;
 
 use super::color::{RGBf32, RGBu8};
 
@@ -53,16 +51,6 @@ pub fn min_element(v: Vector3<f32>) -> f32 {
 
 pub fn max_element(v: Vector3<f32>) -> f32 {
     f32::max(v.x, f32::max(v.y, v.z))
-}
-
-pub fn mat_to_shader_type<T>(m: Matrix4<T>) -> Mat44<T> {
-    let x: [[T; 4]; 4] = m.into();
-    x.into()
-}
-
-pub fn mat3_to_shader_type<T>(m: Matrix3<T>) -> Mat33<T> {
-    let x: [[T; 3]; 3] = m.into();
-    x.into()
 }
 
 pub fn normal_transform_from_mat4(transform: Matrix4<f32>) -> Matrix3<f32> {

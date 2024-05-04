@@ -3,7 +3,7 @@ use std::num::ParseIntError;
 use renderer::raytracer::{file_formatting::Error as FileFormatError, working_image::WorkingImage};
 
 #[derive(Debug)]
-enum Error {
+pub enum Error {
     File(FileFormatError),
     ArgumentCount(usize),
     InvalidIndex(ParseIntError),

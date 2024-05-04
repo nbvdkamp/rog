@@ -1,0 +1,14 @@
+[package]
+name = "bench"
+version = "0.1.0"
+authors = ["kamp <nbvdkamp@gmail.com>"]
+edition = "2021"
+
+[[bin]]
+name = "bench"
+path = "src/main.rs"
+
+[dependencies]
+renderer = { path = "../renderer" }
+cgmath = { workspace = true }
+num_cpus = { workspace = true }

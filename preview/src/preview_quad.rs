@@ -15,7 +15,7 @@ use luminance_front::{
     Backend,
 };
 
-use crate::color::RGBu8;
+use renderer::color::RGBu8;
 
 #[derive(Copy, Clone, Debug, Semantics)]
 pub enum VertexSemantics {
@@ -25,6 +25,7 @@ pub enum VertexSemantics {
     TextureCoords,
 }
 
+#[allow(dead_code)]
 #[derive(Copy, Clone, Vertex)]
 #[vertex(sem = "VertexSemantics")]
 pub struct Vertex {
@@ -137,10 +138,15 @@ impl PreviewQuad {
         self.zoomed_texture = None;
     }
 
-    pub fn render(&mut self, shd_gate: &mut ShadingGate, pipeline: Pipeline) -> Result<(), PipelineError> {
+    pub fn render(
+        &mut self,
+        shd_gate: &mut ShadingGate,
+        pipeline: Pipeline,
+    ) -> Result<(), PipelineError> {
         let scale = self.render_scale();
 
-        let (Some(texture), Some(zoomed_texture)) = (&mut self.texture, &mut self.zoomed_texture) else {
+        let (Some(texture), Some(zoomed_texture)) = (&mut self.texture, &mut self.zoomed_texture)
+        else {
             pipeline.bind_texture(&mut self.dummy_texture)?;
             return Ok(());
         };
@@ -178,7 +184,12 @@ impl PreviewQuad {
 
         let image_buffer = unsafe { std::slice::from_raw_parts(data, len) };
         self.texture = Some(make_texture(context, size, image_buffer, MagFilter::Linear));
-        self.zoomed_texture = Some(make_texture(context, size, image_buffer, MagFilter::Nearest));
+        self.zoomed_texture = Some(make_texture(
+            context,
+            size,
+            image_buffer,
+            MagFilter::Nearest,
+        ));
 
         self.texture_aspect_ratio = size[0] as f32 / size[1] as f32;
     }
@@ -207,9 +218,11 @@ impl PreviewQuad {
                 let screen_space_mouse_position =
                     2.0 * vec2(
                         self.mouse_position.x / self.window_size.x as f32,
-                        (self.window_size.y as f32 - self.mouse_position.y) / self.window_size.y as f32,
+                        (self.window_size.y as f32 - self.mouse_position.y)
+                            / self.window_size.y as f32,
                     ) - vec2(1.0, 1.0);
-                let quad_space_mouse_position = (screen_space_mouse_position - self.translation) / self.scale;
+                let quad_space_mouse_position =
+                    (screen_space_mouse_position - self.translation) / self.scale;
 
                 let old_scale = self.scale;
                 self.scale *= 1.0 + 0.2 * y_offset as f32;

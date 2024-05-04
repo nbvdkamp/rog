@@ -1,0 +1,13 @@
+[package]
+name = "diff_images"
+version = "0.1.0"
+authors = ["kamp <nbvdkamp@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+renderer = { path = "../renderer" }
+cgmath = { workspace = true }
+clap = { workspace = true }
+itertools = { workspace = true }
+
+colorous = "1.0.12"

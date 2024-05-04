@@ -1,0 +1,13 @@
+[package]
+name = "read_image"
+version = "0.1.0"
+authors = ["kamp <nbvdkamp@gmail.com>"]
+edition = "2021"
+
+[[bin]]
+name = "read_image"
+path = "src/main.rs"
+
+
+[dependencies]
+renderer = { path = "../renderer" }

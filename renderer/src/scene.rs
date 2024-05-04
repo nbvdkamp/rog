@@ -38,7 +38,7 @@ use crate::{
 
 use rgb2spec::RGB2Spec;
 
-const RGB2SPEC_BYTES: &[u8; 9437448] = include_bytes!("../res/out.spec");
+const RGB2SPEC_BYTES: &[u8; 9437448] = include_bytes!("../../res/out.spec");
 
 pub struct Scene {
     pub meshes: Vec<Mesh>,
