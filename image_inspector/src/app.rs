@@ -6,6 +6,7 @@ use eframe::{
         load::SizedTexture,
         vec2,
         CentralPanel,
+        Color32,
         Context,
         ScrollArea,
         SidePanel,
@@ -22,6 +23,7 @@ use eframe::{
     App,
     NativeOptions,
 };
+use egui_plot::{Bar, BarChart, Plot};
 use renderer::{color::RGBu8, raytracer::working_image::WorkingImage};
 
 pub fn run(image: Option<WorkingImage>) -> Result<(), eframe::Error> {
@@ -40,6 +42,7 @@ pub fn run(image: Option<WorkingImage>) -> Result<(), eframe::Error> {
             Box::new(ImageInspectorApp {
                 image,
                 texture,
+                hovered_pixel: None,
                 zoom: 1.0,
             })
         }),
@@ -49,6 +52,7 @@ pub fn run(image: Option<WorkingImage>) -> Result<(), eframe::Error> {
 struct ImageInspectorApp {
     image: Option<WorkingImage>,
     texture: Option<Texture>,
+    hovered_pixel: Option<[usize; 2]>,
     zoom: f32,
 }
 
@@ -57,9 +61,6 @@ impl App for ImageInspectorApp {
         TopBottomPanel::top("top_bar").show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
                 global_dark_light_mode_switch(ui);
-
-                if ui.button("Sort!").clicked() {}
-
                 if ui.button("Open file...").clicked() {
                     if let Some(path) = rfd::FileDialog::new().add_filter("Image", &["specimg"]).pick_file() {
                         self.try_open_image(path, ctx);
@@ -78,12 +79,40 @@ impl App for ImageInspectorApp {
             })
         });
 
-        SidePanel::right("filters_panel").resizable(false).show(ctx, |ui| {
+        SidePanel::right("side_panel").resizable(false).show(ctx, |ui| {
             let scroll_area = ScrollArea::vertical();
             let tray_width = 250.0;
 
             scroll_area.show(ui, |ui| {
                 ui.set_min_width(tray_width);
+                if let Some([x, y]) = self.hovered_pixel {
+                    if let Some(image) = &self.image {
+                        let pixel = &image.pixels[y * image.settings.size.x + x];
+                        let bar = BarChart::new(
+                            pixel
+                                .spectrum
+                                .data
+                                .iter()
+                                .enumerate()
+                                .map(|(i, v)| {
+                                    if !v.is_finite() {
+                                        let mut b = Bar::new(i as f64, 10.0);
+                                        b.stroke.color = Color32::from_rgb(255, 128, 0);
+                                        b
+                                    } else {
+                                        Bar::new(i as f64, *v as f64)
+                                    }
+                                })
+                                .collect(),
+                        );
+                        Plot::new("Pixel spectrum")
+                            .height(tray_width)
+                            .show(ui, |plot_ui| plot_ui.bar_chart(bar));
+                    }
+                }
+                if let Some(image) = &self.image {
+                    ui.label(format!("{:#?}", image));
+                }
             });
         });
 
@@ -99,13 +128,14 @@ impl App for ImageInspectorApp {
                     t.size = self.zoom * texture.size * x.min(y);
                     let r = ui.image(t);
 
+                    self.hovered_pixel = None;
                     if let Some(pointer_pos) = r.hover_pos() {
                         if r.rect.contains(pointer_pos) {
                             let relative_vec =
                                 (pointer_pos - r.rect.left_top()) / (r.rect.right_bottom() - r.rect.left_top());
 
                             let pixel_pos = relative_vec * texture.size;
-                            ui.label(format!("pixel: {} {}", pixel_pos.x as usize, pixel_pos.y as usize));
+                            self.hovered_pixel = Some([pixel_pos.x as usize, pixel_pos.y as usize]);
                         }
                     };
                 }
