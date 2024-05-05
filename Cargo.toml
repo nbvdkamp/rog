@@ -7,6 +7,7 @@ members = [
     "renderer_cli",
     "bench",
     "diff_images",
+    "image_inspector",
     "read_image",
     "read_image_pixel",
 ]

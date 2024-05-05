@@ -1,0 +1,13 @@
+[package]
+name = "image_inspector"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+renderer = { path = "../renderer/" }
+
+itertools = { workspace = true }
+
+eframe = "0.27.2"
+rfd = "0.14.1"
