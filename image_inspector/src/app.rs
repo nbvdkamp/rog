@@ -112,6 +112,8 @@ impl App for ImageInspectorApp {
                             .height(tray_width)
                             .show(ui, |plot_ui| plot_ui.bar_chart(bar));
                     }
+                } else {
+                    ui.add_space(tray_width + ui.spacing().item_spacing.y);
                 }
                 if let Some(image) = &self.image {
                     ui.label(format!("{:#?}", image));
