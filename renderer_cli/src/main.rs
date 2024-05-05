@@ -49,12 +49,5 @@ fn headless_render(args: Args) {
         raytracer.dump_visibility_data();
     }
 
-    render_and_save(
-        &raytracer,
-        &args.render_settings,
-        image,
-        args.output_file,
-        None,
-        None,
-    );
+    render_and_save(&raytracer, &args.render_settings, image, args.output_file, None, None);
 }
