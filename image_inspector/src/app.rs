@@ -142,7 +142,7 @@ impl App for ImageInspectorApp {
                             let pixel_pos = relative_vec * texture.size;
                             self.hovered_pixel = Some([pixel_pos.x as usize, pixel_pos.y as usize]);
                         }
-                    };
+                    }
                 }
             });
         });
