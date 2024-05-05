@@ -87,7 +87,10 @@ impl App for ImageInspectorApp {
                 ui.set_min_width(tray_width);
                 if let Some([x, y]) = self.hovered_pixel {
                     if let Some(image) = &self.image {
-                        let pixel = &image.pixels[y * image.settings.size.x + x];
+                        let size = image.settings.size;
+                        let x = x.clamp(0, size.x);
+                        let y = y.clamp(0, size.y);
+                        let pixel = &image.pixels[y * size.x + x];
                         let bar = BarChart::new(
                             pixel
                                 .spectrum
