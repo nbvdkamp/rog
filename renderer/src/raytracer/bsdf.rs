@@ -278,11 +278,11 @@ pub fn eval(mat: &MaterialSample, outgoing: Vector3<f32>, incident: Vector3<f32>
 
     let mut reflectance = Spectrumf32::constant(0.0);
     let mut forward_pdf = 0.0;
-    let mut reverse_pdf = 0.0;
+    let mut _reverse_pdf = 0.0;
 
     let lobe_pdfs = lobe_pdfs(mat);
 
-    let alpha = calculate_alpha(mat.roughness);
+    let _alpha = calculate_alpha(mat.roughness);
 
     let transmission_weight = (1.0 - mat.metallic) * mat.transmission;
     let diffuse_weight = (1.0 - mat.metallic) * (1.0 - mat.transmission);
@@ -297,7 +297,7 @@ pub fn eval(mat: &MaterialSample, outgoing: Vector3<f32>, incident: Vector3<f32>
         reflectance += diffuse_weight * (diffuse * mat.base_color_spectrum); //+ sheen);
 
         forward_pdf += lobe_pdfs.diffuse * incident.z.abs();
-        reverse_pdf += lobe_pdfs.diffuse * outgoing.z.abs();
+        _reverse_pdf += lobe_pdfs.diffuse * outgoing.z.abs();
     }
 
     if transmission_weight > 0.0 {

@@ -6,10 +6,6 @@ pub fn schlick_weight(cos_theta: f32) -> f32 {
     one_min_cos_squared * one_min_cos_squared * one_min_cos_theta
 }
 
-pub fn schlick_approximation(cos_theta: f32, zero_angle_reflection: f32) -> f32 {
-    zero_angle_reflection + (1.0 - zero_angle_reflection) * schlick_weight(cos_theta)
-}
-
 pub fn f_zero(medium_ior: f32, material_ior: f32) -> f32 {
     let x = (medium_ior - material_ior) / (medium_ior + material_ior);
     x * x

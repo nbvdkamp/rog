@@ -21,7 +21,6 @@ use rand::Rng;
 
 use crate::{
     color::RGBf32,
-    raytracer::{geometry::triangle_area, sampling::sample_coordinates_on_triangle},
     scene::Scene,
     scene_version::SceneVersion,
     spectrum::{Spectrumf32, Wavelength},
@@ -35,9 +34,8 @@ use super::{
     acceleration::Accel,
     axis::Axis,
     file_formatting::Error,
-    geometry::{interpolate_point_on_triangle, line_axis_plane_intersect},
+    geometry::line_axis_plane_intersect,
     ray::Ray,
-    sampling::{cumulative_probabilities_from_weights, sample_item_from_cumulative_probabilities},
     Raytracer,
 };
 
@@ -759,62 +757,6 @@ fn clip_triangle(tri: ClippedTri, axis: Axis, position: f32) -> ClipTriResult {
 
         ClipTriResult::Three(tri1, tri2, tri3)
     }
-}
-
-fn sample_triangle_materials(tris: Vec<ClippedTri>, raytracer: &Raytracer) -> Spectrumf32 {
-    assert!(!tris.is_empty());
-
-    let surface_areas = tris
-        .iter()
-        .map(|tri| triangle_area(tri.verts[0].position, tri.verts[1].position, tri.verts[2].position))
-        .collect::<Vec<_>>();
-
-    let cumulative_probabilities = cumulative_probabilities_from_weights(&surface_areas);
-    let mut spectrum = Spectrumf32::constant(0.0);
-    let mut samples = 0.0;
-
-    for _ in 0..MATERIAL_SAMPLES {
-        let (i, _) = sample_item_from_cumulative_probabilities(&cumulative_probabilities).unwrap();
-        let triangle = tris[i];
-        let instance = &raytracer.scene.instances[triangle.instance_index];
-        let mesh = &raytracer.scene.meshes[instance.mesh_index as usize];
-        let original_tri = &mesh.triangles[triangle.tri_index];
-
-        if let Some(texture_ref) = instance.material.base_color_texture {
-            let point = sample_coordinates_on_triangle();
-
-            let barycentric = interpolate_point_on_triangle(
-                point,
-                triangle.verts[0].barycentric,
-                triangle.verts[1].barycentric,
-                triangle.verts[2].barycentric,
-            );
-
-            let tex_coords = &mesh.vertices.tex_coords[texture_ref.texture_coordinate_set];
-
-            let v0 = tex_coords[original_tri.indices[0] as usize];
-            let v1 = tex_coords[original_tri.indices[1] as usize];
-            let v2 = tex_coords[original_tri.indices[2] as usize];
-
-            let uv = interpolate_point_on_triangle(barycentric, v0, v1, v2);
-            let Point2 { x: u, y: v } = texture_ref.transform_texture_coordinates(uv);
-            let coeffs_sample = raytracer.scene.textures.base_color_coefficients[texture_ref.index].sample(u, v);
-
-            let alpha = coeffs_sample.a;
-
-            let base_color_spectrum = alpha
-                * Spectrumf32::from_coefficients(instance.material.base_color_coefficients)
-                * Spectrumf32::from_coefficients(coeffs_sample.rgb().into());
-
-            spectrum += base_color_spectrum;
-            samples += alpha;
-        } else {
-            spectrum += Spectrumf32::from_coefficients(instance.material.base_color_coefficients);
-            samples += 1.0;
-        }
-    }
-
-    spectrum / samples
 }
 
 const FORMAT_VERSION: u32 = 1;

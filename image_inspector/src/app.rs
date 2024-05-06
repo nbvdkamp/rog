@@ -209,18 +209,6 @@ impl Texture {
             size: vec2(s.x as f32, s.y as f32),
         }
     }
-
-    fn update(&mut self, image: &WorkingImage) {
-        let options = TextureOptions {
-            magnification: TextureFilter::Nearest,
-            minification: TextureFilter::Linear,
-            wrap_mode: TextureWrapMode::ClampToEdge,
-        };
-
-        let s = image.settings.size;
-        self.size = vec2(s.x as f32, s.y as f32);
-        self.handle.set(to_egui_color_image(image), options);
-    }
 }
 
 fn to_egui_color_image(image: &WorkingImage) -> ColorImage {

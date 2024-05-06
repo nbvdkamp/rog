@@ -1,6 +1,6 @@
 use std::f32::consts::PI;
 
-use cgmath::{point2, point3, EuclideanSpace, InnerSpace, Point2, Point3, Vector3};
+use cgmath::{point3, EuclideanSpace, InnerSpace, Point3, Vector3};
 use rand::{thread_rng, Rng};
 
 use super::geometry::{orthogonal_vector, spherical_to_cartesian};
@@ -54,59 +54,6 @@ pub fn tent_sample() -> f32 {
     } else {
         1.0 - (2.0 - r).sqrt()
     }
-}
-
-pub fn sample_coordinates_on_triangle() -> Point2<f32> {
-    let mut rng = rand::thread_rng();
-    let r0 = rng.gen();
-    let r1 = rng.gen();
-
-    if r0 + r1 > 1.0 {
-        point2(1.0 - r0, 1.0 - r1)
-    } else {
-        point2(r0, r1)
-    }
-}
-
-pub fn cumulative_probabilities_from_weights(weights: &[f32]) -> Vec<f32> {
-    let sum = weights.iter().sum::<f32>();
-
-    let mut cumulative_probabilities = Vec::new();
-    cumulative_probabilities.reserve(weights.len());
-
-    let mut acc = 0.0;
-
-    for value in weights {
-        acc += value / sum;
-        cumulative_probabilities.push(acc);
-    }
-
-    cumulative_probabilities
-}
-
-pub fn sample_item_from_cumulative_probabilities(cumulative_probabilities: &[f32]) -> Option<(usize, f32)> {
-    if cumulative_probabilities.is_empty() {
-        return None;
-    }
-
-    let mut rng = rand::thread_rng();
-    let sample = rng.gen();
-
-    //TODO: This sampling is linear in the number of items, we can improve it if necessary
-    for (i, &c) in cumulative_probabilities.iter().enumerate() {
-        if c >= sample {
-            let pdf = if i == 0 { c } else { c - cumulative_probabilities[i - 1] };
-            return Some((i, pdf));
-        }
-    }
-
-    let last_i = cumulative_probabilities.len() - 1;
-    let pdf = if last_i == 0 {
-        1.0
-    } else {
-        1.0 - cumulative_probabilities[last_i - 1]
-    };
-    Some((last_i, pdf))
 }
 
 /// When a set of weights is sampled only once this is faster than
