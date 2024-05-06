@@ -8,7 +8,6 @@ members = [
     "bench",
     "diff_images",
     "image_inspector",
-    "read_image_pixel",
 ]
 
 [profile.release]
