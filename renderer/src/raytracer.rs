@@ -613,8 +613,9 @@ impl Raytracer {
 
                     // NEE++ rejection sampling
                     let (shadowed, rejection_pdf) = if rejection_sample
-                            && let Some(stats) = &self.stats
-                            && let Some(sample_position) = &light_sample.position {
+                        && let Some(stats) = &self.stats
+                        && let Some(sample_position) = &light_sample.position
+                    {
                         let hit_pos_voxel = stats.get_grid_position(hit_pos);
                         let sample_pos_voxel = stats.get_grid_position(*sample_position);
                         let pdf = stats.get_estimated_visibility(hit_pos_voxel, sample_pos_voxel);
@@ -667,11 +668,15 @@ impl Raytracer {
                         .visibility
                         .map_or(None, |v| v.spectral_importance_sampling);
 
-                    let (value, pdf) = if importance_sampling_mode.is_some() && let Some(stats) = &self.stats {
+                    let (value, pdf) = if importance_sampling_mode.is_some()
+                        && let Some(stats) = &self.stats
+                    {
                         match importance_sampling_mode.unwrap() {
                             ImportanceSamplingMode::Visibility => {
                                 let voxel = stats.get_grid_position(hit_pos);
-                                let distribution = stats.spectral_distributions.get(&voxel)
+                                let distribution = stats
+                                    .spectral_distributions
+                                    .get(&voxel)
                                     .or_else(|| {
                                         // Float precision issues when a tri is on the border of voxels
                                         // can cause cases where the collision position is in a
@@ -684,13 +689,16 @@ impl Raytracer {
                                             }
                                         }
                                         None
-                                    }).expect("voxel should have distributions");
+                                    })
+                                    .expect("voxel should have distributions");
 
                                 distribution.sample_wavelength(mat_sample.base_color_spectrum)
-                            },
+                            }
                             ImportanceSamplingMode::VisibilityNEE => {
                                 let voxel = stats.get_grid_position(hit_pos);
-                                let distribution = stats.spectral_distributions.get(&voxel)
+                                let distribution = stats
+                                    .spectral_distributions
+                                    .get(&voxel)
                                     .or_else(|| {
                                         // Float precision issues when a tri is on the border of voxels
                                         // can cause cases where the collision position is in a
@@ -703,18 +711,19 @@ impl Raytracer {
                                             }
                                         }
                                         None
-                                    }).expect("voxel should have distributions");
+                                    })
+                                    .expect("voxel should have distributions");
 
-                                let d =  0.5 * distribution.approximate_light + 0.5 * nee_result;
+                                let d = 0.5 * distribution.approximate_light + 0.5 * nee_result;
                                 (mat_sample.base_color_spectrum * d).importance_sample_wavelength()
-                            },
+                            }
                             ImportanceSamplingMode::MeanEmitterSpectrum => {
                                 stats.mean_light_spectrum.importance_sample_wavelength()
-                            },
+                            }
                             ImportanceSamplingMode::MeanEmitterSpectrumAlbedo => {
                                 let x = stats.mean_light_spectrum * mat_sample.base_color_spectrum;
                                 x.importance_sample_wavelength()
-                            },
+                            }
                         }
                     } else {
                         Wavelength::sample_uniform_visible()
