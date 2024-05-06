@@ -52,7 +52,7 @@ pub fn run(image: Option<WorkingImage>) -> Result<(), eframe::Error> {
 struct ImageInspectorApp {
     image: Option<WorkingImage>,
     texture: Option<Texture>,
-    hovered_pixel: Option<[usize; 2]>,
+    hovered_pixel: Option<usize>,
     zoom: f32,
 }
 
@@ -96,12 +96,9 @@ impl App for ImageInspectorApp {
 
             scroll_area.show(ui, |ui| {
                 ui.set_min_width(tray_width);
-                if let Some([x, y]) = self.hovered_pixel {
+                if let Some(index) = self.hovered_pixel {
                     if let Some(image) = &self.image {
-                        let size = image.settings.size;
-                        let x = x.clamp(0, size.x);
-                        let y = y.clamp(0, size.y);
-                        let pixel = &image.pixels[y * size.x + x];
+                        let pixel = &image.pixels[index];
                         let bar = BarChart::new(
                             pixel
                                 .spectrum
@@ -149,9 +146,23 @@ impl App for ImageInspectorApp {
                         if r.rect.contains(pointer_pos) {
                             let relative_vec =
                                 (pointer_pos - r.rect.left_top()) / (r.rect.right_bottom() - r.rect.left_top());
-
                             let pixel_pos = relative_vec * texture.size;
-                            self.hovered_pixel = Some([pixel_pos.x as usize, pixel_pos.y as usize]);
+
+                            if let Some(image) = &self.image {
+                                let size = image.settings.size;
+                                let x = (pixel_pos.x as usize).clamp(0, size.x);
+                                let y = (pixel_pos.y as usize).clamp(0, size.y);
+                                let index = y * size.x + x;
+                                self.hovered_pixel = Some(index);
+
+                                if secondary_clicked(ctx) {
+                                    let pixel = &image.pixels[index];
+                                    println!(
+                                        "x: {x}, y: {y}, samples: {}\nspectrum: {:?}",
+                                        pixel.samples, pixel.spectrum.data
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -218,4 +229,24 @@ fn to_egui_color_image(image: &WorkingImage) -> ColorImage {
     let len = image.pixels.len() * 3;
     let rgb_buffer = unsafe { std::slice::from_raw_parts(data_ptr, len) };
     ColorImage::from_rgb([image.settings.size.x, image.settings.size.y], rgb_buffer)
+}
+
+// Workaround for ScrollArea not allowing inner elements to be clicked
+fn secondary_clicked(ctx: &Context) -> bool {
+    ctx.input(|i| {
+        for event in &i.events {
+            match event {
+                eframe::egui::Event::PointerButton {
+                    pos: _,
+                    button,
+                    pressed,
+                    modifiers,
+                } if *button == eframe::egui::PointerButton::Secondary && !pressed && modifiers.is_none() => {
+                    return true
+                }
+                _ => (),
+            }
+        }
+        false
+    })
 }
