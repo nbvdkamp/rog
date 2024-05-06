@@ -175,7 +175,7 @@ impl PreviewQuad {
         C: GraphicsContext<Backend = Backend>,
     {
         let data = image_buffer.as_ptr() as *const u8;
-        let len = image_buffer.len() * std::mem::size_of::<RGBu8>();
+        let len = std::mem::size_of_val(image_buffer);
 
         let image_buffer = unsafe { std::slice::from_raw_parts(data, len) };
         self.texture = Some(make_texture(context, size, image_buffer, MagFilter::Linear));

@@ -172,7 +172,7 @@ impl App {
             .scene
             .meshes
             .iter()
-            .map(|mesh| mesh_to_tess(&mesh, &mut context).unwrap())
+            .map(|mesh| mesh_to_tess(mesh, &mut context).unwrap())
             .collect::<Vec<Tess<LuminanceVertex, VertexIndex, (), Interleaved>>>();
 
         let instances = raytracer.scene.instances.clone();
@@ -557,13 +557,12 @@ impl Movement {
     }
 
     fn handle_mousebutton_event(&mut self, button: MouseButton, action: Action) {
-        match button {
-            MouseButton::Button1 => match action {
+        if button == MouseButton::Button1 {
+            match action {
                 Action::Press => self.turning = true,
                 Action::Release => self.turning = false,
                 Action::Repeat => (),
-            },
-            _ => (),
+            }
         }
     }
 }
