@@ -210,7 +210,7 @@ impl Scene {
 
         textures
             .into_iter()
-            .zip(texture_types.into_iter())
+            .zip(texture_types)
             .for_each(|(texture, types_map)| {
                 let mut types = types_map.into_iter();
 
@@ -843,9 +843,7 @@ pub fn insert_zero_byte_every_two(v: Vec<u8>) -> Vec<u8> {
 
 fn accessor_indices_from_primitive(primitive: &gltf::Primitive) -> Option<AttributeAccessorIndices> {
     use gltf::Semantic;
-    let Some(position) = primitive.get(&Semantic::Positions).map(|a| a.index()) else {
-        return None;
-    };
+    let position = primitive.get(&Semantic::Positions).map(|a| a.index())?;
 
     let normals = primitive.get(&Semantic::Normals).map(|a| a.index());
     let tangents = primitive.get(&Semantic::Tangents).map(|a| a.index());

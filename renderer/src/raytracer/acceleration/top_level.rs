@@ -1,4 +1,5 @@
 use cgmath::{Point3, Vector3};
+use itertools::Itertools;
 
 use crate::{
     mesh::{Instance, Mesh},
@@ -49,7 +50,7 @@ impl<'a> TopLevelBVH {
             return Self {
                 children: Vec::new(),
                 tree_root: None,
-                stats: Statistics::new(),
+                stats: Statistics::default(),
             };
         }
 
@@ -89,7 +90,7 @@ impl<'a> TopLevelBVH {
             }
         }
 
-        let stats = Statistics::new();
+        let stats = Statistics::default();
 
         let mut nodes = instances
             .into_iter()
@@ -99,7 +100,7 @@ impl<'a> TopLevelBVH {
                     instance: Box::new(instance),
                 }
             })
-            .collect();
+            .collect_vec();
 
         // From Walter et al. 2008: Fast Agglomerative Clustering for Rendering
         let mut a = 0;
@@ -150,7 +151,7 @@ impl<'a> TopLevelBVH {
     }
 
     pub fn get_statistics(&self) -> StatisticsStore {
-        let mut result = StatisticsStore::new();
+        let mut result = StatisticsStore::default();
 
         for c in &self.children {
             result = result + c.get_statistics();
@@ -247,17 +248,17 @@ impl<'a> TopLevelBVH {
     }
 }
 
-fn find_best_match(i: usize, nodes: &Vec<Node>) -> usize {
+fn find_best_match(i: usize, nodes: &[Node]) -> usize {
     let node = &nodes[i];
     let mut best = 0;
     let mut best_surface_area = f32::MAX;
 
-    for j in 0..nodes.len() {
+    for (j, other_node) in nodes.iter().enumerate() {
         if i == j {
             continue;
         }
 
-        let area = node.bounds().union(nodes[j].bounds()).surface_area();
+        let area = node.bounds().union(other_node.bounds()).surface_area();
 
         if area < best_surface_area {
             best = j;

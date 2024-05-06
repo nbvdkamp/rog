@@ -89,7 +89,7 @@ impl Material {
             EmissiveFactor::Zero => None,
             EmissiveFactor::Value(spectrum) => match self.emissive_texture {
                 None => match self.emissive_strength {
-                    None => Some(spectrum.as_ref().clone()),
+                    None => Some(*spectrum.as_ref()),
                     Some(strength) => Some(spectrum.as_ref() * strength),
                 },
                 Some(tex) => {
@@ -145,7 +145,7 @@ impl TextureTransform {
         self.rotation.rotate_point(point2(u * self.scale.x, v * self.scale.y)) + self.offset
     }
 
-    fn to_matrix(&self) -> Matrix3<f32> {
+    fn to_matrix(self) -> Matrix3<f32> {
         let t = Matrix3::from_translation(self.offset);
         let r: Matrix2<f32> = self.rotation.into();
         let r = Matrix3::from(r);

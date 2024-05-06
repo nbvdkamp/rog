@@ -53,7 +53,7 @@ impl AccelerationStructure for BoundingVolumeHierarchyRec {
 
 impl BoundingVolumeHierarchyRec {
     pub fn new(triangle_bounds: &[BoundingBox]) -> Self {
-        let mut stats = Statistics::new();
+        let mut stats = Statistics::default();
         let triangle_indices = (0..triangle_bounds.len()).collect();
 
         BoundingVolumeHierarchyRec {

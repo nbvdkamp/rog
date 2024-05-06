@@ -15,7 +15,11 @@ pub fn orthogonal_vector(v: Vector3<f32>) -> Vector3<f32> {
 pub fn spherical_to_cartesian(theta: f32, phi: f32) -> Vector3<f32> {
     let sin_theta = theta.sin();
 
-    return Vector3::new(phi.cos() * sin_theta, phi.sin() * sin_theta, theta.cos() * sin_theta);
+    Vector3 {
+        x: phi.cos() * sin_theta,
+        y: phi.sin() * sin_theta,
+        z: theta.cos() * sin_theta,
+    }
 }
 
 /// normal must be a unit vector

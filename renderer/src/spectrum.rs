@@ -309,12 +309,12 @@ pub struct Wavelength {
 
 impl Wavelength {
     pub fn sample_uniform_visible() -> (Self, f32) {
-        return (
+        (
             Self {
                 index: rand::thread_rng().gen_range(0..RESOLUTION as u8),
             },
             1.0 / RESOLUTION as f32,
-        );
+        )
     }
 
     pub fn value(&self) -> f32 {

@@ -33,32 +33,30 @@ impl SingleChannelImage {
             .map(|i| gaussian(i as f32, 1.5))
             .collect();
 
-        let mut x_blurred = Vec::new();
-        x_blurred.reserve(self.data.len());
+        let mut x_blurred = Vec::with_capacity(self.data.len());
 
         for y in 0..self.height {
             for x in 0..self.width {
                 let mut v = 0.0;
 
-                for i in 0..gaussian_1d.len() {
+                for (i, gaussian) in gaussian_1d.iter().enumerate() {
                     let x = (x as i64 + i as i64 - 5).clamp(0, self.width as i64 - 1) as usize;
-                    v += gaussian_1d[i] * self.data[y * self.width + x];
+                    v += gaussian * self.data[y * self.width + x];
                 }
 
                 x_blurred.push(v);
             }
         }
 
-        let mut xy_blurred = Vec::new();
-        xy_blurred.reserve(self.data.len());
+        let mut xy_blurred = Vec::with_capacity(self.data.len());
 
         for y in 0..self.height {
             for x in 0..self.width {
                 let mut v = 0.0;
 
-                for i in 0..gaussian_1d.len() {
+                for (i, gaussian) in gaussian_1d.iter().enumerate() {
                     let y = (y as i64 + i as i64 - 5).clamp(0, self.height as i64 - 1) as usize;
-                    v += gaussian_1d[i] * x_blurred[y * self.width + x];
+                    v += gaussian * x_blurred[y * self.width + x];
                 }
 
                 xy_blurred.push(v);

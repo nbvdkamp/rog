@@ -44,7 +44,7 @@ impl AccelerationStructure for KdTree {
 
 impl KdTree {
     pub fn new(positions: &[Point3<f32>], triangles: &[Triangle], triangle_bounds: &[BoundingBox]) -> Self {
-        let mut stats = Statistics::new();
+        let mut stats = Statistics::default();
         let bounds = compute_bounding_box(positions);
 
         KdTree {

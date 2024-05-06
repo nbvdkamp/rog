@@ -1,10 +1,11 @@
 use std::{fmt, sync::Mutex};
 
+#[derive(Default)]
 pub struct Statistics {
     store: Mutex<StatisticsStore>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct StatisticsStore {
     pub inner_node_traversals: u32,
     pub intersection_tests: u32,
@@ -13,20 +14,6 @@ pub struct StatisticsStore {
     pub max_depth: usize,
     pub inner_nodes: u32,
     pub leaf_nodes: u32,
-}
-
-impl StatisticsStore {
-    pub fn new() -> Self {
-        StatisticsStore {
-            inner_node_traversals: 0,
-            intersection_tests: 0,
-            intersection_hits: 0,
-            rays: 0,
-            max_depth: 0,
-            inner_nodes: 0,
-            leaf_nodes: 0,
-        }
-    }
 }
 
 use std::ops;
@@ -44,12 +31,6 @@ impl_op_ex!(+ |a: &StatisticsStore, b: &StatisticsStore| -> StatisticsStore {
 });
 
 impl Statistics {
-    pub fn new() -> Self {
-        Statistics {
-            store: Mutex::new(StatisticsStore::new()),
-        }
-    }
-
     pub fn get_copy(&self) -> StatisticsStore {
         self.store.lock().unwrap().to_owned()
     }

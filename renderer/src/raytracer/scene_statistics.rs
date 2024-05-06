@@ -94,7 +94,7 @@ impl VoxelPair {
                 return y;
             };
 
-            return a.z.cmp(&b.z);
+            a.z.cmp(&b.z)
         }
 
         if cmp(a, b) == Ordering::Less {
@@ -155,7 +155,7 @@ impl Iterator for VoxelNeighbours {
     type Item = VoxelId;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((x, y, z)) = self.offsets.next() {
+        for (x, y, z) in self.offsets.by_ref() {
             let p = self.voxel.cast::<i32>().unwrap() + Vector3::new(x, y, z);
 
             let grid_range = 0..self.resolution as i32;
@@ -291,8 +291,8 @@ impl SceneStatistics {
         for (pair, vis) in &self.visibility {
             let resolution = self.resolution as usize;
             let index = |v: Point3<usize>| v.x + v.y * resolution + v.z * resolution * resolution;
-            let a = index(pair.first.cast().unwrap()) as usize;
-            let b = index(pair.second.cast().unwrap()) as usize;
+            let a = index(pair.first.cast().unwrap());
+            let b = index(pair.second.cast().unwrap());
             let x = a.max(b);
             let y = a.min(b);
             buffer[x + y * self.voxel_count] = RGBf32::from_grayscale(vis.value());
@@ -489,7 +489,7 @@ impl SceneStatistics {
             .map(|(voxel, tris)| {
                 let bounds = self.bounds_from_grid_position(voxel);
                 let geometry = VoxelGeometry::new(bounds, tris);
-                (voxel, geometry.sample_rays(&raytracer))
+                (voxel, geometry.sample_rays(raytracer))
             })
             .collect();
     }
@@ -773,7 +773,7 @@ struct FileHeader {
 }
 
 impl FileHeader {
-    pub fn to_writer<W>(self, writer: &mut W) -> Result<(), std::io::Error>
+    pub fn to_writer<W>(&self, writer: &mut W) -> Result<(), std::io::Error>
     where
         W: Write,
     {

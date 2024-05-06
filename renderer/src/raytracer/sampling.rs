@@ -104,5 +104,5 @@ pub fn sample_item_from_probabilities(probabilities: &[f32]) -> Option<(usize, f
 pub fn sample_value_from_slice_uniform<T>(slice: &[T]) -> (&T, f32) {
     let value = &slice[thread_rng().gen_range(0..slice.len())];
     let pdf = 1.0 / slice.len() as f32;
-    return (value, pdf);
+    (value, pdf)
 }

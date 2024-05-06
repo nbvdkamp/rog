@@ -70,12 +70,8 @@ pub fn save_u8_image<P>(pixels: &[RGBu8], image_size: Vector2<usize>, path: P, s
 where
     P: AsRef<Path>,
 {
-    let byte_buffer: &[u8] = unsafe {
-        std::slice::from_raw_parts(
-            pixels.as_ptr() as *const u8,
-            pixels.len() * std::mem::size_of::<RGBu8>(),
-        )
-    };
+    let byte_buffer: &[u8] =
+        unsafe { std::slice::from_raw_parts(pixels.as_ptr() as *const u8, std::mem::size_of_val(pixels)) };
 
     let save_result = image::save_buffer(
         &path,

@@ -252,7 +252,7 @@ struct FileHeader {
 impl FileHeader {
     const SIZE: usize = TAG.len() + std::mem::size_of::<Self>();
 
-    pub fn to_writer<W>(self, writer: &mut W) -> Result<(), std::io::Error>
+    pub fn to_writer<W>(&self, writer: &mut W) -> Result<(), std::io::Error>
     where
         W: Write,
     {

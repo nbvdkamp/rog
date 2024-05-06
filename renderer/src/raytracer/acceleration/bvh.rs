@@ -53,7 +53,7 @@ impl Node {
 impl BoundingVolumeHierarchy {
     pub fn new(positions: &[Point3<f32>], triangles: &[Triangle], triangle_bounds: &[BoundingBox]) -> Self {
         let mut nodes = Vec::new();
-        let stats = Statistics::new();
+        let stats = Statistics::default();
 
         let bounds = compute_bounding_box(positions);
 
@@ -149,8 +149,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
         let inv_dir = 1.0 / ray.direction;
 
         // Replacing this with a vec! macro degrades performance somehow??
-        let mut stack = Vec::new();
-        stack.reserve(f32::log2(self.nodes.len() as f32) as usize);
+        let mut stack = Vec::with_capacity(f32::log2(self.nodes.len() as f32) as usize);
         stack.push(0);
 
         while let Some(i) = stack.pop() {

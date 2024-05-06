@@ -37,19 +37,19 @@ impl AccelerationStructures {
         match accel {
             Accel::Bvh => {
                 if self.bvh.is_some() {
-                    return Err(ConstructError::default());
+                    return Err(ConstructError);
                 }
                 let _ = self.bvh.insert(TopLevelBVH::new(accel, meshes, instances));
             }
             Accel::BvhRecursive => {
                 if self.bvh_rec.is_some() {
-                    return Err(ConstructError::default());
+                    return Err(ConstructError);
                 }
                 let _ = self.bvh_rec.insert(TopLevelBVH::new(accel, meshes, instances));
             }
             Accel::KdTree => {
                 if self.kdtree.is_some() {
-                    return Err(ConstructError::default());
+                    return Err(ConstructError);
                 }
                 let _ = self.kdtree.insert(TopLevelBVH::new(accel, meshes, instances));
             }

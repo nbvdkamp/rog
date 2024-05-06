@@ -50,7 +50,7 @@ use shadingframe::ShadingFrame;
 use working_image::WorkingImage;
 
 thread_local! {
-    static VOXEL_WEIGHTS: RefCell<Vec<f32>> = RefCell::new(Vec::new());
+    static VOXEL_WEIGHTS: RefCell<Vec<f32>> = const { RefCell::new(Vec::new()) };
 }
 
 pub struct Textures {
@@ -666,7 +666,7 @@ impl Raytracer {
                     let importance_sampling_mode = self
                         .image_settings
                         .visibility
-                        .map_or(None, |v| v.spectral_importance_sampling);
+                        .and_then(|v| v.spectral_importance_sampling);
 
                     let (value, pdf) = if importance_sampling_mode.is_some()
                         && let Some(stats) = &self.stats
