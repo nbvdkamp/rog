@@ -11,11 +11,17 @@ pub struct PerspectiveCamera {
 }
 
 impl PerspectiveCamera {
-    pub fn default() -> PerspectiveCamera {
+    pub fn projection(&self) -> Matrix4<f32> {
+        perspective(Rad(self.y_fov), self.aspect_ratio, self.z_near, self.z_far)
+    }
+}
+
+impl Default for PerspectiveCamera {
+    fn default() -> Self {
         let view = Matrix4::<f32>::look_at_rh(Point3::new(2., 2., 2.), Point3::origin(), Vector3::unit_y());
         let model = view.invert().unwrap();
 
-        PerspectiveCamera {
+        Self {
             aspect_ratio: 16. / 9.,
             y_fov: 1.5,
             z_far: 100.,
@@ -23,9 +29,5 @@ impl PerspectiveCamera {
             view,
             model,
         }
-    }
-
-    pub fn projection(&self) -> Matrix4<f32> {
-        perspective(Rad(self.y_fov), self.aspect_ratio, self.z_near, self.z_far)
     }
 }
