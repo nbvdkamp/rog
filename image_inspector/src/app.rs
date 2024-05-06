@@ -75,7 +75,7 @@ impl App for ImageInspectorApp {
                     }
                 });
 
-                ui.add(Slider::new(&mut self.zoom, 1.0..=4.0).text("zoom"));
+                ui.add(Slider::new(&mut self.zoom, 1.0..=16.0).text("zoom"));
             })
         });
 
