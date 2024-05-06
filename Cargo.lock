@@ -2924,13 +2924,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "read_image"
-version = "0.1.0"
-dependencies = [
- "renderer",
-]
-
-[[package]]
 name = "read_image_pixel"
 version = "0.1.0"
 dependencies = [
