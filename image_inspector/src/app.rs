@@ -67,6 +67,17 @@ impl App for ImageInspectorApp {
                     }
                 }
 
+                if let Some(image) = &self.image {
+                    if ui.button("Save as...").clicked() {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Image", &["png", "bmp", "jpg"])
+                            .save_file()
+                        {
+                            image.save_as_rgb(path);
+                        }
+                    }
+                }
+
                 ctx.input(|i| {
                     if let Some(file) = i.raw.dropped_files.first() {
                         if let Some(path) = &file.path {
