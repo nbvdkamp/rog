@@ -150,8 +150,8 @@ impl App for ImageInspectorApp {
 
                             if let Some(image) = &self.image {
                                 let size = image.settings.size;
-                                let x = (pixel_pos.x as usize).clamp(0, size.x);
-                                let y = (pixel_pos.y as usize).clamp(0, size.y);
+                                let x = (pixel_pos.x as usize).clamp(0, size.x - 1);
+                                let y = (pixel_pos.y as usize).clamp(0, size.y - 1);
                                 let index = y * size.x + x;
                                 self.hovered_pixel = Some(index);
 
