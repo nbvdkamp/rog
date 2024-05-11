@@ -101,7 +101,7 @@ impl App for ImageInspectorApp {
                         let pixel = &image.pixels[index];
                         let bar = BarChart::new(
                             pixel
-                                .spectrum
+                                .result_spectrum()
                                 .data
                                 .iter()
                                 .enumerate()
@@ -159,7 +159,8 @@ impl App for ImageInspectorApp {
                                     let pixel = &image.pixels[index];
                                     println!(
                                         "x: {x}, y: {y}, samples: {}\nspectrum: {:?}",
-                                        pixel.samples, pixel.spectrum.data
+                                        pixel.samples,
+                                        pixel.result_spectrum().data
                                     )
                                 }
                             }
