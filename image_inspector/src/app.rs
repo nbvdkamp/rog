@@ -33,7 +33,7 @@ pub fn run(image: Option<WorkingImage>) -> Result<(), eframe::Error> {
     };
 
     run_native(
-        "Pixel Sort",
+        "Image Inspector",
         options,
         Box::new(move |cc| {
             let texture = image
