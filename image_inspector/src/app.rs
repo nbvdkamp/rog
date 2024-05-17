@@ -39,12 +39,11 @@ pub fn run(image: Option<WorkingImage>) -> Result<(), eframe::Error> {
         "Image Inspector",
         options,
         Box::new(move |cc| {
-            let texture = image
-                .as_ref()
-                .map(|image| Texture::from_image_and_ctx(image, &cc.egui_ctx));
             Box::new(ImageInspectorApp {
-                image,
-                texture,
+                image_data: image.map(|image| {
+                    let texture = Texture::from_image_and_ctx(&image, &cc.egui_ctx);
+                    ImageData { image, texture }
+                }),
                 hovered_pixel: None,
                 zoom: 1.0,
                 brightness_factor: 1.0,
@@ -53,9 +52,13 @@ pub fn run(image: Option<WorkingImage>) -> Result<(), eframe::Error> {
     )
 }
 
+struct ImageData {
+    image: WorkingImage,
+    texture: Texture,
+}
+
 struct ImageInspectorApp {
-    image: Option<WorkingImage>,
-    texture: Option<Texture>,
+    image_data: Option<ImageData>,
     hovered_pixel: Option<usize>,
     zoom: f32,
     brightness_factor: f32,
@@ -72,13 +75,13 @@ impl App for ImageInspectorApp {
                     }
                 }
 
-                if let Some(image) = &self.image {
+                if let Some(image) = &self.image_data {
                     if ui.button("Save as...").clicked() {
                         if let Some(path) = rfd::FileDialog::new()
                             .add_filter("Image", &["png", "bmp", "jpg"])
                             .save_file()
                         {
-                            image.save_as_rgb(path);
+                            image.image.save_as_rgb(path);
                         }
                     }
                 }
@@ -97,22 +100,20 @@ impl App for ImageInspectorApp {
                 ui.add(Slider::new(&mut self.brightness_factor, 0.001..=1000.0).text("brightness"));
 
                 if ui.button("Update brightness").clicked() {
-                    if let Some(image) = &self.image {
-                        if let Some(texture) = &mut self.texture {
-                            texture.update(&WorkingImage {
-                                pixels: image
-                                    .pixels
-                                    .iter()
-                                    .map(|p| Pixel {
-                                        spectrum: p.spectrum * self.brightness_factor,
-                                        samples: p.samples,
-                                    })
-                                    .collect(),
-                                settings: image.settings.clone(),
-                                paths_sampled_per_pixel: image.paths_sampled_per_pixel,
-                                seconds_spent_rendering: image.seconds_spent_rendering,
-                            });
-                        }
+                    if let Some(ImageData { image, texture, .. }) = &mut self.image_data {
+                        texture.update(&WorkingImage {
+                            pixels: image
+                                .pixels
+                                .iter()
+                                .map(|p| Pixel {
+                                    spectrum: p.spectrum * self.brightness_factor,
+                                    samples: p.samples,
+                                })
+                                .collect(),
+                            settings: image.settings.clone(),
+                            paths_sampled_per_pixel: image.paths_sampled_per_pixel,
+                            seconds_spent_rendering: image.seconds_spent_rendering,
+                        });
                     }
                 }
             })
@@ -125,8 +126,8 @@ impl App for ImageInspectorApp {
             scroll_area.show(ui, |ui| {
                 ui.set_min_width(tray_width);
                 if let Some(index) = self.hovered_pixel {
-                    if let Some(image) = &self.image {
-                        let pixel = &image.pixels[index];
+                    if let Some(image) = &self.image_data {
+                        let pixel = &image.image.pixels[index];
                         let bar = BarChart::new(
                             pixel
                                 .result_spectrum()
@@ -151,8 +152,8 @@ impl App for ImageInspectorApp {
                 } else {
                     ui.add_space(tray_width + ui.spacing().item_spacing.y);
                 }
-                if let Some(image) = &self.image {
-                    ui.label(format!("{:#?}", image));
+                if let Some(image) = &self.image_data {
+                    ui.label(format!("{:#?}", image.image));
                 }
             });
         });
@@ -161,7 +162,7 @@ impl App for ImageInspectorApp {
             let scroll_area = ScrollArea::both();
 
             scroll_area.show(ui, |ui| {
-                if let Some(texture) = &self.texture {
+                if let Some(ImageData { image, texture }) = &self.image_data {
                     let panel_rect = ui.max_rect();
                     let x = panel_rect.width() / texture.size.x;
                     let y = panel_rect.height() / texture.size.y;
@@ -176,21 +177,19 @@ impl App for ImageInspectorApp {
                                 (pointer_pos - r.rect.left_top()) / (r.rect.right_bottom() - r.rect.left_top());
                             let pixel_pos = relative_vec * texture.size;
 
-                            if let Some(image) = &self.image {
-                                let size = image.settings.size;
-                                let x = (pixel_pos.x as usize).clamp(0, size.x - 1);
-                                let y = (pixel_pos.y as usize).clamp(0, size.y - 1);
-                                let index = y * size.x + x;
-                                self.hovered_pixel = Some(index);
+                            let size = image.settings.size;
+                            let x = (pixel_pos.x as usize).clamp(0, size.x - 1);
+                            let y = (pixel_pos.y as usize).clamp(0, size.y - 1);
+                            let index = y * size.x + x;
+                            self.hovered_pixel = Some(index);
 
-                                if secondary_clicked(ctx) {
-                                    let pixel = &image.pixels[index];
-                                    println!(
-                                        "x: {x}, y: {y}, samples: {}\nspectrum: {:?}",
-                                        pixel.samples,
-                                        pixel.result_spectrum().data
-                                    )
-                                }
+                            if secondary_clicked(ctx) {
+                                let pixel = &image.pixels[index];
+                                println!(
+                                    "x: {x}, y: {y}, samples: {}\nspectrum: {:?}",
+                                    pixel.samples,
+                                    pixel.result_spectrum().data
+                                )
                             }
                         }
                     }
@@ -207,12 +206,11 @@ impl ImageInspectorApp {
     {
         match WorkingImage::read_from_file(path, &None) {
             Ok(image) => {
-                self.texture = Some(Texture::from_image_and_ctx(&image, ctx));
-                self.image = Some(image);
+                let texture = Texture::from_image_and_ctx(&image, ctx);
+                self.image_data = Some(ImageData { image, texture });
             }
             Err(e) => {
-                self.image = None;
-                self.texture = None;
+                self.image_data = None;
                 eprintln!("Error: {e:?}");
             }
         };
