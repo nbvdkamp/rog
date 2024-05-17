@@ -40,10 +40,7 @@ pub fn run(image: Option<WorkingImage>) -> Result<(), eframe::Error> {
         options,
         Box::new(move |cc| {
             Box::new(ImageInspectorApp {
-                image_data: image.map(|image| {
-                    let texture = Texture::from_image_and_ctx(&image, &cc.egui_ctx);
-                    ImageData { image, texture }
-                }),
+                image_data: image.map(|image| ImageData::new(image, &cc.egui_ctx)),
                 hovered_pixel: None,
                 zoom: 1.0,
                 brightness_factor: 1.0,
@@ -55,6 +52,13 @@ pub fn run(image: Option<WorkingImage>) -> Result<(), eframe::Error> {
 struct ImageData {
     image: WorkingImage,
     texture: Texture,
+}
+
+impl ImageData {
+    fn new(image: WorkingImage, ctx: &Context) -> Self {
+        let texture = Texture::from_image_and_ctx(&image, ctx);
+        ImageData { image, texture }
+    }
 }
 
 struct ImageInspectorApp {
@@ -206,8 +210,7 @@ impl ImageInspectorApp {
     {
         match WorkingImage::read_from_file(path, &None) {
             Ok(image) => {
-                let texture = Texture::from_image_and_ctx(&image, ctx);
-                self.image_data = Some(ImageData { image, texture });
+                self.image_data = Some(ImageData::new(image, ctx));
             }
             Err(e) => {
                 self.image_data = None;
