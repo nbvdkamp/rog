@@ -227,6 +227,7 @@ impl ImageInspectorApp {
         match WorkingImage::read_from_file(path, &None) {
             Ok(image) => {
                 self.image_data = Some(ImageData::new(image, ctx));
+                self.brightness_factor = 1.0;
             }
             Err(e) => {
                 self.image_data = None;
