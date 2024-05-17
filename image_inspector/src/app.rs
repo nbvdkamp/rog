@@ -52,12 +52,23 @@ pub fn run(image: Option<WorkingImage>) -> Result<(), eframe::Error> {
 struct ImageData {
     image: WorkingImage,
     texture: Texture,
+    nan_count: usize,
 }
 
 impl ImageData {
     fn new(image: WorkingImage, ctx: &Context) -> Self {
         let texture = Texture::from_image_and_ctx(&image, ctx);
-        ImageData { image, texture }
+        let nan_count = image
+            .pixels
+            .iter()
+            .filter(|p| p.spectrum.data.iter().any(|v| v.is_nan()))
+            .count();
+
+        ImageData {
+            image,
+            texture,
+            nan_count,
+        }
     }
 }
 
@@ -79,13 +90,13 @@ impl App for ImageInspectorApp {
                     }
                 }
 
-                if let Some(image) = &self.image_data {
+                if let Some(ImageData { image, .. }) = &self.image_data {
                     if ui.button("Save as...").clicked() {
                         if let Some(path) = rfd::FileDialog::new()
                             .add_filter("Image", &["png", "bmp", "jpg"])
                             .save_file()
                         {
-                            image.image.save_as_rgb(path);
+                            image.save_as_rgb(path);
                         }
                     }
                 }
@@ -129,9 +140,9 @@ impl App for ImageInspectorApp {
 
             scroll_area.show(ui, |ui| {
                 ui.set_min_width(tray_width);
-                if let Some(index) = self.hovered_pixel {
-                    if let Some(image) = &self.image_data {
-                        let pixel = &image.image.pixels[index];
+                if let Some(ImageData { image, nan_count, .. }) = &self.image_data {
+                    if let Some(index) = self.hovered_pixel {
+                        let pixel = &image.pixels[index];
                         let bar = BarChart::new(
                             pixel
                                 .result_spectrum()
@@ -152,12 +163,17 @@ impl App for ImageInspectorApp {
                         Plot::new("Pixel spectrum")
                             .height(tray_width)
                             .show(ui, |plot_ui| plot_ui.bar_chart(bar));
+                    } else {
+                        ui.add_space(tray_width + ui.spacing().item_spacing.y);
                     }
-                } else {
-                    ui.add_space(tray_width + ui.spacing().item_spacing.y);
-                }
-                if let Some(image) = &self.image_data {
-                    ui.label(format!("{:#?}", image.image));
+
+                    ui.scope(|ui| {
+                        if *nan_count > 0 {
+                            ui.visuals_mut().override_text_color = Some(Color32::RED);
+                            ui.label(format!("Pixels with NaN values: {nan_count}"));
+                        }
+                    });
+                    ui.label(format!("{:#?}", image));
                 }
             });
         });
@@ -166,7 +182,7 @@ impl App for ImageInspectorApp {
             let scroll_area = ScrollArea::both();
 
             scroll_area.show(ui, |ui| {
-                if let Some(ImageData { image, texture }) = &self.image_data {
+                if let Some(ImageData { image, texture, .. }) = &self.image_data {
                     let panel_rect = ui.max_rect();
                     let x = panel_rect.width() / texture.size.x;
                     let y = panel_rect.height() / texture.size.y;
