@@ -24,7 +24,10 @@ use eframe::{
     NativeOptions,
 };
 use egui_plot::{Bar, BarChart, Plot};
-use renderer::{color::RGBu8, raytracer::working_image::WorkingImage};
+use renderer::{
+    color::RGBu8,
+    raytracer::working_image::{Pixel, WorkingImage},
+};
 
 pub fn run(image: Option<WorkingImage>) -> Result<(), eframe::Error> {
     let options = NativeOptions {
@@ -44,6 +47,7 @@ pub fn run(image: Option<WorkingImage>) -> Result<(), eframe::Error> {
                 texture,
                 hovered_pixel: None,
                 zoom: 1.0,
+                brightness_factor: 1.0,
             })
         }),
     )
@@ -54,6 +58,7 @@ struct ImageInspectorApp {
     texture: Option<Texture>,
     hovered_pixel: Option<usize>,
     zoom: f32,
+    brightness_factor: f32,
 }
 
 impl App for ImageInspectorApp {
@@ -86,7 +91,30 @@ impl App for ImageInspectorApp {
                     }
                 });
 
+                ui.separator();
                 ui.add(Slider::new(&mut self.zoom, 1.0..=16.0).text("zoom"));
+                ui.separator();
+                ui.add(Slider::new(&mut self.brightness_factor, 0.001..=1000.0).text("brightness"));
+
+                if ui.button("Update brightness").clicked() {
+                    if let Some(image) = &self.image {
+                        if let Some(texture) = &mut self.texture {
+                            texture.update(&WorkingImage {
+                                pixels: image
+                                    .pixels
+                                    .iter()
+                                    .map(|p| Pixel {
+                                        spectrum: p.spectrum * self.brightness_factor,
+                                        samples: p.samples,
+                                    })
+                                    .collect(),
+                                settings: image.settings.clone(),
+                                paths_sampled_per_pixel: image.paths_sampled_per_pixel,
+                                seconds_spent_rendering: image.seconds_spent_rendering,
+                            });
+                        }
+                    }
+                }
             })
         });
 
@@ -209,6 +237,18 @@ impl Texture {
             handle: ctx.load_texture("name", to_egui_color_image(image), options),
             size: vec2(s.x as f32, s.y as f32),
         }
+    }
+
+    fn update(&mut self, image: &WorkingImage) {
+        let options = TextureOptions {
+            magnification: TextureFilter::Nearest,
+            minification: TextureFilter::Linear,
+            wrap_mode: TextureWrapMode::ClampToEdge,
+        };
+        let s = image.settings.size;
+
+        self.handle.set(to_egui_color_image(image), options);
+        self.size = vec2(s.x as f32, s.y as f32);
     }
 }
 
