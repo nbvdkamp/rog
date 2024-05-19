@@ -9,8 +9,10 @@ use eframe::{
         Color32,
         Context,
         ScrollArea,
+        Sense,
         SidePanel,
         Slider,
+        Stroke,
         TextureFilter,
         TextureOptions,
         TextureWrapMode,
@@ -137,12 +139,25 @@ impl App for ImageInspectorApp {
         SidePanel::right("side_panel").resizable(false).show(ctx, |ui| {
             let scroll_area = ScrollArea::vertical();
             let tray_width = 250.0;
+            let color_rect_height = 10.0;
 
             scroll_area.show(ui, |ui| {
                 ui.set_min_width(tray_width);
                 if let Some(ImageData { image, nan_count, .. }) = &self.image_data {
                     if let Some(index) = self.hovered_pixel {
                         let pixel = &image.pixels[index];
+
+                        let rect_color = {
+                            let RGBu8 { r, g, b } = pixel
+                                .result_spectrum()
+                                .to_srgb()
+                                .srgb_linear_to_gamma_compressed()
+                                .normalized();
+                            Color32::from_rgb(r, g, b)
+                        };
+                        let (rect, _) = ui.allocate_at_least(Vec2::new(tray_width, color_rect_height), Sense::hover());
+                        ui.painter().rect(rect, 3.0, rect_color, Stroke::NONE);
+
                         let bar = BarChart::new(
                             pixel
                                 .result_spectrum()
@@ -164,7 +179,7 @@ impl App for ImageInspectorApp {
                             .height(tray_width)
                             .show(ui, |plot_ui| plot_ui.bar_chart(bar));
                     } else {
-                        ui.add_space(tray_width + ui.spacing().item_spacing.y);
+                        ui.add_space(tray_width + color_rect_height + 2.0 * ui.spacing().item_spacing.y);
                     }
 
                     ui.scope(|ui| {
