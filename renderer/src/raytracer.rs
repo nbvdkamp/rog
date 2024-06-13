@@ -654,6 +654,7 @@ impl Raytracer {
 
                             nee_result += light.spectrum
                                 * bsdf
+                                * local_incident.z.abs()
                                 * (mis_weight * light_sample.intensity * shadow_terminator
                                     / (light_pick_pdf * light_sample.pdf * rejection_pdf));
                         }
@@ -753,7 +754,7 @@ impl Raytracer {
                 bump_shading_factor(normal, shading_normal, bounce_dir)
             });
 
-            path_weight *= bsdf * (shadow_terminator / pdf);
+            path_weight *= bsdf * (shadow_terminator * local_bounce_dir.z.abs() / pdf);
 
             let max_weight = if let WavelengthState::Sampled { value } = wavelength {
                 path_weight.at_wavelength(value)

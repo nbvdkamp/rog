@@ -1,6 +1,6 @@
 mod fresnel;
 
-use std::f32::consts::PI;
+use std::f32::consts::FRAC_1_PI;
 
 use cgmath::{vec2, InnerSpace, Vector2, Vector3};
 use lerp::Lerp;
@@ -139,8 +139,7 @@ pub fn eval_specular_reflection(
 
     let fresnel = fresnel::disney(mat, m_dot_i);
 
-    // Leaving o_dot_n out of the divisor to multiply the result by cos theta
-    let brdf = fresnel * (shadow_masking * normal_distrib / (4.0 * n_dot_o));
+    let brdf = fresnel * (shadow_masking * normal_distrib / (4.0 * n_dot_o * n_dot_i));
     // VNDF eq. 17 (Heitz 2018)
     let pdf = visible_normal_distrib / (4.0 * m_dot_i);
 
@@ -179,7 +178,7 @@ fn eval_disney_diffuse(
         rr * (fl + fv + fl * fv * (rr - 1.0))
     };
 
-    n_dot_i * (retro_reflection + subsurf_approximation * (1.0 - 0.5 * fl) * (1.0 - 0.5 * fv)) / PI
+    (retro_reflection + subsurf_approximation * (1.0 - 0.5 * fl) * (1.0 - 0.5 * fv)) * FRAC_1_PI
 }
 
 fn eval_disney_specular_transmission(
@@ -211,8 +210,7 @@ fn eval_disney_specular_transmission(
         let jacobian = 1.0 / (4.0 * m_dot_i.abs());
 
         Evaluation::Evaluation {
-            // Leaving n_dot_i out of the divisor to multiply the result by cos theta
-            weight: Spectrumf32::constant(fresnel * shadow_masking * normal_distrib / (4.0 * n_dot_o)),
+            weight: Spectrumf32::constant(fresnel * shadow_masking * normal_distrib / (4.0 * n_dot_o * n_dot_i)),
             pdf: fresnel * visible_normal_distrib * jacobian,
         }
     } else {
@@ -222,8 +220,7 @@ fn eval_disney_specular_transmission(
         let c = m_dot_i.abs() * m_dot_o.abs() / (n_dot_i.abs() * n_dot_o.abs());
         let t = square(mat.medium_ior) / square(mat.ior * m_dot_i + mat.medium_ior * m_dot_o);
         // Walter et al. 2007 eq. 17
-        // TODO: without m_dot_i.abs() here because it breaks conservation of energy
-        let jacobian = t;
+        let jacobian = t * m_dot_i.abs();
 
         if (1.0 - fresnel) == 0.0 {
             Evaluation::Null
@@ -366,9 +363,13 @@ pub fn bsdf_sample_specular_transmission(mat: &MaterialSample, outgoing: Vector3
     if thread_rng().gen::<f32>() <= fresnel {
         incident = reflect(outgoing, micronormal);
         let g_i = ggx::smith_shadow_term(incident.z, alpha_squared);
+        let n_dot_i = incident.z;
 
-        // Leaving n_dot_i out of the divisor to multiply the result by cos theta
-        weight = Spectrumf32::constant(fresnel * g_o * g_i * normal_distrib / (4.0 * n_dot_o));
+        if n_dot_i <= 0.0 {
+            return Sample::Null;
+        }
+
+        weight = Spectrumf32::constant(fresnel * g_o * g_i * normal_distrib / (4.0 * n_dot_o * n_dot_i));
         let jacobian = 1.0 / (4.0 * n_dot_o.abs());
         pdf = fresnel * visible_normal_distrib * jacobian;
     } else {
@@ -388,8 +389,7 @@ pub fn bsdf_sample_specular_transmission(mat: &MaterialSample, outgoing: Vector3
                 let c = m_dot_i.abs() * m_dot_o.abs() / (n_dot_i.abs() * n_dot_o.abs());
                 let t = square(mat.medium_ior) / square(mat.ior * m_dot_i + mat.medium_ior * m_dot_o);
                 // Walter et al. 2007 eq. 17
-                // TODO: without m_dot_i.abs() here because it breaks conservation of energy
-                let jacobian = t;
+                let jacobian = t * m_dot_i.abs();
 
                 weight = (1.0 - fresnel) * c * t * g_i * g_o * normal_distrib * mat.base_color_spectrum.sqrt();
                 pdf = (1.0 - fresnel) * visible_normal_distrib * jacobian;
