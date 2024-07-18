@@ -6,13 +6,7 @@ use image::ImageFormat;
 
 use crate::{
     raytracer::acceleration::Accel,
-    render_settings::{
-        ImageSettings,
-        ImportanceSamplingMode,
-        RenderSettings,
-        TerminationCondition,
-        VisibilitySettings,
-    },
+    render_settings::{ImageSettings, RenderSettings, TerminationCondition},
     scene_version::SceneVersion,
 };
 
@@ -125,38 +119,6 @@ impl Args {
             Accel::BvhRecursive
         };
 
-        let spectral_importance_sampling =
-            matches
-                .get_one::<String>("spectral-importance-sampling")
-                .map(|is| match ImportanceSamplingMode::from_str(is) {
-                    Ok(mode) => mode,
-                    Err(e) => {
-                        eprintln!("{e}");
-                        std::process::exit(-1);
-                    }
-                });
-
-        let nee_rejection = matches.get_flag("nee++-rejection");
-        let nee_direct = matches.get_flag("nee++-direct");
-        let visibility_debug = matches.get_flag("visibility-debug");
-        let visibility_resolution = matches.get_one::<u8>("visibility-resolution").copied();
-
-        let visibility = if spectral_importance_sampling.is_some() || nee_rejection || nee_direct || visibility_debug {
-            Some(VisibilitySettings {
-                dump_debug_data: visibility_debug,
-                spectral_importance_sampling,
-                nee_rejection,
-                nee_direct,
-                resolution: visibility_resolution.unwrap_or(16),
-            })
-        } else {
-            if visibility_resolution.is_some() {
-                eprintln!("Specifying visibility resolution when visibility isn't used is not valid");
-                std::process::exit(-1);
-            }
-            None
-        };
-
         let headless = matches.get_flag("headless");
         let intermediate_read_path = matches.get_one::<PathBuf>("read-intermediate").cloned();
         let intermediate_write_path = matches.get_one::<PathBuf>("write-intermediate").cloned();
@@ -195,17 +157,9 @@ impl Args {
             size: vec2(read_usize("width", 1920), read_usize("height", 1080)),
             enable_dispersion: !matches.get_flag("no-dispersion"),
             always_sample_single_wavelength: matches.get_flag("always-sample-wavelength"),
-            visibility,
             scene_version,
             max_depth: matches.get_one::<usize>("max-bounces").copied(),
         };
-
-        if visibility.map_or(false, |v| v.spectral_importance_sampling.is_some())
-            && !image_settings.always_sample_single_wavelength
-        {
-            eprintln!("Spectral importance sampling can only be used when --always-sample-wavelength is passed");
-            std::process::exit(-1);
-        }
 
         Args {
             scene_file,

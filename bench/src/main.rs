@@ -40,7 +40,6 @@ fn main() {
             enable_dispersion: true,
             max_depth: None,
             always_sample_single_wavelength: false,
-            visibility: None,
             scene_version: None,
         };
 

@@ -100,10 +100,6 @@ impl App {
             args.image_settings.clone(),
         );
 
-        if args.image_settings.dump_visibility_data() {
-            raytracer.dump_visibility_data();
-        }
-
         App {
             camera: raytracer.scene.camera,
             raytracer: Arc::new(Mutex::new(raytracer)),

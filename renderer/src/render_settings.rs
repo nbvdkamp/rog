@@ -28,16 +28,6 @@ impl FromStr for ImportanceSamplingMode {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Derivative)]
-#[derivative(Debug)]
-pub struct VisibilitySettings {
-    pub dump_debug_data: bool,
-    pub spectral_importance_sampling: Option<ImportanceSamplingMode>,
-    pub nee_rejection: bool,
-    pub nee_direct: bool,
-    pub resolution: u8,
-}
-
 #[derive(Serialize, Deserialize, Clone, Derivative)]
 #[derivative(Debug)]
 pub struct ImageSettings {
@@ -45,15 +35,10 @@ pub struct ImageSettings {
     pub enable_dispersion: bool,
     pub max_depth: Option<usize>,
     pub always_sample_single_wavelength: bool,
-    pub visibility: Option<VisibilitySettings>,
     pub scene_version: Option<SceneVersion>,
 }
 
 impl ImageSettings {
-    pub fn dump_visibility_data(&self) -> bool {
-        self.visibility.map_or(false, |v| v.dump_debug_data)
-    }
-
     pub fn max_depth_reached(&self, depth: usize) -> bool {
         match self.max_depth {
             Some(max) => depth >= max,

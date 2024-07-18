@@ -2,7 +2,7 @@ use rand::{thread_rng, Rng};
 use std::{
     cell::RefCell,
     io::Write,
-    path::{Path, PathBuf},
+    path::Path,
     sync::{
         mpsc::{Receiver, TryRecvError},
         Arc,
@@ -23,7 +23,6 @@ pub mod file_formatting;
 pub mod geometry;
 mod ray;
 pub(crate) mod sampling;
-mod scene_statistics;
 mod shadingframe;
 pub mod single_channel_image;
 pub(crate) mod triangle;
@@ -31,21 +30,19 @@ pub mod working_image;
 
 use crate::{
     light::Light,
-    raytracer::{file_formatting::Error, working_image::Pixel},
-    render_settings::{ImageSettings, ImportanceSamplingMode, RenderSettings, TerminationCondition},
+    raytracer::working_image::Pixel,
+    render_settings::{ImageSettings, RenderSettings, TerminationCondition},
     scene::Scene,
     spectrum::{Spectrumf32, Wavelength},
     texture::{CoefficientTexture, Texture},
     util::normal_transform_from_mat4,
 };
 
-use aabb::BoundingBox;
 use acceleration::{structure::TraceResultMesh, Accel, AccelerationStructures};
 use bsdf::{mis2, Evaluation, Sample};
 use geometry::{ensure_valid_reflection, orthogonal_vector};
 use ray::Ray;
-use sampling::{sample_item_from_weights, sample_value_from_slice_uniform, tent_sample};
-use scene_statistics::SceneStatistics;
+use sampling::{sample_value_from_slice_uniform, tent_sample};
 use shadingframe::ShadingFrame;
 use working_image::WorkingImage;
 
@@ -64,7 +61,6 @@ pub struct Textures {
 pub struct Raytracer {
     pub scene: Scene,
     pub accel_structures: AccelerationStructures,
-    stats: Option<SceneStatistics>,
     image_settings: ImageSettings,
 }
 
@@ -97,7 +93,6 @@ impl Raytracer {
     pub fn new(scene: Scene, accel_structures_to_construct: &[Accel], image_settings: ImageSettings) -> Self {
         let mut result = Raytracer {
             scene,
-            stats: None,
             accel_structures: AccelerationStructures::default(),
             image_settings,
         };
@@ -119,97 +114,7 @@ impl Raytracer {
             start.elapsed().as_secs_f32()
         );
 
-        if let Some(visibility_settings) = &result.image_settings.visibility {
-            let scene_version = result
-                .image_settings
-                .scene_version
-                .clone()
-                .expect("scene_version should be present when using visibility data");
-
-            let resolution = visibility_settings.resolution;
-            let mut dir = PathBuf::from("output/cache/");
-            dir.push(resolution.to_string());
-            let mut path = dir.clone();
-
-            path.push(
-                scene_version
-                    .filepath
-                    .file_name()
-                    .expect("scene file should have a name"),
-            );
-            path.set_extension("vis");
-
-            let start = Instant::now();
-            let cached_stats = SceneStatistics::read_from_file(path.clone(), &scene_version, resolution);
-
-            let stats = if let Ok(stats) = cached_stats {
-                println!("Loaded scene statistics in {} seconds", start.elapsed().as_secs_f32());
-                stats
-            } else {
-                // If we can't find matching cached visibilty data, compute it
-
-                let scene_bounds = {
-                    let mut b = BoundingBox::new();
-
-                    for instance in &result.scene.instances {
-                        b = b.union(&instance.bounds);
-                    }
-
-                    for light in &result.scene.lights {
-                        if let Some(light_bounds) = light.bounds() {
-                            b = b.union(&light_bounds);
-                        }
-                    }
-
-                    b
-                };
-
-                let mut stats = SceneStatistics::new(scene_bounds, scene_version, resolution);
-
-                let start = Instant::now();
-                stats.sample_materials(&result);
-                println!(
-                    "Computed material averages in {} seconds",
-                    start.elapsed().as_secs_f32()
-                );
-
-                stats.compute_light_voxel_distribution(&result.scene);
-
-                let start = Instant::now();
-                stats.sample_visibility(&result, accel_structures_to_construct[0]);
-                println!("Computed visibility map in {} seconds", start.elapsed().as_secs_f32());
-
-                let start = Instant::now();
-                stats.compute_importance_sampling_distributions(&result.scene);
-                println!(
-                    "Computed weighted material sums in {} seconds",
-                    start.elapsed().as_secs_f32()
-                );
-
-                if let Err(e) = std::fs::create_dir_all(dir)
-                    .map_err(Error::IO)
-                    .and(stats.write_to_file(path))
-                {
-                    println!("Writing visibility data to file failed: {e}");
-                }
-
-                stats
-            };
-
-            result.stats = Some(stats);
-        }
-
         result
-    }
-
-    pub fn dump_visibility_data(&self) {
-        if let Some(stats) = self.stats.as_ref() {
-            stats.dump_visibility_image("output/vis.png");
-
-            if let Err(e) = stats.dump_materials_as_rgb("output/materials.grid") {
-                eprintln!("Couldn't write materials file: {e}")
-            }
-        }
     }
 
     pub fn render(
@@ -593,7 +498,7 @@ impl Raytracer {
             let mut nee_result = Spectrumf32::constant(0.0);
 
             // Next event estimation (directly sampling lights)
-            if let Some((light, light_pick_pdf)) = self.sample_light(hit_pos) {
+            if let Some((light, light_pick_pdf)) = self.sample_light() {
                 let light_sample = light.sample(hit_pos);
 
                 let offset_direction = light_sample.direction.dot(geom_normal).signum() * geom_normal;
@@ -609,29 +514,7 @@ impl Raytracer {
                         direction: light_sample.direction,
                     };
 
-                    let rejection_sample = self.image_settings.visibility.map_or(false, |v| v.nee_rejection);
-
-                    // NEE++ rejection sampling
-                    let (shadowed, rejection_pdf) = if rejection_sample
-                        && let Some(stats) = &self.stats
-                        && let Some(sample_position) = &light_sample.position
-                    {
-                        let hit_pos_voxel = stats.get_grid_position(hit_pos);
-                        let sample_pos_voxel = stats.get_grid_position(*sample_position);
-                        let pdf = stats.get_estimated_visibility(hit_pos_voxel, sample_pos_voxel);
-
-                        let shadowed = if thread_rng().gen_bool(pdf as f64) {
-                            self.is_ray_obstructed(&shadow_ray, light_sample.distance, settings.accel_structure)
-                        } else {
-                            true
-                        };
-
-                        (shadowed, pdf)
-                    } else {
-                        let shadowed =
-                            self.is_ray_obstructed(&shadow_ray, light_sample.distance, settings.accel_structure);
-                        (shadowed, 1.0)
-                    };
+                    let shadowed = self.is_ray_obstructed(&shadow_ray, light_sample.distance, settings.accel_structure);
 
                     if !shadowed {
                         let local_incident = frame.to_local(light_sample.direction);
@@ -656,7 +539,7 @@ impl Raytracer {
                                 * bsdf
                                 * local_incident.z.abs()
                                 * (mis_weight * light_sample.intensity * shadow_terminator
-                                    / (light_pick_pdf * light_sample.pdf * rejection_pdf));
+                                    / (light_pick_pdf * light_sample.pdf));
                         }
                     }
                 }
@@ -664,73 +547,7 @@ impl Raytracer {
 
             if let WavelengthState::Undecided = wavelength {
                 if self.image_settings.always_sample_single_wavelength {
-                    let importance_sampling_mode = self
-                        .image_settings
-                        .visibility
-                        .and_then(|v| v.spectral_importance_sampling);
-
-                    let (value, pdf) = if importance_sampling_mode.is_some()
-                        && let Some(stats) = &self.stats
-                    {
-                        match importance_sampling_mode.unwrap() {
-                            ImportanceSamplingMode::Visibility => {
-                                let voxel = stats.get_grid_position(hit_pos);
-                                let distribution = stats
-                                    .spectral_distributions
-                                    .get(&voxel)
-                                    .or_else(|| {
-                                        // Float precision issues when a tri is on the border of voxels
-                                        // can cause cases where the collision position is in a
-                                        // different voxel than the tri is counted for, this hacks around that
-                                        // by just finding a nearby voxel that does have a distribution.
-                                        for neighbour in stats.voxel_neighbours(voxel) {
-                                            let distribution = stats.spectral_distributions.get(&neighbour);
-                                            if distribution.is_some() {
-                                                return distribution;
-                                            }
-                                        }
-                                        None
-                                    })
-                                    .expect("voxel should have distributions");
-
-                                distribution.sample_wavelength(mat_sample.base_color_spectrum)
-                            }
-                            ImportanceSamplingMode::VisibilityNEE => {
-                                let voxel = stats.get_grid_position(hit_pos);
-                                let distribution = stats
-                                    .spectral_distributions
-                                    .get(&voxel)
-                                    .or_else(|| {
-                                        // Float precision issues when a tri is on the border of voxels
-                                        // can cause cases where the collision position is in a
-                                        // different voxel than the tri is counted for, this hacks around that
-                                        // by just finding a nearby voxel that does have a distribution.
-                                        for neighbour in stats.voxel_neighbours(voxel) {
-                                            let distribution = stats.spectral_distributions.get(&neighbour);
-                                            if distribution.is_some() {
-                                                return distribution;
-                                            }
-                                        }
-                                        None
-                                    })
-                                    .expect("voxel should have distributions");
-
-                                let d = 0.5 * distribution.approximate_light + 0.5 * nee_result;
-                                (mat_sample.base_color_spectrum * d).importance_sample_wavelength()
-                            }
-                            ImportanceSamplingMode::MeanEmitterSpectrum => {
-                                stats.mean_light_spectrum.importance_sample_wavelength()
-                            }
-                            ImportanceSamplingMode::MeanEmitterSpectrumAlbedo => {
-                                let x = stats.mean_light_spectrum * mat_sample.base_color_spectrum;
-                                x.importance_sample_wavelength()
-                            }
-                        }
-                    } else {
-                        Wavelength::sample_uniform_visible()
-                    };
-                    path_weight /= pdf * Spectrumf32::RESOLUTION as f32;
-
+                    let (value, _) = Wavelength::sample_uniform_visible();
                     wavelength = WavelengthState::Sampled { value };
                 }
             }
@@ -789,7 +606,7 @@ impl Raytracer {
         }
     }
 
-    fn sample_light(&self, hit_pos: Point3<f32>) -> Option<(&Light, f32)> {
+    fn sample_light(&self) -> Option<(&Light, f32)> {
         let lights = &self.scene.lights;
 
         if lights.is_empty() {
@@ -800,49 +617,7 @@ impl Raytracer {
             return Some((&self.scene.lights[0], 1.0));
         }
 
-        let visibility_sample = self.image_settings.visibility.map_or(false, |v| v.nee_direct);
-
-        if visibility_sample {
-            Some(self.sample_light_visibility_weighted(hit_pos))
-        } else {
-            Some(sample_value_from_slice_uniform(lights))
-        }
-    }
-
-    // Direct light sampling from NEE++
-    fn sample_light_visibility_weighted(&self, hit_pos: Point3<f32>) -> (&Light, f32) {
-        let lights = &self.scene.lights;
-        let stats = self.stats.as_ref().expect("scene statistics should be present");
-        let positionless_fraction = stats.positionless_lights.len() as f32 / lights.len() as f32;
-
-        if thread_rng().gen_bool(positionless_fraction as f64) {
-            let (&i, pdf) = sample_value_from_slice_uniform(&stats.positionless_lights);
-            return (&lights[i], positionless_fraction * pdf);
-        }
-
-        let hit_pos_voxel = stats.get_grid_position(hit_pos);
-
-        // Sample a voxel, using a thread local Vec for the weights to prevent allocating it every time
-        let (voxel_index, voxel_pdf) = VOXEL_WEIGHTS.with(|cell| {
-            let mut weights = cell.borrow_mut();
-            weights.clear();
-
-            stats.voxels_with_lights.iter().for_each(|v| {
-                weights.push(stats.get_estimated_visibility(hit_pos_voxel, v.voxel) * v.light_indices.len() as f32);
-            });
-
-            sample_item_from_weights(&weights).expect("weights should be non-empty.")
-        });
-
-        let voxel = &stats.voxels_with_lights[voxel_index];
-
-        // Sample a light from the voxel
-        let (&light_index, light_pdf) = sample_value_from_slice_uniform(&voxel.light_indices);
-
-        (
-            &lights[light_index],
-            voxel_pdf * light_pdf * (1.0 - positionless_fraction),
-        )
+        Some(sample_value_from_slice_uniform(lights))
     }
 
     /// Checks if distance to the nearest obstructing triangle is less than the distance

@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use cgmath::{point3, EuclideanSpace, InnerSpace, Point3, Vector3};
 use rand::{thread_rng, Rng};
 
-use super::geometry::{orthogonal_vector, spherical_to_cartesian};
+use super::geometry::orthogonal_vector;
 
 pub fn cos_weighted_sample_hemisphere() -> Vector3<f32> {
     let mut rng = thread_rng();
@@ -38,14 +38,6 @@ pub fn sample_uniform_in_unit_sphere(center: Point3<f32>, radius: f32) -> Point3
     r * point3(p * theta.cos(), p * theta.sin(), z) + center.to_vec()
 }
 
-pub fn sample_uniform_on_unit_sphere() -> Vector3<f32> {
-    let mut rng = rand::thread_rng();
-    let theta: f32 = 2.0 * PI * rng.gen::<f32>();
-    let phi = (1.0 - 2.0 * rng.gen::<f32>()).acos();
-
-    spherical_to_cartesian(theta, phi)
-}
-
 pub fn tent_sample() -> f32 {
     let r = 2.0 * thread_rng().gen::<f32>();
 
@@ -54,29 +46,6 @@ pub fn tent_sample() -> f32 {
     } else {
         1.0 - (2.0 - r).sqrt()
     }
-}
-
-/// When a set of weights is sampled only once this is faster than
-/// [sample_item_from_cumulative_probabilities] because it doesn't require allocating
-pub fn sample_item_from_weights(weights: &[f32]) -> Option<(usize, f32)> {
-    if weights.is_empty() {
-        return None;
-    }
-
-    let weights_sum = weights.iter().sum::<f32>();
-    let sample = rand::thread_rng().gen::<f32>() * weights_sum;
-
-    let mut sum = 0.0;
-
-    for (i, &w) in weights.iter().enumerate() {
-        sum += w;
-        if sum >= sample {
-            return Some((i, weights[i] / weights_sum));
-        }
-    }
-
-    let last_i = weights.len() - 1;
-    Some((last_i, weights[last_i] / weights_sum))
 }
 
 /// When a set of probabilities is sampled only once this is faster than
