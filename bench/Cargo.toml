@@ -4,9 +4,9 @@ version = "0.1.0"
 authors = ["kamp <nbvdkamp@gmail.com>"]
 edition = "2021"
 
-[[bin]]
-name = "bench"
-path = "src/main.rs"
+[features]
+stats = []
+
 
 [dependencies]
 renderer = { path = "../renderer" }
