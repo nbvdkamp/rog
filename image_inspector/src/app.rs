@@ -41,12 +41,12 @@ pub fn run(image: Option<WorkingImage>) -> Result<(), eframe::Error> {
         "Image Inspector",
         options,
         Box::new(move |cc| {
-            Box::new(ImageInspectorApp {
+            Ok(Box::new(ImageInspectorApp {
                 image_data: image.map(|image| ImageData::new(image, &cc.egui_ctx)),
                 hovered_pixel: None,
                 zoom: 1.0,
                 brightness_factor: 1.0,
-            })
+            }))
         }),
     )
 }

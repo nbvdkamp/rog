@@ -9,6 +9,6 @@ renderer = { path = "../renderer/" }
 
 itertools = { workspace = true }
 
-eframe = "0.27.2"
-egui_plot = "0.27.2"
+eframe = "0.28.1"
+egui_plot = "0.28.1"
 rfd = "0.14.1"
