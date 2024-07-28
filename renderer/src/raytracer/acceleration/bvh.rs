@@ -27,8 +27,7 @@ enum Node {
         bounds: BoundingBox,
     },
     Inner {
-        left_child: Option<NonZeroU32>,
-        right_child: Option<NonZeroU32>,
+        child_index: Option<NonZeroU32>,
         bounds: BoundingBox,
     },
 }
@@ -43,8 +42,7 @@ impl Node {
 
     fn new_inner(bounds: BoundingBox) -> Node {
         Node::Inner {
-            left_child: None,
-            right_child: None,
+            child_index: None,
             bounds,
         }
     }
@@ -63,9 +61,8 @@ impl BoundingVolumeHierarchy {
         let mut stack = vec![(0, (0..triangles.len()).collect(), 1)];
 
         while let Some((index, triangle_indices, depth)) = stack.pop() {
-            let new_left_index = nodes.len();
-            let new_right_index = new_left_index + 1;
-            assert!(new_left_index > 0 && new_right_index <= u32::MAX as usize);
+            let new_child_index = nodes.len();
+            assert!(new_child_index > 0 && new_child_index + 1 <= u32::MAX as usize);
 
             let left_is_leaf;
             let right_is_leaf;
@@ -76,12 +73,7 @@ impl BoundingVolumeHierarchy {
             let left_indices: Vec<usize>;
             let right_indices: Vec<usize>;
 
-            let Node::Inner {
-                left_child,
-                right_child,
-                bounds,
-            } = node
-            else {
+            let Node::Inner { child_index, bounds } = node else {
                 unreachable!();
             };
 
@@ -115,14 +107,13 @@ impl BoundingVolumeHierarchy {
             let left_bounds = compute_bounding_box_item_indexed(triangle_bounds, &left_indices);
             let right_bounds = compute_bounding_box_item_indexed(triangle_bounds, &right_indices);
 
-            *left_child = NonZeroU32::new(new_left_index as u32);
-            *right_child = NonZeroU32::new(new_right_index as u32);
+            *child_index = NonZeroU32::new(new_child_index as u32);
 
             if left_is_leaf {
                 stats.count_leaf_node();
                 nodes.push(Node::new_leaf(left_indices, left_bounds));
             } else {
-                stack.push((new_left_index, left_indices, depth + 1));
+                stack.push((new_child_index, left_indices, depth + 1));
                 stats.count_inner_node();
                 nodes.push(Node::new_inner(left_bounds));
             }
@@ -131,7 +122,7 @@ impl BoundingVolumeHierarchy {
                 stats.count_leaf_node();
                 nodes.push(Node::new_leaf(right_indices, right_bounds));
             } else {
-                stack.push((new_right_index, right_indices, depth + 1));
+                stack.push((new_child_index + 1, right_indices, depth + 1));
                 stats.count_inner_node();
                 nodes.push(Node::new_inner(right_bounds));
             }
@@ -154,15 +145,12 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
 
         while let Some(i) = stack.pop() {
             match &self.nodes[i] {
-                Node::Inner {
-                    left_child,
-                    right_child,
-                    bounds,
-                } => {
+                Node::Inner { child_index, bounds } => {
                     if let Intersects::Yes { .. } = bounds.intersects_ray(ray.origin, inv_dir) {
                         self.stats.count_inner_node_traversal();
-                        stack.push(left_child.unwrap().get() as usize);
-                        stack.push(right_child.unwrap().get() as usize);
+                        let i = child_index.unwrap().get() as usize;
+                        stack.push(i);
+                        stack.push(i + 1);
                     }
                 }
                 Node::Leaf {
