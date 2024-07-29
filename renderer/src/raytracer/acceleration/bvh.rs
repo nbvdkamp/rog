@@ -1,4 +1,4 @@
-use std::num::NonZeroU32;
+use std::{collections::VecDeque, num::NonZeroU32};
 
 use cgmath::Point3;
 
@@ -32,22 +32,6 @@ enum Node {
     },
 }
 
-impl Node {
-    fn new_leaf(triangle_indices: Vec<usize>, bounds: BoundingBox) -> Node {
-        Node::Leaf {
-            triangle_indices,
-            bounds,
-        }
-    }
-
-    fn new_inner(bounds: BoundingBox) -> Node {
-        Node::Inner {
-            child_index: None,
-            bounds,
-        }
-    }
-}
-
 impl BoundingVolumeHierarchy {
     pub fn new(positions: &[Point3<f32>], triangles: &[Triangle], triangle_bounds: &[BoundingBox]) -> Self {
         let mut nodes = Vec::new();
@@ -55,27 +39,10 @@ impl BoundingVolumeHierarchy {
 
         let bounds = compute_bounding_box(positions);
 
-        stats.count_inner_node();
-        nodes.push(Node::new_inner(bounds));
+        let mut deq = VecDeque::from([((0..triangles.len()).collect(), 1, bounds)]);
 
-        let mut stack = vec![(0, (0..triangles.len()).collect(), 1)];
-
-        while let Some((index, triangle_indices, depth)) = stack.pop() {
-            let new_child_index = nodes.len();
-            assert!(new_child_index > 0 && new_child_index + 1 <= u32::MAX as usize);
-
-            let left_is_leaf;
-            let right_is_leaf;
+        while let Some((triangle_indices, depth, bounds)) = deq.pop_front() {
             stats.count_max_depth(depth);
-
-            let node = nodes.get_mut(index).unwrap();
-
-            let left_indices: Vec<usize>;
-            let right_indices: Vec<usize>;
-
-            let Node::Inner { child_index, bounds } = node else {
-                unreachable!();
-            };
 
             let axes_to_search = [Axis::from_index(depth)];
             let relative_traversal_cost = 1.2;
@@ -83,49 +50,37 @@ impl BoundingVolumeHierarchy {
             match surface_area_heuristic_bvh(
                 triangle_bounds,
                 triangle_indices,
-                *bounds,
+                bounds,
                 &axes_to_search,
                 relative_traversal_cost,
             ) {
-                SurfaceAreaHeuristicResultBvh::MakeLeaf { mut indices } => {
-                    left_indices = indices.split_off(indices.len() / 2);
-                    right_indices = indices;
-                    left_is_leaf = true;
-                    right_is_leaf = true;
+                SurfaceAreaHeuristicResultBvh::MakeLeaf { indices } => {
+                    stats.count_leaf_node();
+                    nodes.push(Node::Leaf {
+                        triangle_indices: indices,
+                        bounds,
+                    })
                 }
                 SurfaceAreaHeuristicResultBvh::MakeInner {
-                    left_indices: left,
-                    right_indices: right,
+                    left_indices,
+                    right_indices,
                 } => {
-                    left_indices = left;
-                    right_indices = right;
-                    left_is_leaf = left_indices.len() < 2;
-                    right_is_leaf = right_indices.len() < 2;
+                    let child_index = nodes.len() + 1 + deq.len();
+                    assert!(child_index > 0 && child_index + 1 <= u32::MAX as usize);
+
+                    stats.count_inner_node();
+                    nodes.push(Node::Inner {
+                        child_index: NonZeroU32::new(child_index as u32),
+                        bounds,
+                    });
+
+                    let left_bounds = compute_bounding_box_item_indexed(triangle_bounds, &left_indices);
+                    let right_bounds = compute_bounding_box_item_indexed(triangle_bounds, &right_indices);
+
+                    deq.push_back((left_indices, depth + 1, left_bounds));
+                    deq.push_back((right_indices, depth + 1, right_bounds));
                 }
             };
-
-            let left_bounds = compute_bounding_box_item_indexed(triangle_bounds, &left_indices);
-            let right_bounds = compute_bounding_box_item_indexed(triangle_bounds, &right_indices);
-
-            *child_index = NonZeroU32::new(new_child_index as u32);
-
-            if left_is_leaf {
-                stats.count_leaf_node();
-                nodes.push(Node::new_leaf(left_indices, left_bounds));
-            } else {
-                stack.push((new_child_index, left_indices, depth + 1));
-                stats.count_inner_node();
-                nodes.push(Node::new_inner(left_bounds));
-            }
-
-            if right_is_leaf {
-                stats.count_leaf_node();
-                nodes.push(Node::new_leaf(right_indices, right_bounds));
-            } else {
-                stack.push((new_child_index + 1, right_indices, depth + 1));
-                stats.count_inner_node();
-                nodes.push(Node::new_inner(right_bounds));
-            }
         }
 
         BoundingVolumeHierarchy { nodes, stats }

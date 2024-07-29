@@ -28,6 +28,10 @@ pub fn surface_area_heuristic_bvh(
     axes_to_search: &[Axis],
     relative_traversal_cost: f32,
 ) -> SurfaceAreaHeuristicResultBvh {
+    if item_indices.len() < 2 {
+        return SurfaceAreaHeuristicResultBvh::MakeLeaf { indices: item_indices };
+    }
+
     let mut centroid_bounds = BoundingBox::new();
 
     for index in &item_indices {
