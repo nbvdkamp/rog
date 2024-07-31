@@ -39,7 +39,7 @@ fn main() {
         }
     };
 
-    let resolution_factor = 15;
+    let resolution_factor = 30;
     let width = 16 * resolution_factor;
     let height = 9 * resolution_factor;
     let thread_count = (num_cpus::get() - 2).max(1);
