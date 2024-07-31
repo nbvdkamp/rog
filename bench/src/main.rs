@@ -75,20 +75,24 @@ fn main() {
         }
     };
 
+    let settings = RenderSettings {
+        termination_condition: TerminationCondition::SampleCount(1),
+        thread_count,
+        accel_structure: accel_structures_to_construct[0],
+        intermediate_read_path: None,
+        intermediate_write_path: None,
+    };
+
+    // Do a warmup run:
+    let image = WorkingImage::new(image_settings.clone());
+    let (_, _) = raytracer.render(&settings, None, None, None, image);
+
     for i in 0..angle_divisions {
         let angle = angle_increment * i as f32;
 
         raytracer.scene.camera.model = Matrix4::from_translation(scene_center.to_vec())
             * Matrix4::from_angle_y(angle)
             * Matrix4::from_translation(Vector3::new(0.0, 0.0, scene_diameter));
-
-        let settings = RenderSettings {
-            termination_condition: TerminationCondition::SampleCount(1),
-            thread_count,
-            accel_structure: accel_structures_to_construct[0],
-            intermediate_read_path: None,
-            intermediate_write_path: None,
-        };
 
         let image = WorkingImage::new(image_settings.clone());
         let (result, time_elapsed) = raytracer.render(&settings, None, None, None, image);
