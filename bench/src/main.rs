@@ -1,85 +1,110 @@
-use cgmath::vec2;
+use std::path::PathBuf;
 
-#[cfg(feature = "stats")]
-use renderer::raytracer::acceleration::statistics::Statistics;
+use cgmath::{vec2, Angle, EuclideanSpace, InnerSpace, Matrix4, Rad, Vector3};
+use clap::{arg, value_parser, Command};
+
+use csv::Writer;
 use renderer::{
-    raytracer::{acceleration::Accel, working_image::WorkingImage, Raytracer},
+    raytracer::{aabb::BoundingBox, acceleration::Accel, working_image::WorkingImage, Raytracer},
     render_settings::{ImageSettings, RenderSettings, TerminationCondition},
     scene::Scene,
 };
 
 fn main() {
-    let test_scene_filenames = vec![
-        "simple_raytracer_test",
-        "sea_test",
-        "sea_test_obscured",
-        "cube",
-        "simplest",
-    ];
+    let matches = Command::new("bench")
+        .args(&[
+            arg!(--file <FILE>).required(true).value_parser(value_parser!(PathBuf)),
+            arg!(--output <FILE>)
+                .required(true)
+                .value_parser(value_parser!(PathBuf)),
+            arg!(--image_output_dir <DIR> "a directory to store the generated images in")
+                .value_parser(value_parser!(PathBuf)),
+        ])
+        .get_matches();
 
-    #[cfg(not(feature = "stats"))]
-    println!("Build with --features stats for traversal statistics");
+    let image_output_dir = matches.get_one::<PathBuf>("image_output_dir").map(|i| {
+        if !i.is_dir() {
+            println!("Path is not a directory: {i:?}");
+            std::process::exit(-1);
+        }
+        i
+    });
+
+    let test_scene_filename = matches.get_one::<PathBuf>("file").unwrap();
+    let (scene, _) = match Scene::load(test_scene_filename) {
+        Ok(result) => result,
+        Err(e) => {
+            eprintln!("Couldn't open scene {test_scene_filename:?}: {e}");
+            std::process::exit(-1);
+        }
+    };
 
     let resolution_factor = 15;
     let width = 16 * resolution_factor;
     let height = 9 * resolution_factor;
     let thread_count = (num_cpus::get() - 2).max(1);
-    let accel_structures_to_construct = vec![Accel::Bvh, Accel::BvhRecursive, Accel::KdTree];
+    let accel_structures_to_construct = vec![Accel::Bvh];
 
-    for scene_name in test_scene_filenames {
-        let (scene, _) = match Scene::load(format!("res/scenes/{scene_name}.glb")) {
-            Ok(result) => result,
-            Err(e) => {
-                eprintln!("Couldn't open scene {scene_name}: {e}");
-                continue;
-            }
-        };
+    let image_settings = ImageSettings {
+        size: vec2(width, height),
+        enable_dispersion: true,
+        max_depth: None,
+        always_sample_single_wavelength: false,
+        scene_version: None,
+    };
 
-        let image_settings = ImageSettings {
-            size: vec2(width, height),
-            enable_dispersion: true,
-            max_depth: None,
-            always_sample_single_wavelength: false,
-            scene_version: None,
-        };
+    let mut scene_bounds = BoundingBox::new();
+    scene.instances.iter().for_each(|i| {
+        scene_bounds = scene_bounds.union(&i.bounds);
+    });
 
-        let raytracer = Raytracer::new(scene, &accel_structures_to_construct, image_settings.clone());
+    let scene_center = scene_bounds.center();
+    let scene_diameter = (scene_bounds.max - scene_center).magnitude() * 1.2;
 
-        println!("Filename: {scene_name}, tris: {}", raytracer.get_num_tris());
-        #[cfg(feature = "stats")]
-        println!(
-            "{: <25} | {: <10} | {}",
-            "Acceleration structure",
-            "Time (s)",
-            Statistics::format_header()
-        );
-        #[cfg(not(feature = "stats"))]
-        println!("{: <25} | {: <10}", "Acceleration structure", "Time (s)");
+    let mut raytracer = Raytracer::new(scene, &accel_structures_to_construct, image_settings.clone());
 
-        for &structure in &accel_structures_to_construct {
-            let settings = RenderSettings {
-                termination_condition: TerminationCondition::SampleCount(1),
-                thread_count,
-                accel_structure: structure,
-                intermediate_read_path: None,
-                intermediate_write_path: None,
-            };
+    let angle_divisions = 120;
+    let angle_increment = Rad::full_turn() / angle_divisions as f32;
 
-            let image = WorkingImage::new(image_settings.clone());
-            let (_, time_elapsed) = raytracer.render(&settings, None, None, None, image);
-
-            let name = structure.name();
-
-            #[cfg(feature = "stats")]
-            {
-                let mut stats = raytracer.accel_structures.get(structure).get_statistics();
-                let top_level_stats = raytracer.accel_structures.get(structure).get_top_level_statistics();
-                println!("{name: <25} | {time_elapsed: <10} | {stats}");
-                println!("{:<25} | {:10} | {top_level_stats}", "Top Level:", "");
-            }
-            #[cfg(not(feature = "stats"))]
-            println!("{name: <25} | {time_elapsed: <10}");
+    let output_path = matches.get_one::<PathBuf>("output").unwrap();
+    let mut wrt = match Writer::from_path(output_path) {
+        Ok(wrt) => wrt,
+        Err(e) => {
+            println!("Cant write to path: {output_path:?}\n\terror: {e}");
+            std::process::exit(-1);
         }
-        println!();
+    };
+
+    for i in 0..angle_divisions {
+        let angle = angle_increment * i as f32;
+
+        raytracer.scene.camera.model = Matrix4::from_translation(scene_center.to_vec())
+            * Matrix4::from_angle_y(angle)
+            * Matrix4::from_translation(Vector3::new(0.0, 0.0, scene_diameter));
+
+        let settings = RenderSettings {
+            termination_condition: TerminationCondition::SampleCount(1),
+            thread_count,
+            accel_structure: accel_structures_to_construct[0],
+            intermediate_read_path: None,
+            intermediate_write_path: None,
+        };
+
+        let image = WorkingImage::new(image_settings.clone());
+        let (result, time_elapsed) = raytracer.render(&settings, None, None, None, image);
+
+        if let Some(dir) = image_output_dir {
+            let mut buf = dir.clone();
+            buf.push(format!("{angle:?}.png"));
+            result.save_as_rgb(buf);
+        }
+
+        if let Err(e) = wrt.serialize(&[angle.0, time_elapsed]) {
+            println!("Writing failed: {e}");
+        }
+    }
+
+    if let Err(e) = wrt.flush() {
+        println!("Flushing writer failed: {e}");
     }
 }
