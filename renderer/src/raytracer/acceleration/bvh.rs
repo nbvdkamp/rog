@@ -104,25 +104,41 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
         let inv_dir = 1.0 / ray.direction;
 
         let mut stack = Vec::with_capacity(f32::log2(self.nodes.len() as f32) as usize);
-        stack.push(0);
+        if let Intersects::Yes { distance } = self.nodes[0].bounds().intersects_ray(ray.origin, inv_dir) {
+            stack.push((0, distance));
+        }
 
-        while let Some(i) = stack.pop() {
-            let node = &self.nodes[i];
-
-            if let Intersects::Yes { distance } = node.bounds().intersects_ray(ray.origin, inv_dir) {
-                if !result.is_farther_than(distance) {
-                    continue;
-                }
-            } else {
+        while let Some((i, distance)) = stack.pop() {
+            if !result.is_farther_than(distance) {
                 continue;
             }
 
-            match node {
+            match &self.nodes[i] {
                 Node::Inner { child_index, .. } => {
                     self.stats.count_inner_node_traversal();
                     let i = child_index.unwrap().get() as usize;
-                    stack.push(i);
-                    stack.push(i + 1);
+
+                    let hit_l_box = self.nodes[i + 0].bounds().intersects_ray(ray.origin, inv_dir);
+                    let hit_r_box = self.nodes[i + 1].bounds().intersects_ray(ray.origin, inv_dir);
+                    match (hit_l_box, hit_r_box) {
+                        (Intersects::No, Intersects::No) => (),
+                        (Intersects::Yes { distance }, Intersects::No) => {
+                            stack.push((i + 0, distance));
+                        }
+                        (Intersects::No, Intersects::Yes { distance }) => {
+                            stack.push((i + 1, distance));
+                        }
+                        (Intersects::Yes { distance: l_distance }, Intersects::Yes { distance: r_distance }) => {
+                            //Push the closest node last so it is evaluated first and the other may be culled
+                            if l_distance < r_distance {
+                                stack.push((i + 1, r_distance));
+                                stack.push((i + 0, l_distance));
+                            } else {
+                                stack.push((i + 0, l_distance));
+                                stack.push((i + 1, r_distance));
+                            }
+                        }
+                    }
                 }
                 Node::Leaf { triangle_indices, .. } => {
                     let r = intersect_triangles_indexed(triangle_indices, ray, positions, triangles, &self.stats);
