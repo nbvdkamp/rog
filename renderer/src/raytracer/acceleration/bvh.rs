@@ -1,5 +1,6 @@
 use std::{collections::VecDeque, num::NonZeroU32};
 
+use arrayvec::ArrayVec;
 use cgmath::Point3;
 
 use crate::raytracer::{
@@ -103,7 +104,8 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
         let mut result = TraceResult::Miss;
         let inv_dir = 1.0 / ray.direction;
 
-        let mut stack = Vec::with_capacity(f32::log2(self.nodes.len() as f32) as usize);
+        // Stack size 64 should be enough for ridiculously large meshes
+        let mut stack = ArrayVec::<_, 64>::new();
         if let Intersects::Yes { distance } = self.nodes[0].bounds().intersects_ray(ray.origin, inv_dir) {
             stack.push((0, distance));
         }
