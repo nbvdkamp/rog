@@ -53,7 +53,7 @@ impl BoundingVolumeHierarchy {
         while let Some((triangle_indices, depth, bounds)) = deq.pop_front() {
             stats.count_max_depth(depth);
 
-            let axes_to_search = [Axis::from_index(depth)];
+            let axes_to_search = [Axis::X, Axis::Y, Axis::Z];
             let relative_traversal_cost = 1.2;
 
             match surface_area_heuristic_bvh(
