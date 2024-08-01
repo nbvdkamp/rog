@@ -22,12 +22,11 @@ fn main() {
         ])
         .get_matches();
 
-    let image_output_dir = matches.get_one::<PathBuf>("image_output_dir").map(|i| {
+    let image_output_dir = matches.get_one::<PathBuf>("image_output_dir").inspect(|i| {
         if !i.is_dir() {
             println!("Path is not a directory: {i:?}");
             std::process::exit(-1);
         }
-        i
     });
 
     let test_scene_filename = matches.get_one::<PathBuf>("file").unwrap();
@@ -103,7 +102,7 @@ fn main() {
             result.save_as_rgb(buf);
         }
 
-        if let Err(e) = wrt.serialize(&[angle.0, time_elapsed]) {
+        if let Err(e) = wrt.serialize([angle.0, time_elapsed]) {
             println!("Writing failed: {e}");
         }
     }
