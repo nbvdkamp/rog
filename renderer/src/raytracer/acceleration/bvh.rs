@@ -32,6 +32,15 @@ enum Node {
     },
 }
 
+impl Node {
+    fn bounds(&self) -> &BoundingBox {
+        match self {
+            Node::Leaf { bounds, .. } => bounds,
+            Node::Inner { bounds, .. } => bounds,
+        }
+    }
+}
+
 impl BoundingVolumeHierarchy {
     pub fn new(positions: &[Point3<f32>], triangles: &[Triangle], triangle_bounds: &[BoundingBox]) -> Self {
         let mut nodes = Vec::new();
@@ -94,33 +103,32 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
         let mut result = TraceResult::Miss;
         let inv_dir = 1.0 / ray.direction;
 
-        // Replacing this with a vec! macro degrades performance somehow??
         let mut stack = Vec::with_capacity(f32::log2(self.nodes.len() as f32) as usize);
         stack.push(0);
 
         while let Some(i) = stack.pop() {
-            match &self.nodes[i] {
-                Node::Inner { child_index, bounds } => {
-                    if let Intersects::Yes { .. } = bounds.intersects_ray(ray.origin, inv_dir) {
-                        self.stats.count_inner_node_traversal();
-                        let i = child_index.unwrap().get() as usize;
-                        stack.push(i);
-                        stack.push(i + 1);
-                    }
-                }
-                Node::Leaf {
-                    triangle_indices,
-                    bounds,
-                } => {
-                    if !triangle_indices.is_empty() {
-                        if let Intersects::Yes { .. } = bounds.intersects_ray(ray.origin, inv_dir) {
-                            let r =
-                                intersect_triangles_indexed(triangle_indices, ray, positions, triangles, &self.stats);
+            let node = &self.nodes[i];
 
-                            if r.is_closer_than(&result) {
-                                result = r;
-                            }
-                        }
+            if let Intersects::Yes { distance } = node.bounds().intersects_ray(ray.origin, inv_dir) {
+                if !result.is_farther_than(distance) {
+                    continue;
+                }
+            } else {
+                continue;
+            }
+
+            match node {
+                Node::Inner { child_index, .. } => {
+                    self.stats.count_inner_node_traversal();
+                    let i = child_index.unwrap().get() as usize;
+                    stack.push(i);
+                    stack.push(i + 1);
+                }
+                Node::Leaf { triangle_indices, .. } => {
+                    let r = intersect_triangles_indexed(triangle_indices, ray, positions, triangles, &self.stats);
+
+                    if r.is_closer_than(&result) {
+                        result = r;
                     }
                 }
             }
