@@ -49,7 +49,7 @@ macro_rules! impl_f32_color_tuple {
                 Self::new($($field as f32 / 255.0),+)
             }
 
-            pub fn from_grayscale(value: f32) -> Self {
+            pub const fn from_grayscale(value: f32) -> Self {
                 Self { $($field: value),+ }
             }
 
@@ -253,6 +253,26 @@ impl XYZf32 {
         let b = 0.055648 * x - 0.204043 * y + 1.057311 * z;
 
         RGBf32::new(r.max(0.0), g.max(0.0), b.max(0.0))
+    }
+
+    /// To avoid operator overloads not being able to be const
+    pub const fn mul(&self, scalar: f32) -> Self {
+        let XYZf32 { x, y, z } = *self;
+        XYZf32 {
+            x: x * scalar,
+            y: y * scalar,
+            z: z * scalar,
+        }
+    }
+
+    /// To avoid operator overloads not being able to be const
+    pub const fn add(&self, other: Self) -> Self {
+        let XYZf32 { x, y, z } = *self;
+        XYZf32 {
+            x: x + other.x,
+            y: y + other.y,
+            z: z + other.z,
+        }
     }
 }
 

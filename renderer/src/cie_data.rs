@@ -10,7 +10,7 @@ const fn xyz(x: f32, y: f32, z: f32) -> XYZf32 {
 }
 
 #[allow(clippy::excessive_precision)]
-pub static OBSERVER_1931: [XYZf32; SAMPLES] = [
+pub const OBSERVER_1931: [XYZf32; SAMPLES] = [
     xyz(0.000129900000, 0.000003917000, 0.000606100000),
     xyz(0.000232100000, 0.000006965000, 0.001086000000),
     xyz(0.000414900000, 0.000012390000, 0.001946000000),
@@ -108,12 +108,26 @@ pub static OBSERVER_1931: [XYZf32; SAMPLES] = [
     xyz(0.000001251141, 0.000000451810, 0.000000000000),
 ];
 
-pub fn observer_1931_interp(wavelength: f32) -> XYZf32 {
+/// Macro version of min since it isn't const
+macro_rules! min {
+    ($a: expr, $b: expr) => {
+        if $a < $b {
+            $a
+        } else {
+            $b
+        }
+    };
+}
+
+pub const fn observer_1931_interp(wavelength: f32) -> XYZf32 {
     let wavelength = (wavelength - LAMBDA_MIN) * (SAMPLES - 1) as f32 / LAMBDA_RANGE;
-    let offset = (wavelength as usize).min(SAMPLES - 2);
+
+    let offset = min!(wavelength as usize, SAMPLES - 2);
     let weight = wavelength - offset as f32;
 
-    (1.0 - weight) * OBSERVER_1931[offset] + weight * OBSERVER_1931[offset + 1]
+    OBSERVER_1931[offset]
+        .mul(1.0 - weight)
+        .add(OBSERVER_1931[offset + 1].mul(weight))
 }
 
 // Normalize to luminance of 1
@@ -121,7 +135,7 @@ const fn n(x: f32) -> f32 {
     x / 10567.864
 }
 
-pub static ILLUMINANT_D65: [f32; SAMPLES] = [
+pub const ILLUMINANT_D65: [f32; SAMPLES] = [
     n(46.6383),
     n(49.3637),
     n(52.0891),
@@ -219,9 +233,10 @@ pub static ILLUMINANT_D65: [f32; SAMPLES] = [
     n(60.3125),
 ];
 
-pub fn illuminant_d65_interp(wavelength: f32) -> f32 {
+pub const fn illuminant_d65_interp(wavelength: f32) -> f32 {
     let wavelength = (wavelength - LAMBDA_MIN) * (SAMPLES - 1) as f32 / LAMBDA_RANGE;
-    let offset = (wavelength as usize).min(SAMPLES - 2);
+
+    let offset = min!(wavelength as usize, SAMPLES - 2);
     let weight = wavelength - offset as f32;
 
     (1.0 - weight) * ILLUMINANT_D65[offset] + weight * ILLUMINANT_D65[offset + 1]

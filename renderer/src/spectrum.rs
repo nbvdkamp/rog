@@ -58,7 +58,26 @@ const fn make_lambda() -> [f32; RESOLUTION] {
     l
 }
 
+const fn make_cie_1931_d65_table() -> [XYZf32; RESOLUTION] {
+    let mut result = [XYZf32::from_grayscale(0.0); RESOLUTION];
+    let mut i = 0;
+
+    while i < RESOLUTION {
+        let wavelength = CIE::LAMBDA_MIN + i as f32 * STEP_SIZE;
+        let whitepoint_sample = CIE::illuminant_d65_interp(wavelength);
+        result[i] = CIE::observer_1931_interp(wavelength).mul(whitepoint_sample * STEP_SIZE);
+        i += 1;
+    }
+
+    result
+}
+
+// We precompute these tables because
+// spectrum to XYZ conversion uses the values a lot
 const LAMBDA: [f32; RESOLUTION] = make_lambda();
+/// The precomputed product of the CIE 1931 observer XYZ values
+/// and D65 illuminant for every wavelength in the spectrum.
+const CIE_1931_D65_TABLE: [XYZf32; RESOLUTION] = make_cie_1931_d65_table();
 
 impl Spectrumf32 {
     /// Converts to CIE 1931 XYZ color space
@@ -66,10 +85,7 @@ impl Spectrumf32 {
         let mut xyz = XYZf32::from_grayscale(0.0);
 
         for i in 0..RESOLUTION {
-            let wavelength = CIE::LAMBDA_MIN + i as f32 * STEP_SIZE;
-            let whitepoint_sample = CIE::illuminant_d65_interp(wavelength);
-
-            xyz += self.data[i] * CIE::observer_1931_interp(wavelength) * whitepoint_sample * STEP_SIZE;
+            xyz += self.data[i] * CIE_1931_D65_TABLE[i];
         }
 
         xyz
