@@ -46,11 +46,11 @@ impl ElementWiseMinMax for Point3<f32> {
 }
 
 pub fn min_element(v: Vector3<f32>) -> f32 {
-    f32::min(v.x, f32::min(v.y, v.z))
+    v.x.min(v.y.min(v.z))
 }
 
 pub fn max_element(v: Vector3<f32>) -> f32 {
-    f32::max(v.x, f32::max(v.y, v.z))
+    v.x.max(v.y.max(v.z))
 }
 
 pub fn normal_transform_from_mat4(transform: Matrix4<f32>) -> Matrix3<f32> {
