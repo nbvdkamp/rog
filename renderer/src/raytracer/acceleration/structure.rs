@@ -30,25 +30,25 @@ pub enum TraceResultMesh<'a> {
 impl TraceResult {
     pub fn is_farther_than(&self, other_t: f32) -> bool {
         match self {
-            TraceResult::Miss => true,
-            TraceResult::Hit { t, .. } => *t > other_t,
+            Self::Miss => true,
+            Self::Hit { t, .. } => *t > other_t,
         }
     }
 
     pub fn is_closer_than(&self, other: &Self) -> bool {
         match self {
-            TraceResult::Miss => false,
-            TraceResult::Hit { t, .. } => match other {
-                TraceResult::Miss => true,
-                TraceResult::Hit { t: other_t, .. } => t < other_t,
+            Self::Miss => false,
+            Self::Hit { t, .. } => match other {
+                Self::Miss => true,
+                Self::Hit { t: other_t, .. } => t < other_t,
             },
         }
     }
 
     pub fn with_instance(self, instance: &Instance) -> TraceResultMesh {
         match self {
-            TraceResult::Miss => TraceResultMesh::Miss,
-            TraceResult::Hit {
+            Self::Miss => TraceResultMesh::Miss,
+            Self::Hit {
                 triangle_index,
                 t,
                 u,
@@ -59,6 +59,18 @@ impl TraceResult {
                 t,
                 u,
                 v,
+            },
+        }
+    }
+}
+
+impl<'a> TraceResultMesh<'a> {
+    pub fn is_closer_than(&self, other: &Self) -> bool {
+        match self {
+            Self::Miss => false,
+            Self::Hit { t, .. } => match other {
+                Self::Miss => true,
+                Self::Hit { t: other_t, .. } => t < other_t,
             },
         }
     }

@@ -235,12 +235,8 @@ impl<'a> TopLevelBVH {
         } else {
             let second_result = self.intersect_node(second_hit_child, ray, inv_dir, meshes);
 
-            if let TraceResultMesh::Hit { t: t_second, .. } = second_result {
-                if t_second < t_first {
-                    second_result
-                } else {
-                    first_result
-                }
+            if second_result.is_closer_than(&first_result) {
+                second_result
             } else {
                 first_result
             }
