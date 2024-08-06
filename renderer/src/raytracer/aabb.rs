@@ -91,9 +91,11 @@ impl BoundingBox {
 
         let max_tmin = max_element(tmin);
         let min_tmax = min_element(tmax);
-        let intersects = max_tmin <= min_tmax && min_tmax >= 0.0; // Ensure the object isn't behind the ray
+        let intersects = max_tmin <= min_tmax;
+        // Ensure the object isn't behind the ray
+        let in_front_of_ray = min_tmax >= 0.0;
 
-        if intersects {
+        if intersects && in_front_of_ray {
             Intersects::Yes { distance: max_tmin }
         } else {
             Intersects::No
