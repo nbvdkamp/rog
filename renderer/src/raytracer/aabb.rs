@@ -1,4 +1,8 @@
-use super::{axis::Axis, sampling::sample_uniform_in_unit_sphere};
+use super::{
+    axis::Axis,
+    ray::{Ray, RayWithInverseDir},
+    sampling::sample_uniform_in_unit_sphere,
+};
 use crate::util::*;
 use cgmath::{ElementWise, EuclideanSpace, Point3, Vector3};
 use serde::{Deserialize, Serialize};
@@ -74,14 +78,14 @@ impl BoundingBox {
         2.0 * (e.x * e.y + e.x * e.z + e.y * e.z)
     }
 
-    pub fn intersects_ray_not_inlined(&self, ray_origin: Point3<f32>, inv_dir: Vector3<f32>) -> Intersects {
-        self.intersects_ray(ray_origin, inv_dir)
-    }
-
     #[inline(always)]
-    pub fn intersects_ray(&self, origin: Point3<f32>, inv_dir: Vector3<f32>) -> Intersects {
-        let t0 = (self.min - origin).mul_element_wise(inv_dir);
-        let t1 = (self.max - origin).mul_element_wise(inv_dir);
+    pub fn intersects(&self, ray: &RayWithInverseDir) -> Intersects {
+        let RayWithInverseDir {
+            ray: Ray { origin, .. },
+            inverse_direction,
+        } = *ray;
+        let t0 = (self.min - origin).mul_element_wise(inverse_direction);
+        let t1 = (self.max - origin).mul_element_wise(inverse_direction);
         let tmin = t0.elementwise_min(t1);
         let tmax = t0.elementwise_max(t1);
 
@@ -171,13 +175,10 @@ mod tests {
         let ray = Ray {
             origin: Point3::new(-2.0, 0.0, 0.0),
             direction: Vector3::new(1.0, 0.0, 0.0),
-        };
-        let inv_dir = 1.0 / ray.direction;
+        }
+        .with_inverse_dir();
 
-        assert_eq!(
-            bb.intersects_ray(ray.origin, inv_dir),
-            Intersects::Yes { distance: 1.0 }
-        );
+        assert_eq!(bb.intersects(&ray), Intersects::Yes { distance: 1.0 });
     }
 
     #[test]
@@ -189,13 +190,10 @@ mod tests {
         let ray = Ray {
             origin: Point3::new(2., 0., 0.),
             direction: Vector3::new(-1., 0., 0.),
-        };
-        let inv_dir = 1. / ray.direction;
+        }
+        .with_inverse_dir();
 
-        assert_eq!(
-            bb.intersects_ray(ray.origin, inv_dir),
-            Intersects::Yes { distance: 1.0 }
-        );
+        assert_eq!(bb.intersects(&ray), Intersects::Yes { distance: 1.0 });
     }
 
     #[test]
@@ -207,10 +205,10 @@ mod tests {
         let ray = Ray {
             origin: Point3::new(-2.0, 2.0, 0.0),
             direction: Vector3::new(1.0, 0.0, 0.0),
-        };
-        let inv_dir = 1.0 / ray.direction;
+        }
+        .with_inverse_dir();
 
-        assert_eq!(bb.intersects_ray(ray.origin, inv_dir), Intersects::No);
+        assert_eq!(bb.intersects(&ray), Intersects::No);
     }
 
     #[test]
@@ -222,10 +220,10 @@ mod tests {
         let ray = Ray {
             origin: Point3::new(2.0, 0.0, 0.0),
             direction: Vector3::new(1.0, 0.0, 0.0),
-        };
-        let inv_dir = 1.0 / ray.direction;
+        }
+        .with_inverse_dir();
 
-        assert_eq!(bb.intersects_ray(ray.origin, inv_dir), Intersects::No);
+        assert_eq!(bb.intersects(&ray), Intersects::No);
     }
 
     #[test]
@@ -305,9 +303,9 @@ mod bench {
         let ray = Ray {
             origin: Point3::new(-2.0, 0.0, 0.0),
             direction: Vector3::new(1.0, 0.0, 0.0),
-        };
-        let inv_dir = 1.0 / ray.direction;
+        }
+        .with_inverse_dir();
 
-        b.iter(|| bb.intersects_ray(ray.origin, inv_dir));
+        b.iter(|| bb.intersects(&ray));
     }
 }

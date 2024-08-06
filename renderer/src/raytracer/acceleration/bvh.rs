@@ -102,11 +102,11 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
         self.stats.count_ray();
 
         let mut result = TraceResult::Miss;
-        let inv_dir = 1.0 / ray.direction;
+        let ray = &ray.with_inverse_dir();
 
         // Stack size 64 should be enough for ridiculously large meshes
         let mut stack = ArrayVec::<_, 64>::new();
-        if let Intersects::Yes { distance } = self.nodes[0].bounds().intersects_ray(ray.origin, inv_dir) {
+        if let Intersects::Yes { distance } = self.nodes[0].bounds().intersects(ray) {
             stack.push((0, distance));
         }
 
@@ -120,8 +120,8 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                     self.stats.count_inner_node_traversal();
                     let i = child_index.unwrap().get() as usize;
 
-                    let hit_l_box = self.nodes[i + 0].bounds().intersects_ray(ray.origin, inv_dir);
-                    let hit_r_box = self.nodes[i + 1].bounds().intersects_ray(ray.origin, inv_dir);
+                    let hit_l_box = self.nodes[i + 0].bounds().intersects(ray);
+                    let hit_r_box = self.nodes[i + 1].bounds().intersects(ray);
                     match (hit_l_box, hit_r_box) {
                         (Intersects::No, Intersects::No) => (),
                         (Intersects::Yes { distance }, Intersects::No) => {
@@ -143,7 +143,7 @@ impl AccelerationStructure for BoundingVolumeHierarchy {
                     }
                 }
                 Node::Leaf { triangle_indices, .. } => {
-                    let r = intersect_triangles_indexed(triangle_indices, ray, positions, triangles, &self.stats);
+                    let r = intersect_triangles_indexed(triangle_indices, &ray.ray, positions, triangles, &self.stats);
 
                     if r.is_closer_than(&result) {
                         result = r;

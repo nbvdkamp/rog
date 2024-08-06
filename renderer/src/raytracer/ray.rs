@@ -43,6 +43,19 @@ impl Ray {
             IntersectionResult::Miss
         }
     }
+
+    pub fn with_inverse_dir(self) -> RayWithInverseDir {
+        RayWithInverseDir {
+            ray: self,
+            inverse_direction: 1.0 / self.direction,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct RayWithInverseDir {
+    pub ray: Ray,
+    pub inverse_direction: Vector3<f32>,
 }
 
 #[cfg(test)]

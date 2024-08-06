@@ -1,6 +1,6 @@
-use cgmath::{Point3, Vector3};
+use cgmath::Point3;
 
-use crate::raytracer::{aabb::Intersects, triangle::Triangle, Ray};
+use crate::raytracer::{aabb::Intersects, ray::RayWithInverseDir, triangle::Triangle, Ray};
 
 use super::{
     super::{aabb::BoundingBox, axis::Axis},
@@ -32,9 +32,7 @@ impl AccelerationStructure for KdTree {
     #[allow(clippy::only_used_in_recursion)]
     fn intersect(&self, ray: &Ray, positions: &[Point3<f32>], triangles: &[Triangle]) -> TraceResult {
         self.stats.count_ray();
-
-        let inv_dir = 1.0 / ray.direction;
-        self.intersect(&self.root, ray, inv_dir, positions, triangles, self.bounds)
+        self.intersect(&self.root, &ray.with_inverse_dir(), positions, triangles, self.bounds)
     }
 
     fn get_statistics(&self) -> StatisticsStore {
@@ -57,8 +55,7 @@ impl KdTree {
     fn intersect(
         &self,
         node: &Node,
-        ray: &Ray,
-        inv_dir: Vector3<f32>,
+        ray: &RayWithInverseDir,
         positions: &[Point3<f32>],
         triangles: &[Triangle],
         bounds: BoundingBox,
@@ -76,11 +73,10 @@ impl KdTree {
                 *plane,
                 *axis,
                 ray,
-                inv_dir,
                 positions,
                 triangles,
             ),
-            Node::Leaf { items } => intersect_triangles_indexed(items, ray, positions, triangles, &self.stats),
+            Node::Leaf { items } => intersect_triangles_indexed(items, &ray.ray, positions, triangles, &self.stats),
         }
     }
 
@@ -91,8 +87,7 @@ impl KdTree {
         bounds: BoundingBox,
         plane: f32,
         axis: Axis,
-        ray: &Ray,
-        inv_dir: Vector3<f32>,
+        ray: &RayWithInverseDir,
         positions: &[Point3<f32>],
         triangles: &[Triangle],
     ) -> TraceResult {
@@ -103,17 +98,13 @@ impl KdTree {
         let mut right_bounds = bounds;
         right_bounds.set_min(axis, plane);
 
-        let hit_l_box = left_bounds.intersects_ray(ray.origin, inv_dir);
-        let hit_r_box = right_bounds.intersects_ray(ray.origin, inv_dir);
+        let hit_l_box = left_bounds.intersects(ray);
+        let hit_r_box = right_bounds.intersects(ray);
 
         match (hit_l_box, hit_r_box) {
             (Intersects::No, Intersects::No) => TraceResult::Miss,
-            (Intersects::Yes { .. }, Intersects::No) => {
-                self.intersect(left, ray, inv_dir, positions, triangles, left_bounds)
-            }
-            (Intersects::No, Intersects::Yes { .. }) => {
-                self.intersect(right, ray, inv_dir, positions, triangles, right_bounds)
-            }
+            (Intersects::Yes { .. }, Intersects::No) => self.intersect(left, ray, positions, triangles, left_bounds),
+            (Intersects::No, Intersects::Yes { .. }) => self.intersect(right, ray, positions, triangles, right_bounds),
             (Intersects::Yes { distance: l_distance }, Intersects::Yes { distance: r_distance }) => {
                 if l_distance < r_distance {
                     self.intersect_both_children_hit(
@@ -123,7 +114,6 @@ impl KdTree {
                         right_bounds,
                         r_distance,
                         ray,
-                        inv_dir,
                         positions,
                         triangles,
                     )
@@ -135,7 +125,6 @@ impl KdTree {
                         left_bounds,
                         l_distance,
                         ray,
-                        inv_dir,
                         positions,
                         triangles,
                     )
@@ -152,23 +141,22 @@ impl KdTree {
         second_hit_child: &Node,
         second_bounds: BoundingBox,
         dist_to_second_box: f32,
-        ray: &Ray,
-        inv_dir: Vector3<f32>,
+        ray: &RayWithInverseDir,
         positions: &[Point3<f32>],
         triangles: &[Triangle],
     ) -> TraceResult {
         // We hit both children's bounds, so check which is hit first
         // If there is an intersection in that one that is closer than the other child's bounds we can stop
-        let first_result = self.intersect(first_hit_child, ray, inv_dir, positions, triangles, first_bounds);
+        let first_result = self.intersect(first_hit_child, ray, positions, triangles, first_bounds);
 
         let TraceResult::Hit { t: t_first, .. } = first_result else {
-            return self.intersect(second_hit_child, ray, inv_dir, positions, triangles, second_bounds);
+            return self.intersect(second_hit_child, ray, positions, triangles, second_bounds);
         };
 
         if t_first < dist_to_second_box {
             first_result
         } else {
-            let second_result = self.intersect(second_hit_child, ray, inv_dir, positions, triangles, second_bounds);
+            let second_result = self.intersect(second_hit_child, ray, positions, triangles, second_bounds);
 
             if let TraceResult::Hit { t: t_second, .. } = second_result {
                 if t_second < t_first {

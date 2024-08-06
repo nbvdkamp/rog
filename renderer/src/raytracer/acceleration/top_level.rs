@@ -1,11 +1,11 @@
-use cgmath::{Point3, Vector3};
+use cgmath::Point3;
 use itertools::Itertools;
 
 use crate::{
     mesh::{Instance, Mesh},
     raytracer::{
         aabb::{BoundingBox, Intersects},
-        ray::Ray,
+        ray::{Ray, RayWithInverseDir},
     },
 };
 
@@ -145,7 +145,7 @@ impl<'a> TopLevelBVH {
         self.stats.count_ray();
 
         match &self.tree_root {
-            Some(root) => self.intersect_node(root, ray, 1.0 / ray.direction, meshes),
+            Some(root) => self.intersect_node(root, &ray.with_inverse_dir(), meshes),
             None => TraceResultMesh::Miss,
         }
     }
@@ -164,17 +164,20 @@ impl<'a> TopLevelBVH {
         self.stats.get_copy()
     }
 
-    fn intersect_node(&'a self, node: &'a Node, ray: &Ray, inv_dir: Vector3<f32>, meshes: &[Mesh]) -> TraceResultMesh {
+    fn intersect_node(&'a self, node: &'a Node, ray: &RayWithInverseDir, meshes: &[Mesh]) -> TraceResultMesh {
         match node {
-            Node::Inner { left, right, .. } => self.inner_intersect(left, right, ray, inv_dir, meshes),
+            Node::Inner { left, right, .. } => self.inner_intersect(left, right, ray, meshes),
             Node::Leaf { instance } => {
                 let i = instance.mesh_index as usize;
                 self.stats.count_intersection_test();
                 let mesh = &meshes[i];
 
-                let transformed_ray = Ray {
-                    origin: Point3::from_homogeneous(instance.inverse_transform * ray.origin.to_homogeneous()),
-                    direction: (instance.inverse_transform * ray.direction.extend(0.0)).truncate(),
+                let transformed_ray = {
+                    let ray = ray.ray;
+                    Ray {
+                        origin: Point3::from_homogeneous(instance.inverse_transform * ray.origin.to_homogeneous()),
+                        direction: (instance.inverse_transform * ray.direction.extend(0.0)).truncate(),
+                    }
                 };
 
                 let t = self.children[i].intersect(&transformed_ray, &mesh.vertices.positions, &mesh.triangles);
@@ -192,24 +195,23 @@ impl<'a> TopLevelBVH {
         &'a self,
         left: &'a Node,
         right: &'a Node,
-        ray: &Ray,
-        inv_dir: Vector3<f32>,
+        ray: &RayWithInverseDir,
         meshes: &[Mesh],
     ) -> TraceResultMesh {
         self.stats.count_inner_node_traversal();
 
-        let hit_l_box = left.bounds().intersects_ray(ray.origin, inv_dir);
-        let hit_r_box = right.bounds().intersects_ray(ray.origin, inv_dir);
+        let hit_l_box = left.bounds().intersects(ray);
+        let hit_r_box = right.bounds().intersects(ray);
 
         match (hit_l_box, hit_r_box) {
             (Intersects::No, Intersects::No) => TraceResultMesh::Miss,
-            (Intersects::Yes { .. }, Intersects::No) => self.intersect_node(left, ray, inv_dir, meshes),
-            (Intersects::No, Intersects::Yes { .. }) => self.intersect_node(right, ray, inv_dir, meshes),
+            (Intersects::Yes { .. }, Intersects::No) => self.intersect_node(left, ray, meshes),
+            (Intersects::No, Intersects::Yes { .. }) => self.intersect_node(right, ray, meshes),
             (Intersects::Yes { distance: l_distance }, Intersects::Yes { distance: r_distance }) => {
                 if l_distance < r_distance {
-                    self.intersect_both_children_hit(left, right, r_distance, ray, inv_dir, meshes)
+                    self.intersect_both_children_hit(left, right, r_distance, ray, meshes)
                 } else {
-                    self.intersect_both_children_hit(right, left, l_distance, ray, inv_dir, meshes)
+                    self.intersect_both_children_hit(right, left, l_distance, ray, meshes)
                 }
             }
         }
@@ -220,20 +222,19 @@ impl<'a> TopLevelBVH {
         first_hit_child: &'a Node,
         second_hit_child: &'a Node,
         dist_to_second_box: f32,
-        ray: &Ray,
-        inv_dir: Vector3<f32>,
+        ray: &RayWithInverseDir,
         meshes: &[Mesh],
     ) -> TraceResultMesh {
-        let first_result = self.intersect_node(first_hit_child, ray, inv_dir, meshes);
+        let first_result = self.intersect_node(first_hit_child, ray, meshes);
 
         let TraceResultMesh::Hit { t: t_first, .. } = first_result else {
-            return self.intersect_node(second_hit_child, ray, inv_dir, meshes);
+            return self.intersect_node(second_hit_child, ray, meshes);
         };
 
         if t_first < dist_to_second_box {
             first_result
         } else {
-            let second_result = self.intersect_node(second_hit_child, ray, inv_dir, meshes);
+            let second_result = self.intersect_node(second_hit_child, ray, meshes);
 
             if second_result.is_closer_than(&first_result) {
                 second_result
