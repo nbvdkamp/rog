@@ -1,4 +1,4 @@
-use cgmath::{InnerSpace, Point3, Vector3};
+use cgmath::{InnerSpace, Matrix4, Point3, Vector3};
 
 #[derive(Clone, Copy)]
 pub struct Ray {
@@ -48,6 +48,13 @@ impl Ray {
         RayWithInverseDir {
             ray: self,
             inverse_direction: 1.0 / self.direction,
+        }
+    }
+
+    pub fn transformed(&self, transform: Matrix4<f32>) -> Self {
+        Ray {
+            origin: Point3::from_homogeneous(transform * self.origin.to_homogeneous()),
+            direction: (transform * self.direction.extend(0.0)).truncate(),
         }
     }
 }

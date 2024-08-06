@@ -1,4 +1,3 @@
-use cgmath::Point3;
 use itertools::Itertools;
 
 use crate::{
@@ -171,14 +170,7 @@ impl<'a> TopLevelBVH {
                 let i = instance.mesh_index as usize;
                 self.stats.count_intersection_test();
                 let mesh = &meshes[i];
-
-                let transformed_ray = {
-                    let ray = ray.ray;
-                    Ray {
-                        origin: Point3::from_homogeneous(instance.inverse_transform * ray.origin.to_homogeneous()),
-                        direction: (instance.inverse_transform * ray.direction.extend(0.0)).truncate(),
-                    }
-                };
+                let transformed_ray = ray.ray.transformed(instance.inverse_transform);
 
                 let t = self.children[i].intersect(&transformed_ray, &mesh.vertices.positions, &mesh.triangles);
 
