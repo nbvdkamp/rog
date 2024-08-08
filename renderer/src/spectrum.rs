@@ -511,7 +511,7 @@ mod tests {
 
     #[test]
     fn roundtrip() {
-        let rgb2spec = match rgb2spec::RGB2Spec::load("res/out.spec") {
+        let rgb2spec = match rgb2spec::RGB2Spec::load("../res/out.spec") {
             Ok(rgb2spec) => rgb2spec,
             Err(e) => panic!("Can't load rgb2spec file: {}", e),
         };
