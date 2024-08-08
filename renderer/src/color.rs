@@ -76,7 +76,6 @@ macro_rules! impl_f32_color_tuple {
         impl_op_ex!(+ |a: &$name, b: &$name| -> $name { $name::new($(a.$field + b.$field),+)} );
         impl_op_ex!(- |a: &$name, b: &$name| -> $name { $name::new($(a.$field - b.$field),+)} );
         impl_op_ex!(* |a: &$name, b: &$name| -> $name { $name::new($(a.$field * b.$field),+)} );
-        impl_op_ex!(/ |a: &$name, b: &$name| -> $name { $name::new($(a.$field / b.$field),+)} );
 
         impl_op_commutative!(* |a: $name, b: f32| -> $name { $name::new($(a.$field * b),+)} );
         impl_op_commutative!(/ |a: $name, b: f32| -> $name { $name::new($(a.$field / b),+)} );
@@ -96,12 +95,6 @@ macro_rules! impl_f32_color_tuple {
         impl DivAssign<f32> for $name {
             fn div_assign(&mut self, s: f32) {
                 $(self.$field /= s);+
-            }
-        }
-
-        impl MulAssign<Self> for $name {
-            fn mul_assign(&mut self, other: Self) {
-                $(self.$field *= other.$field);+
             }
         }
 
