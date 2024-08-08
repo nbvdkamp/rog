@@ -108,21 +108,19 @@ pub const OBSERVER_1931: [XYZf32; SAMPLES] = [
     xyz(0.000001251141, 0.000000451810, 0.000000000000),
 ];
 
-/// Macro version of min since it isn't const
-macro_rules! min {
-    ($a: expr, $b: expr) => {
-        if $a < $b {
-            $a
-        } else {
-            $b
-        }
-    };
+/// Const version of min since the trait version isn't
+const fn min(a: usize, b: usize) -> usize {
+    if a < b {
+        a
+    } else {
+        b
+    }
 }
 
 pub const fn observer_1931_interp(wavelength: f32) -> XYZf32 {
     let wavelength = (wavelength - LAMBDA_MIN) * (SAMPLES - 1) as f32 / LAMBDA_RANGE;
 
-    let offset = min!(wavelength as usize, SAMPLES - 2);
+    let offset = min(wavelength as usize, SAMPLES - 2);
     let weight = wavelength - offset as f32;
 
     OBSERVER_1931[offset]
@@ -236,7 +234,7 @@ pub const ILLUMINANT_D65: [f32; SAMPLES] = [
 pub const fn illuminant_d65_interp(wavelength: f32) -> f32 {
     let wavelength = (wavelength - LAMBDA_MIN) * (SAMPLES - 1) as f32 / LAMBDA_RANGE;
 
-    let offset = min!(wavelength as usize, SAMPLES - 2);
+    let offset = min(wavelength as usize, SAMPLES - 2);
     let weight = wavelength - offset as f32;
 
     (1.0 - weight) * ILLUMINANT_D65[offset] + weight * ILLUMINANT_D65[offset + 1]
