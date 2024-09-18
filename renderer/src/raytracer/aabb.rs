@@ -4,7 +4,7 @@ use super::{
     sampling::sample_uniform_in_unit_sphere,
 };
 use crate::util::*;
-use cgmath::{ElementWise, EuclideanSpace, Point3, Vector3};
+use cgmath::{vec3, ElementWise, EuclideanSpace, Point3, Vector3};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -78,7 +78,7 @@ impl BoundingBox {
         2.0 * (e.x * e.y + e.x * e.z + e.y * e.z)
     }
 
-    #[inline(always)]
+    // #[inline(always)]
     pub fn intersects(&self, ray: &RayWithInverseDir) -> Intersects {
         let RayWithInverseDir {
             ray: Ray { origin, .. },
@@ -86,8 +86,16 @@ impl BoundingBox {
         } = *ray;
         let t0 = (self.min - origin).mul_element_wise(inverse_direction);
         let t1 = (self.max - origin).mul_element_wise(inverse_direction);
-        let tmin = t0.elementwise_min(t1);
-        let tmax = t0.elementwise_max(t1);
+        // let tmin = t0.elementwise_min(t1);
+        // let tmax = t0.elementwise_max(t1);
+        // makes bvh faster but bvh_rec slower??
+        let minmax = |a, b| if a < b { (a, b) } else { (b, a) };
+        let (tmin, tmax) = {
+            let (ix, ax) = minmax(t0.x, t1.x);
+            let (iy, ay) = minmax(t0.y, t1.y);
+            let (iz, az) = minmax(t0.z, t1.z);
+            (vec3(ix, iy, iz), vec3(ax, ay, az))
+        };
 
         let max_tmin = max_element(tmin);
         let min_tmax = min_element(tmax);
