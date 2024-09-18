@@ -163,7 +163,7 @@ impl<'a> TopLevelBVH {
         self.stats.get_copy()
     }
 
-    fn intersect_node(&'a self, node: &'a Node, ray: &RayWithInverseDir, meshes: &[Mesh]) -> TraceResultMesh {
+    fn intersect_node(&'a self, node: &'a Node, ray: &RayWithInverseDir, meshes: &[Mesh]) -> TraceResultMesh<'a> {
         match node {
             Node::Inner { left, right, .. } => self.inner_intersect(left, right, ray, meshes),
             Node::Leaf { instance } => {
@@ -189,7 +189,7 @@ impl<'a> TopLevelBVH {
         right: &'a Node,
         ray: &RayWithInverseDir,
         meshes: &[Mesh],
-    ) -> TraceResultMesh {
+    ) -> TraceResultMesh<'a> {
         self.stats.count_inner_node_traversal();
 
         let hit_l_box = left.bounds().intersects(ray);
@@ -216,7 +216,7 @@ impl<'a> TopLevelBVH {
         dist_to_second_box: f32,
         ray: &RayWithInverseDir,
         meshes: &[Mesh],
-    ) -> TraceResultMesh {
+    ) -> TraceResultMesh<'a> {
         let first_result = self.intersect_node(first_hit_child, ray, meshes);
 
         let TraceResultMesh::Hit { t: t_first, .. } = first_result else {
