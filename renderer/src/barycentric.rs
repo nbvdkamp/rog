@@ -1,5 +1,6 @@
 use cgmath::{EuclideanSpace, Point2, Point3, Vector3};
 
+#[derive(PartialEq, Debug)]
 pub struct Barycentric {
     u: f32,
     v: f32,

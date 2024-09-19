@@ -45,15 +45,14 @@ pub fn intersect_triangles_indexed(
 
         stats.count_intersection_test();
 
-        if let IntersectionResult::Hit { t, u, v } = ray.intersect_triangle(p1, p2, p3) {
+        if let IntersectionResult::Hit { t, barycentric } = ray.intersect_triangle(p1, p2, p3) {
             stats.count_intersection_hit();
 
             if result.is_farther_than(t) {
                 result = TraceResult::Hit {
                     triangle_index: *triangle_index as u32,
                     t,
-                    u,
-                    v,
+                    barycentric,
                 };
             }
         }

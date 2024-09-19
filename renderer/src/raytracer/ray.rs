@@ -1,5 +1,7 @@
 use cgmath::{InnerSpace, Matrix4, Point3, Vector3};
 
+use crate::barycentric::Barycentric;
+
 #[derive(Clone, Copy)]
 pub struct Ray {
     pub origin: Point3<f32>,
@@ -9,7 +11,7 @@ pub struct Ray {
 #[derive(PartialEq, Debug)]
 pub enum IntersectionResult {
     Miss,
-    Hit { t: f32, u: f32, v: f32 },
+    Hit { t: f32, barycentric: Barycentric },
 }
 
 impl Ray {
@@ -38,7 +40,10 @@ impl Ray {
         let t = inverse_determinant * edge2.dot(q);
 
         if t > 0.0 {
-            IntersectionResult::Hit { t, u, v }
+            IntersectionResult::Hit {
+                t,
+                barycentric: Barycentric::new(u, v),
+            }
         } else {
             IntersectionResult::Miss
         }
@@ -76,7 +81,10 @@ mod tests {
             direction: Vector3::unit_z(),
         };
         assert_eq!(
-            IntersectionResult::Hit { t: 1., u: 0.25, v: 0.5 },
+            IntersectionResult::Hit {
+                t: 1.,
+                barycentric: Barycentric::new(0.25, 0.5)
+            },
             ray.intersect_triangle(
                 Point3::new(-1.0, -1.0, 0.0),
                 Point3::new(1.0, -1.0, 0.0),
@@ -92,7 +100,10 @@ mod tests {
             direction: Vector3::unit_z(),
         };
         assert_eq!(
-            IntersectionResult::Hit { t: 1., u: 0., v: 0.5 },
+            IntersectionResult::Hit {
+                t: 1.,
+                barycentric: Barycentric::new(0., 0.5)
+            },
             ray.intersect_triangle(
                 Point3::new(0.0, -1.0, 0.0),
                 Point3::new(1.0, -1.0, 0.0),

@@ -2,6 +2,7 @@ use cgmath::Point3;
 
 use super::statistics::StatisticsStore;
 use crate::{
+    barycentric::Barycentric,
     mesh::Instance,
     raytracer::{triangle::Triangle, Ray},
 };
@@ -11,8 +12,7 @@ pub enum TraceResult {
     Hit {
         triangle_index: u32,
         t: f32,
-        u: f32,
-        v: f32,
+        barycentric: Barycentric,
     },
 }
 
@@ -22,8 +22,7 @@ pub enum TraceResultMesh<'a> {
         instance: &'a Instance,
         triangle_index: u32,
         t: f32,
-        u: f32,
-        v: f32,
+        barycentric: Barycentric,
     },
 }
 
@@ -51,14 +50,12 @@ impl TraceResult {
             Self::Hit {
                 triangle_index,
                 t,
-                u,
-                v,
+                barycentric,
             } => TraceResultMesh::Hit {
                 instance,
                 triangle_index,
                 t,
-                u,
-                v,
+                barycentric,
             },
         }
     }
