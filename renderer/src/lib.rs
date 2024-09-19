@@ -7,6 +7,7 @@ extern crate impl_ops;
 extern crate static_assertions;
 
 pub mod args;
+pub mod barycentric;
 pub mod camera;
 pub mod cie_data;
 pub mod color;

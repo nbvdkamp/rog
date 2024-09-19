@@ -29,6 +29,7 @@ pub(crate) mod triangle;
 pub mod working_image;
 
 use crate::{
+    barycentric::Barycentric,
     light::Light,
     raytracer::working_image::Pixel,
     render_settings::{ImageSettings, RenderSettings, TerminationCondition},
@@ -405,17 +406,19 @@ impl Raytracer {
                 triangle.indices[2] as usize,
             ];
 
-            let w = 1.0 - u - v;
-            let hit_pos = w * verts.positions[indices[0]]
-                + u * verts.positions[indices[1]].to_vec()
-                + v * verts.positions[indices[2]].to_vec();
+            let barycentric = Barycentric::new(u, v);
+            let hit_pos = barycentric.interpolate_point([
+                verts.positions[indices[0]],
+                verts.positions[indices[1]],
+                verts.positions[indices[2]],
+            ]);
             let hit_pos = Point3::from_homogeneous(instance.transform * hit_pos.to_homogeneous());
 
             let texture_coordinates = intersected_mesh
                 .vertices
                 .tex_coords
                 .iter()
-                .map(|t| w * t[indices[0]] + u * t[indices[1]].to_vec() + v * t[indices[2]].to_vec())
+                .map(|t| barycentric.interpolate_point2([t[indices[0]], t[indices[1]], t[indices[2]]]))
                 .collect();
 
             let mut mat_sample = material.sample(texture_coordinates, &self.scene.textures);
@@ -455,11 +458,19 @@ impl Raytracer {
 
             // Interpolate the vertex normals
             let mut normal = (normal_transform
-                * (w * verts.normals[indices[0]] + u * verts.normals[indices[1]] + v * verts.normals[indices[2]]))
-                .normalize();
+                * barycentric.interpolate_vector([
+                    verts.normals[indices[0]],
+                    verts.normals[indices[1]],
+                    verts.normals[indices[2]],
+                ]))
+            .normalize();
             let mut tangent = (normal_transform
-                * (w * verts.tangents[indices[0]] + u * verts.tangents[indices[1]] + v * verts.tangents[indices[2]]))
-                .normalize();
+                * barycentric.interpolate_vector([
+                    verts.tangents[indices[0]],
+                    verts.tangents[indices[1]],
+                    verts.tangents[indices[2]],
+                ]))
+            .normalize();
 
             // Handle the rare case where a bad tangent (linearly dependent with the normal) causes NaNs
             if normal == tangent || -normal == tangent {
