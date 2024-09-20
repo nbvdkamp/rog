@@ -1,8 +1,7 @@
 use super::color::{RGBAf32, RGBf32};
-use arrayvec::ArrayVec;
 use cgmath::{point2, vec3, Basis2, InnerSpace, Matrix2, Matrix3, Point2, Rotation, SquareMatrix, Vector2, Vector3};
 
-use crate::{raytracer::Textures, spectrum::Spectrumf32, texture::Texture};
+use crate::{mesh::TextureCoordinates, raytracer::Textures, spectrum::Spectrumf32, texture::Texture};
 
 #[derive(Clone)]
 pub struct Material {
@@ -44,14 +43,8 @@ pub enum EmissiveFactor {
     One,
 }
 
-pub const MAX_TEX_COORD_SETS: usize = 4;
-
 impl Material {
-    pub fn sample(
-        &self,
-        texture_coordinates: ArrayVec<Point2<f32>, MAX_TEX_COORD_SETS>,
-        textures: &Textures,
-    ) -> MaterialSample {
+    pub fn sample(&self, texture_coordinates: TextureCoordinates, textures: &Textures) -> MaterialSample {
         let sample = |tex: Option<TextureRef>, textures: &Vec<Texture>| match tex {
             Some(tex) => {
                 let uv = texture_coordinates[tex.texture_coordinate_set];

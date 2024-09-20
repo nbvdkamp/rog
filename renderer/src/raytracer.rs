@@ -393,29 +393,18 @@ impl Raytracer {
 
             let normal_transform = normal_transform_from_mat4(instance.transform);
             let intersected_mesh = &self.scene.meshes[instance.mesh_index as usize];
-            let verts = &intersected_mesh.vertices;
 
             let triangle = &intersected_mesh.triangles[triangle_index as usize];
             let material = &instance.material;
+            let verts = intersected_mesh.vertices.get(triangle.indices.map(|i| i as usize));
 
-            let indices = [
-                triangle.indices[0] as usize,
-                triangle.indices[1] as usize,
-                triangle.indices[2] as usize,
-            ];
-
-            let hit_pos = barycentric.interpolate_point([
-                verts.positions[indices[0]],
-                verts.positions[indices[1]],
-                verts.positions[indices[2]],
-            ]);
+            let hit_pos = barycentric.interpolate_point(verts.positions);
             let hit_pos = Point3::from_homogeneous(instance.transform * hit_pos.to_homogeneous());
 
-            let texture_coordinates = intersected_mesh
-                .vertices
+            let texture_coordinates = verts
                 .tex_coords
                 .iter()
-                .map(|t| barycentric.interpolate_point2([t[indices[0]], t[indices[1]], t[indices[2]]]))
+                .map(|t| barycentric.interpolate_point2(*t))
                 .collect();
 
             let mut mat_sample = material.sample(texture_coordinates, &self.scene.textures);
@@ -449,25 +438,13 @@ impl Raytracer {
                 mat_sample.ior = mat_sample.cauchy_coefficients.ior_for_wavelength(lambda);
             }
 
-            let edge1 = verts.positions[indices[0]] - verts.positions[indices[1]];
-            let edge2 = verts.positions[indices[0]] - verts.positions[indices[2]];
+            let edge1 = verts.positions[0] - verts.positions[1];
+            let edge2 = verts.positions[0] - verts.positions[2];
             let mut geom_normal = normal_transform * edge1.cross(edge2).normalize();
 
             // Interpolate the vertex normals
-            let mut normal = (normal_transform
-                * barycentric.interpolate_vector([
-                    verts.normals[indices[0]],
-                    verts.normals[indices[1]],
-                    verts.normals[indices[2]],
-                ]))
-            .normalize();
-            let mut tangent = (normal_transform
-                * barycentric.interpolate_vector([
-                    verts.tangents[indices[0]],
-                    verts.tangents[indices[1]],
-                    verts.tangents[indices[2]],
-                ]))
-            .normalize();
+            let mut normal = (normal_transform * barycentric.interpolate_vector(verts.normals)).normalize();
+            let mut tangent = (normal_transform * barycentric.interpolate_vector(verts.tangents)).normalize();
 
             // Handle the rare case where a bad tangent (linearly dependent with the normal) causes NaNs
             if normal == tangent || -normal == tangent {

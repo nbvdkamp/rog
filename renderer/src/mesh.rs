@@ -1,9 +1,13 @@
+use arrayvec::ArrayVec;
 use cgmath::{Matrix4, Point2, Point3, Vector3};
 
 use crate::{
     material::Material,
     raytracer::{aabb::BoundingBox, triangle::Triangle},
 };
+
+pub const MAX_TEX_COORD_SETS: usize = 4;
+pub type TextureCoordinates = ArrayVec<Point2<f32>, MAX_TEX_COORD_SETS>;
 
 pub struct Vertices {
     pub positions: Vec<Point3<f32>>,
@@ -12,9 +16,25 @@ pub struct Vertices {
     pub tex_coords: Vec<Vec<Point2<f32>>>,
 }
 
+pub struct TriangleVertices {
+    pub positions: [Point3<f32>; 3],
+    pub normals: [Vector3<f32>; 3],
+    pub tangents: [Vector3<f32>; 3],
+    pub tex_coords: ArrayVec<[Point2<f32>; 3], MAX_TEX_COORD_SETS>,
+}
+
 impl Vertices {
     pub fn len(&self) -> usize {
         self.positions.len()
+    }
+
+    pub fn get(&self, indices: [usize; 3]) -> TriangleVertices {
+        TriangleVertices {
+            positions: indices.map(|i| self.positions[i]),
+            normals: indices.map(|i| self.normals[i]),
+            tangents: indices.map(|i| self.tangents[i]),
+            tex_coords: self.tex_coords.iter().map(|t| indices.map(|i| t[i])).collect(),
+        }
     }
 }
 
