@@ -638,16 +638,12 @@ impl Raytracer {
                 return true;
             }
 
-            let indices = [
-                triangle.indices[0] as usize,
-                triangle.indices[1] as usize,
-                triangle.indices[2] as usize,
-            ];
+            let indices = triangle.indices.map(|i| i as usize);
 
             let alpha = match material.base_color_texture {
                 Some(tex) => {
                     let t = &intersected_mesh.vertices.tex_coords[tex.texture_coordinate_set];
-                    let uv = barycentric.interpolate_point2([t[indices[0]], t[indices[1]], t[indices[2]]]);
+                    let uv = barycentric.interpolate_point2(indices.map(|i| t[i]));
                     let Point2 { x: u, y: v } = tex.transform_texture_coordinates(uv);
                     self.scene.textures.base_color_coefficients[tex.index].sample_alpha(u, v)
                 }
@@ -656,11 +652,7 @@ impl Raytracer {
 
             if thread_rng().gen::<f32>() > alpha {
                 // Cast another ray from slightly further than where we hit
-                let hit_pos = barycentric.interpolate_point([
-                    verts.positions[indices[0]],
-                    verts.positions[indices[1]],
-                    verts.positions[indices[2]],
-                ]);
+                let hit_pos = barycentric.interpolate_point(indices.map(|i| verts.positions[i]));
                 let hit_pos = Point3::from_homogeneous(instance.transform * hit_pos.to_homogeneous());
                 let offset = 0.0002;
                 ray.origin = hit_pos + offset * ray.direction;
