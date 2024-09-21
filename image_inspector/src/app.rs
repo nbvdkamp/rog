@@ -58,21 +58,31 @@ struct ImageData {
     image: WorkingImage,
     texture: Texture,
     nan_count: usize,
+    first_nan_pixel_coords: Vec<(usize, usize)>,
 }
 
 impl ImageData {
     fn new(image: WorkingImage, ctx: &Context) -> Self {
         let texture = Texture::from_image_and_ctx(&image, ctx);
-        let nan_count = image
+        let nan_iter = image
             .pixels
             .iter()
-            .filter(|p| p.spectrum.data.iter().any(|v| v.is_nan()))
-            .count();
+            .enumerate()
+            .map(|(i, p)| {
+                let x = i % image.settings.size.x;
+                let y = i / image.settings.size.x;
+                (p, (x, y))
+            })
+            .filter(|(p, _)| p.spectrum.data.iter().any(|v| v.is_nan()));
+
+        let nan_count = nan_iter.clone().count();
+        let first_nan_pixel_coords = nan_iter.map(|(_, (x, y))| (x, y)).take(5).collect();
 
         ImageData {
             image,
             texture,
             nan_count,
+            first_nan_pixel_coords,
         }
     }
 }
@@ -146,7 +156,13 @@ impl App for ImageInspectorApp {
 
             scroll_area.show(ui, |ui| {
                 ui.set_min_width(tray_width);
-                if let Some(ImageData { image, nan_count, .. }) = &self.image_data {
+                if let Some(ImageData {
+                    image,
+                    nan_count,
+                    first_nan_pixel_coords,
+                    ..
+                }) = &self.image_data
+                {
                     if let Some(index) = self.hovered_pixel {
                         let pixel = &image.pixels[index];
 
@@ -195,6 +211,7 @@ impl App for ImageInspectorApp {
                         if *nan_count > 0 {
                             ui.visuals_mut().override_text_color = Some(Color32::RED);
                             ui.label(format!("Pixels with NaN values: {nan_count}"));
+                            ui.label(format!("\t{:?}", first_nan_pixel_coords));
                         }
                     });
                     ui.label(format!("{:#?}", image));
