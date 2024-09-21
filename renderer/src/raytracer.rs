@@ -440,7 +440,7 @@ impl Raytracer {
 
             let edge1 = verts.positions[0] - verts.positions[1];
             let edge2 = verts.positions[0] - verts.positions[2];
-            let mut geom_normal = normal_transform * edge1.cross(edge2).normalize();
+            let mut geom_normal = (normal_transform * edge1.cross(edge2)).normalize();
 
             // Interpolate the vertex normals
             let mut normal = (normal_transform * barycentric.interpolate_vector(verts.normals)).normalize();
