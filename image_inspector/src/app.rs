@@ -178,8 +178,14 @@ impl App for ImageInspectorApp {
                         Plot::new("Pixel spectrum")
                             .height(tray_width)
                             .show(ui, |plot_ui| plot_ui.bar_chart(bar));
+                        ui.label(format!("Samples (counted per spectral bin): {}", pixel.samples));
                     } else {
-                        ui.add_space(tray_width + color_rect_height + 2.0 * ui.spacing().item_spacing.y);
+                        ui.add_space(
+                            tray_width
+                                + color_rect_height
+                                + ui.text_style_height(&eframe::egui::TextStyle::Body)
+                                + 3.0 * ui.spacing().item_spacing.y,
+                        );
                     }
 
                     ui.scope(|ui| {
