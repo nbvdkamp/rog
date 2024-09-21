@@ -8,11 +8,14 @@ use eframe::{
         CentralPanel,
         Color32,
         Context,
+        Event,
+        PointerButton,
         ScrollArea,
         Sense,
         SidePanel,
         Slider,
         Stroke,
+        TextStyle,
         TextureFilter,
         TextureOptions,
         TextureWrapMode,
@@ -183,7 +186,7 @@ impl App for ImageInspectorApp {
                         ui.add_space(
                             tray_width
                                 + color_rect_height
-                                + ui.text_style_height(&eframe::egui::TextStyle::Body)
+                                + ui.text_style_height(&TextStyle::Body)
                                 + 3.0 * ui.spacing().item_spacing.y,
                         );
                     }
@@ -304,14 +307,12 @@ fn secondary_clicked(ctx: &Context) -> bool {
     ctx.input(|i| {
         for event in &i.events {
             match event {
-                eframe::egui::Event::PointerButton {
+                Event::PointerButton {
                     pos: _,
                     button,
                     pressed,
                     modifiers,
-                } if *button == eframe::egui::PointerButton::Secondary && !pressed && modifiers.is_none() => {
-                    return true
-                }
+                } if *button == PointerButton::Secondary && !pressed && modifiers.is_none() => return true,
                 _ => (),
             }
         }
