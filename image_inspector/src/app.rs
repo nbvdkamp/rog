@@ -76,7 +76,7 @@ impl ImageData {
             .filter(|(p, _)| p.spectrum.data.iter().any(|v| v.is_nan()));
 
         let nan_count = nan_iter.clone().count();
-        let first_nan_pixel_coords = nan_iter.map(|(_, (x, y))| (x, y)).take(5).collect();
+        let first_nan_pixel_coords = nan_iter.map(|(_, pos)| pos).take(5).collect();
 
         ImageData {
             image,
@@ -89,7 +89,7 @@ impl ImageData {
 
 struct ImageInspectorApp {
     image_data: Option<ImageData>,
-    hovered_pixel: Option<usize>,
+    hovered_pixel: Option<(usize, usize)>,
     zoom: f32,
     brightness_factor: f32,
 }
@@ -146,6 +146,10 @@ impl App for ImageInspectorApp {
                         });
                     }
                 }
+
+                if let Some((x, y)) = self.hovered_pixel {
+                    ui.label(format!("Hovered pixel: ({x},{y})"));
+                }
             })
         });
 
@@ -163,7 +167,8 @@ impl App for ImageInspectorApp {
                     ..
                 }) = &self.image_data
                 {
-                    if let Some(index) = self.hovered_pixel {
+                    if let Some((x, y)) = self.hovered_pixel {
+                        let index = y * image.settings.size.x + x;
                         let pixel = &image.pixels[index];
 
                         let rect_color = {
@@ -241,10 +246,10 @@ impl App for ImageInspectorApp {
                             let size = image.settings.size;
                             let x = (pixel_pos.x as usize).clamp(0, size.x - 1);
                             let y = (pixel_pos.y as usize).clamp(0, size.y - 1);
-                            let index = y * size.x + x;
-                            self.hovered_pixel = Some(index);
+                            self.hovered_pixel = Some((x, y));
 
                             if secondary_clicked(ctx) {
+                                let index = y * size.x + x;
                                 let pixel = &image.pixels[index];
                                 println!(
                                     "x: {x}, y: {y}, samples: {}\nspectrum: {:?}",
