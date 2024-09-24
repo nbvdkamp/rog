@@ -19,6 +19,7 @@ pub mod raytracer;
 pub mod render_settings;
 pub mod scene;
 pub mod scene_version;
+pub(crate) mod small_thread_rng;
 pub mod spectrum;
 pub mod texture;
 pub mod util;

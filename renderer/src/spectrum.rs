@@ -13,6 +13,7 @@ use crate::{
     cie_data as CIE,
     color::{RGBf32, XYZf32},
     raytracer::sampling::sample_item_from_probabilities,
+    small_thread_rng::thread_rng,
 };
 
 pub struct Spectrumf32WithAlpha {
@@ -327,7 +328,7 @@ impl Wavelength {
     pub fn sample_uniform_visible() -> (Self, f32) {
         (
             Self {
-                index: rand::thread_rng().gen_range(0..RESOLUTION as u8),
+                index: thread_rng().gen_range(0..RESOLUTION as u8),
             },
             1.0 / RESOLUTION as f32,
         )

@@ -4,9 +4,9 @@ use std::f32::consts::FRAC_1_PI;
 
 use cgmath::{vec2, InnerSpace, Vector2, Vector3};
 use lerp::Lerp;
-use rand::{thread_rng, Rng};
+use rand::Rng;
 
-use crate::{material::MaterialSample, spectrum::Spectrumf32};
+use crate::{material::MaterialSample, small_thread_rng::thread_rng, spectrum::Spectrumf32};
 
 use self::fresnel::Reflectance;
 
@@ -25,6 +25,8 @@ pub fn mis2(pdf1: f32, pdf2: f32) -> f32 {
 mod ggx {
     use cgmath::{vec3, InnerSpace, Vector2, Vector3};
     use rand::Rng;
+
+    use crate::small_thread_rng::thread_rng;
 
     pub fn smith_shadow_term(n_dot_v: f32, alpha_squared: f32) -> f32 {
         let cos2 = n_dot_v * n_dot_v;
@@ -55,7 +57,7 @@ mod ggx {
         };
         let bitangent = outgoing_h.cross(tangent);
 
-        let mut rng = rand::thread_rng();
+        let mut rng = thread_rng();
         let r1 = rng.gen::<f32>();
         let r2 = rng.gen::<f32>();
 

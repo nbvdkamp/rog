@@ -1,4 +1,4 @@
-use rand::{thread_rng, Rng};
+use rand::Rng;
 use std::{
     cell::RefCell,
     io::Write,
@@ -33,6 +33,7 @@ use crate::{
     raytracer::working_image::Pixel,
     render_settings::{ImageSettings, RenderSettings, TerminationCondition},
     scene::Scene,
+    small_thread_rng::{seed_thread_rng_for_path, thread_rng},
     spectrum::{Spectrumf32, Wavelength},
     texture::{CoefficientTexture, Texture},
     util::normal_transform_from_mat4,
@@ -136,28 +137,29 @@ impl Raytracer {
         let cam_model = self.scene.camera.model;
         let cam_pos4 = cam_model * Vector4::new(0., 0., 0., 1.);
         let camera_pos = Point3::from_homogeneous(cam_pos4);
+        let paths_sampled_per_pixel = image.paths_sampled_per_pixel as usize;
         let image = Arc::new(Mutex::new(image));
 
         let tile_size = 100;
         let tiles: &Injector<Tile> = &Injector::new();
 
-        add_tiles_to_queue(tiles, image_size, tile_size, 0);
+        add_tiles_to_queue(tiles, image_size, tile_size, paths_sampled_per_pixel);
         let tiles_per_sample = tiles.len();
 
         match settings.termination_condition {
             TerminationCondition::SampleCount(samples) => {
                 for sample in 1..samples {
-                    add_tiles_to_queue(tiles, image_size, tile_size, sample);
+                    add_tiles_to_queue(tiles, image_size, tile_size, paths_sampled_per_pixel + sample);
                 }
             }
             TerminationCondition::Time(_) => {
                 // Always have one extra set of tiles in the queue to prevent threads being idle
-                add_tiles_to_queue(tiles, image_size, tile_size, 1);
+                add_tiles_to_queue(tiles, image_size, tile_size, paths_sampled_per_pixel + 1);
             }
         }
 
         let finished = Arc::new(Mutex::new(false));
-        let current_sample = Arc::new(Mutex::new(0usize));
+        let current_sample = Arc::new(Mutex::new(paths_sampled_per_pixel));
         let tiles_completed_for_current_sample = Arc::new(Mutex::new(0usize));
 
         thread::scope(|s| {
@@ -195,9 +197,12 @@ impl Raytracer {
                                 let j = y - tile.start.y;
                                 let pixel = &mut buffer[tile_size * j + i];
 
+                                // Reseed rng to ensure deterministic rendering
+                                seed_thread_rng_for_path(vec2(i, j), tile.sample);
+
                                 let mut offset = vec2(0.5, 0.5);
 
-                                if tile.sample > 0 || settings.intermediate_read_path.is_some() {
+                                if tile.sample > 0 {
                                     offset += vec2(tent_sample(), tent_sample());
                                 }
 
@@ -345,7 +350,7 @@ impl Raytracer {
         let mut image = lock.into_inner().expect("Cannot unlock image mutex");
         let time_spent = start.elapsed().as_secs_f32();
 
-        image.paths_sampled_per_pixel += *current_sample.lock().unwrap() as u32 + 1;
+        image.paths_sampled_per_pixel = *current_sample.lock().unwrap() as u32 + 1;
         image.seconds_spent_rendering += time_spent;
 
         (image, time_spent)
