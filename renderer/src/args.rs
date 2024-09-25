@@ -67,12 +67,6 @@ impl Args {
                 arg!(-r --"read-intermediate" <FILE> "Read from intermediate image file to resume rendering")
                     .value_parser(value_parser!(PathBuf))
                     .required(false),
-                arg!(--"spectral-importance-sampling" <MODE> "Enables spectral importance sampling and selects a mode"),
-                arg!(--"nee++-rejection" "Use visibility data for rejection sampling shadow rays"),
-                arg!(--"nee++-direct" "Use visibility data for importance sampling lights"),
-                arg!(--"visibility-resolution" <NUM> "Resolution of the voxel grid used in visibility calculation [default 16]")
-                    .value_parser(value_parser!(u8)),
-                arg!(--"visibility-debug" "Write computed visibility related data to disk for debugging"),
             ])
             .get_matches();
 
