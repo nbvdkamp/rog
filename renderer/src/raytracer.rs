@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use cgmath::{point3, vec2, vec3, InnerSpace, Point2, Point3, Vector2, Vector3, Vector4};
+use cgmath::{point3, vec2, vec3, InnerSpace, Point2, Point3, Vector2, Vector3};
 use crossbeam_deque::{Injector, Steal};
 
 pub mod aabb;
@@ -127,16 +127,13 @@ impl Raytracer {
         image: WorkingImage,
     ) -> (WorkingImage, f32) {
         let image_size = image.settings.size;
-        let aspect_ratio = image_size.x as f32 / image_size.y as f32;
-        let fov_factor = (self.scene.camera.y_fov / 2.).tan();
+        let aspect = AspectRatio::new(image_size, self.scene.camera.y_fov);
+        let camera_pos = Point3::from_homogeneous(self.scene.camera.model.w);
 
         let start = Instant::now();
         let mut last_progress_update: Option<Instant> = None;
         let mut last_image_update: Option<Instant> = None;
 
-        let cam_model = self.scene.camera.model;
-        let cam_pos4 = cam_model * Vector4::new(0., 0., 0., 1.);
-        let camera_pos = Point3::from_homogeneous(cam_pos4);
         let paths_sampled_per_pixel = image.paths_sampled_per_pixel as usize;
         let image = Arc::new(Mutex::new(image));
 
@@ -196,30 +193,12 @@ impl Raytracer {
                                 let i = x - tile.start.x;
                                 let j = y - tile.start.y;
                                 let pixel = &mut buffer[tile_size * j + i];
+                                let pixel_pos = vec2(x, y);
 
                                 // Reseed rng to ensure deterministic rendering
-                                seed_thread_rng_for_path(vec2(i, j), tile.sample);
+                                seed_thread_rng_for_path(pixel_pos, tile.sample);
 
-                                let mut offset = vec2(0.5, 0.5);
-
-                                if tile.sample > 0 {
-                                    offset += vec2(tent_sample(), tent_sample());
-                                }
-
-                                let screen = self.pixel_to_screen(
-                                    Vector2::new(x, y),
-                                    offset,
-                                    image_size,
-                                    aspect_ratio,
-                                    fov_factor,
-                                );
-
-                                // Using w = 0 because this is a direction vector
-                                let dir4 = cam_model * Vector4::new(screen.x, screen.y, -1., 0.).normalize();
-                                let ray = Ray {
-                                    origin: camera_pos,
-                                    direction: dir4.truncate().normalize(),
-                                };
+                                let ray = self.shoot_camera_ray(pixel_pos, tile.sample, aspect, camera_pos);
 
                                 match self.radiance(ray, settings) {
                                     RadianceResult::Spectrum(spectrum) => {
@@ -356,19 +335,38 @@ impl Raytracer {
         (image, time_spent)
     }
 
-    fn pixel_to_screen(
-        &self,
-        pixel: Vector2<usize>,
-        offset: Vector2<f32>,
-        image_size: Vector2<usize>,
-        aspect_ratio: f32,
-        fov_factor: f32,
-    ) -> Vector2<f32> {
-        let normalized_x = (pixel.x as f32 + offset.x) / image_size.x as f32;
-        let normalized_y = (pixel.y as f32 + offset.y) / image_size.y as f32;
-        let x = (2. * normalized_x - 1.) * fov_factor * aspect_ratio;
-        let y = (1. - 2. * normalized_y) * fov_factor;
+    fn pixel_to_screen(&self, pixel: Vector2<usize>, offset: Vector2<f32>, aspect: AspectRatio) -> Vector2<f32> {
+        let normalized_x = (pixel.x as f32 + offset.x) / aspect.image_size.x as f32;
+        let normalized_y = (pixel.y as f32 + offset.y) / aspect.image_size.y as f32;
+        let x = (2. * normalized_x - 1.) * aspect.fov_factor * aspect.ratio;
+        let y = (1. - 2. * normalized_y) * aspect.fov_factor;
         Vector2::new(x, y)
+    }
+
+    fn shoot_camera_ray(
+        &self,
+        pixel_pos: Vector2<usize>,
+        sample: usize,
+        aspect: AspectRatio,
+        camera_pos: Point3<f32>,
+    ) -> Ray {
+        let mut offset = vec2(0.5, 0.5);
+        if sample > 0 {
+            offset += vec2(tent_sample(), tent_sample());
+        }
+
+        let screen = self.pixel_to_screen(pixel_pos, offset, aspect);
+
+        let direction = {
+            let m = self.scene.camera.model;
+            screen.x * m.x.truncate() + screen.y * m.y.truncate() + -1. * m.z.truncate()
+        }
+        .normalize();
+
+        Ray {
+            origin: camera_pos,
+            direction,
+        }
     }
 
     pub fn get_num_tris(&self) -> usize {
@@ -785,6 +783,23 @@ fn add_tiles_to_queue(tiles: &Injector<Tile>, image_size: Vector2<usize>, tile_s
                 end: vec2(x_end, y_end),
                 sample,
             });
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct AspectRatio {
+    image_size: Vector2<usize>,
+    ratio: f32,
+    fov_factor: f32,
+}
+
+impl AspectRatio {
+    pub fn new(image_size: Vector2<usize>, y_fov: f32) -> Self {
+        Self {
+            image_size,
+            ratio: image_size.x as f32 / image_size.y as f32,
+            fov_factor: (y_fov / 2.).tan(),
         }
     }
 }
