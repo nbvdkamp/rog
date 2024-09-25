@@ -1,4 +1,4 @@
-use std::{path::PathBuf, str::FromStr, time::Duration};
+use std::{fmt::Display, path::PathBuf, str::FromStr, time::Duration};
 
 use cgmath::vec2;
 use clap::{arg, value_parser, Command};
@@ -84,10 +84,7 @@ impl Args {
             let time = matches.get_one::<u64>("time");
 
             match (samples, time) {
-                (Some(_), Some(_)) => {
-                    eprintln!("Termination conditions are mutually exlusive.");
-                    std::process::exit(-1);
-                }
+                (Some(_), Some(_)) => error("Termination conditions are mutually exlusive."),
                 (Some(samples), None) => TerminationCondition::SampleCount(*samples),
                 (None, Some(seconds)) => TerminationCondition::Time(Duration::from_secs(*seconds)),
                 (None, None) => TerminationCondition::SampleCount(1),
@@ -98,8 +95,7 @@ impl Args {
         let output_file = matches.get_one::<PathBuf>("output").expect("defaulted").clone();
 
         if let Err(e) = ImageFormat::from_path(&output_file) {
-            eprintln!("Invalid output file specified:\n\t{e}");
-            std::process::exit(-1);
+            error(format!("Invalid output file specified:\n\t{e}"))
         }
 
         let accel_structure = if let Some(name) = matches.get_one::<String>("accel") {
@@ -121,14 +117,12 @@ impl Args {
             let parent = path.parent().unwrap();
 
             if !parent.exists() {
-                eprintln!("Directory {} doesn't exist", parent.display());
-                std::process::exit(-1);
+                error(format!("Directory {} doesn't exist", parent.display()))
             }
         }
 
         if !headless && intermediate_read_path.is_some() {
-            eprintln!("Resuming rendering currently only works in --headless mode");
-            std::process::exit(-1);
+            error("Resuming rendering currently only works in --headless mode")
         }
 
         let render_settings = RenderSettings {
@@ -141,10 +135,7 @@ impl Args {
 
         let scene_version = match SceneVersion::new(scene_file.clone()) {
             Ok(scene_version) => Some(scene_version),
-            Err(e) => {
-                eprintln!("Can't read scene file: {e}");
-                std::process::exit(-1);
-            }
+            Err(e) => error(format!("Can't read scene file: {e}")),
         };
 
         let image_settings = ImageSettings {
@@ -163,4 +154,9 @@ impl Args {
             headless,
         }
     }
+}
+
+fn error(msg: impl Display) -> ! {
+    eprintln!("{msg}");
+    std::process::exit(-1)
 }
