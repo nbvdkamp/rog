@@ -5,7 +5,7 @@ use clap::{arg, value_parser, Command};
 use image::ImageFormat;
 
 use crate::{
-    raytracer::acceleration::Accel,
+    raytracer::{acceleration::Accel, PixelSample},
     render_settings::{ImageSettings, RenderSettings, TerminationCondition},
     scene_version::SceneVersion,
 };
@@ -67,6 +67,8 @@ impl Args {
                 arg!(-r --"read-intermediate" <FILE> "Read from intermediate image file to resume rendering")
                     .value_parser(value_parser!(PathBuf))
                     .required(false),
+                arg!(--"debug-render-single-path" <VALUE> "Specify pixel coordinates and sample number as 3 comma separated numbers")
+                    .required(false),
             ])
             .get_matches();
 
@@ -125,14 +127,6 @@ impl Args {
             error("Resuming rendering currently only works in --headless mode")
         }
 
-        let render_settings = RenderSettings {
-            termination_condition,
-            thread_count: read_usize("threads", default_thread_count).clamp(1, 2048),
-            accel_structure,
-            intermediate_read_path,
-            intermediate_write_path,
-        };
-
         let scene_version = match SceneVersion::new(scene_file.clone()) {
             Ok(scene_version) => Some(scene_version),
             Err(e) => error(format!("Can't read scene file: {e}")),
@@ -146,6 +140,55 @@ impl Args {
             max_depth: matches.get_one::<usize>("max-bounces").copied(),
         };
 
+        let debug_render_single_path = matches.get_one::<String>("debug-render-single-path").map(|s| {
+            if !headless {
+                error("debug-render-single-path is only available in headless mode")
+            }
+
+            let mut s = s.split(',');
+            let c = s.clone().count();
+
+            if c != 3 {
+                error("debug-render-single-path requires three comma separated numbers: x,y,sample")
+            }
+
+            let p = |x: &str| match x.parse::<usize>() {
+                Ok(v) => v,
+                Err(e) => error(format!("Can't parse \"{x}\" as usize, {e}")),
+            };
+
+            let size = image_settings.size;
+            let x = p(s.next().unwrap());
+            if x >= size.x {
+                error(format!(
+                    "Pixel x coordinate {x} should be smaller than image width {}",
+                    size.x
+                ))
+            }
+            let y = p(s.next().unwrap());
+            if y >= size.y {
+                error(format!(
+                    "Pixel y coordinate {y} should be smaller than image height {}",
+                    size.y
+                ))
+            }
+            let sample = p(s.next().unwrap());
+
+            PixelSample {
+                pixel_pos: vec2(x, y),
+                sample,
+            }
+        });
+
+        let render_settings = RenderSettings {
+            termination_condition,
+            thread_count: read_usize("threads", default_thread_count).clamp(1, 2048),
+            accel_structure,
+            intermediate_read_path,
+            intermediate_write_path,
+            debug_render_single_path,
+        };
+
         Args {
             scene_file,
             output_file,
@@ -157,6 +200,6 @@ impl Args {
 }
 
 fn error(msg: impl Display) -> ! {
-    eprintln!("{msg}");
+    eprintln!("Argument error: {msg}");
     std::process::exit(-1)
 }

@@ -193,12 +193,15 @@ impl Raytracer {
                                 let i = x - tile.start.x;
                                 let j = y - tile.start.y;
                                 let pixel = &mut buffer[tile_size * j + i];
-                                let pixel_pos = vec2(x, y);
+                                let pixel_sample = PixelSample {
+                                    pixel_pos: vec2(x, y),
+                                    sample: tile.sample,
+                                };
 
                                 // Reseed rng to ensure deterministic rendering
-                                seed_thread_rng_for_path(pixel_pos, tile.sample);
+                                seed_thread_rng_for_path(pixel_sample);
 
-                                let ray = self.shoot_camera_ray(pixel_pos, tile.sample, aspect, camera_pos);
+                                let ray = self.shoot_camera_ray(pixel_sample, aspect, camera_pos);
 
                                 match self.radiance(ray, settings) {
                                     RadianceResult::Spectrum(spectrum) => {
@@ -335,6 +338,27 @@ impl Raytracer {
         (image, time_spent)
     }
 
+    pub fn single_path_render(
+        &self,
+        settings: &RenderSettings,
+        image_settings: ImageSettings,
+        pixel_sample: PixelSample,
+    ) {
+        let camera_pos = Point3::from_homogeneous(self.scene.camera.model.w);
+        let aspect = AspectRatio::new(image_settings.size, self.scene.camera.y_fov);
+        seed_thread_rng_for_path(pixel_sample);
+        let ray = self.shoot_camera_ray(pixel_sample, aspect, camera_pos);
+
+        match self.radiance(ray, settings) {
+            RadianceResult::Spectrum(spectrum) => {
+                println!("Full spectrum: {:?}", spectrum.data);
+            }
+            RadianceResult::SingleValue { value, wavelength } => {
+                println!("Single wavelength: {value} at {}nm", wavelength.value());
+            }
+        }
+    }
+
     fn pixel_to_screen(&self, pixel: Vector2<usize>, offset: Vector2<f32>, aspect: AspectRatio) -> Vector2<f32> {
         let normalized_x = (pixel.x as f32 + offset.x) / aspect.image_size.x as f32;
         let normalized_y = (pixel.y as f32 + offset.y) / aspect.image_size.y as f32;
@@ -345,8 +369,7 @@ impl Raytracer {
 
     fn shoot_camera_ray(
         &self,
-        pixel_pos: Vector2<usize>,
-        sample: usize,
+        PixelSample { pixel_pos, sample }: PixelSample,
         aspect: AspectRatio,
         camera_pos: Point3<f32>,
     ) -> Ray {
@@ -802,4 +825,10 @@ impl AspectRatio {
             fov_factor: (y_fov / 2.).tan(),
         }
     }
+}
+
+#[derive(Clone, Copy)]
+pub struct PixelSample {
+    pub pixel_pos: Vector2<usize>,
+    pub sample: usize,
 }

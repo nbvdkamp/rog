@@ -80,6 +80,7 @@ fn main() {
         accel_structure: accel_structures_to_construct[0],
         intermediate_read_path: None,
         intermediate_write_path: None,
+        debug_render_single_path: None,
     };
 
     // Do a warmup run:

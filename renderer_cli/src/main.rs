@@ -45,5 +45,9 @@ fn headless_render(args: Args) {
         args.image_settings.clone(),
     );
 
-    render_and_save(&raytracer, &args.render_settings, image, args.output_file, None, None);
+    if let Some(pixel_sample) = args.render_settings.debug_render_single_path {
+        raytracer.single_path_render(&args.render_settings, args.image_settings, pixel_sample);
+    } else {
+        render_and_save(&raytracer, &args.render_settings, image, args.output_file, None, None);
+    }
 }

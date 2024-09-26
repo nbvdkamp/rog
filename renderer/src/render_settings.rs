@@ -4,7 +4,10 @@ use cgmath::Vector2;
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 
-use crate::{raytracer::acceleration::Accel, scene_version::SceneVersion};
+use crate::{
+    raytracer::{acceleration::Accel, PixelSample},
+    scene_version::SceneVersion,
+};
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub enum ImportanceSamplingMode {
@@ -60,4 +63,5 @@ pub struct RenderSettings {
     pub accel_structure: Accel,
     pub intermediate_read_path: Option<PathBuf>,
     pub intermediate_write_path: Option<PathBuf>,
+    pub debug_render_single_path: Option<PixelSample>,
 }

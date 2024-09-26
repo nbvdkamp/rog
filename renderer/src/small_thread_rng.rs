@@ -1,10 +1,11 @@
-use cgmath::Vector2;
 use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use std::{
     cell::UnsafeCell,
     hash::{DefaultHasher, Hash, Hasher},
     rc::Rc,
 };
+
+use crate::raytracer::PixelSample;
 
 #[derive(Clone, Debug)]
 pub struct SmallThreadRng {
@@ -24,7 +25,7 @@ pub fn thread_rng() -> SmallThreadRng {
     SmallThreadRng { rng }
 }
 
-pub fn seed_thread_rng_for_path(pixel_pos: Vector2<usize>, sample: usize) {
+pub fn seed_thread_rng_for_path(PixelSample { pixel_pos, sample }: PixelSample) {
     let mut hasher = DefaultHasher::new();
     pixel_pos.hash(&mut hasher);
     hasher.write_usize(sample);
