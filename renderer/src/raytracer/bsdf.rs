@@ -192,6 +192,11 @@ fn eval_disney_specular_transmission(
 ) -> Evaluation {
     let n_dot_i = incident.z;
     let n_dot_o = outgoing.z;
+
+    if n_dot_i == 0.0 || n_dot_o == 0.0 {
+        return Evaluation::Null;
+    }
+
     let m_dot_i = micronormal.dot(incident);
     let m_dot_o = micronormal.dot(outgoing);
 
