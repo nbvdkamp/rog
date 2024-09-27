@@ -1,21 +1,18 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'renderer'",
+            "name": "Debug executable 'renderer_cli'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=renderer",
-                    "--package=renderer"
+                    "--bin=renderer_cli",
+                    "--package=renderer_cli"
                 ],
                 "filter": {
-                    "name": "renderer",
+                    "name": "renderer_cli",
                     "kind": "bin"
                 }
             },
@@ -26,7 +23,7 @@
             "type": "cppvsdbg",
             "request": "launch",
             "name": "(Windows) Debug executable",
-            "program": "${workspaceRoot}/target/debug/renderer.exe",
+            "program": "${workspaceRoot}/target/debug/renderer_cli.exe",
             "stopAtEntry": false,
             "environment": [],
             "console": "integratedTerminal",
@@ -41,16 +38,15 @@
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=renderer",
-                    "--package=renderer"
+                    "--lib",
                 ],
                 "filter": {
                     "name": "renderer",
-                    "kind": "bin"
+                    "kind": "lib"
                 }
             },
             "args": [],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}/renderer/"
         }
     ]
 }
