@@ -15,3 +15,11 @@
     - intensity: background light's intensity as float - default: 1.0
     - spectrum: relative path to a csv with two columns; wavelength and relative intensity. The spectrum is normalized to unit luminance for the CIE 1931 standard observer.
     - rgb: hexadecimal rgb color
+
+
+#### License
+
+<sup>
+Licensed under either of <a href="LICENSE-APACHE">Apache License, Version
+2.0</a> or <a href="LICENSE-MIT">MIT license</a> at your option.
+</sup>
