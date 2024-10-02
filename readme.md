@@ -1,4 +1,28 @@
-# Custom glTF properties
+# Rog:
+
+Rog is a spectral path tracer written in rust.
+
+## Example renders
+![Demo scene render](example_renders/demo_scene/16384.png)
+![Demo scene closeup render](example_renders/demo_scene/closeup8192.png)
+The scene above includes models from Stanford university and Poly Haven.
+![Glass ball render](example_renders/glass_ball8192.png)
+
+## Usage
+
+To run the renderer, use the following command:
+
+```bash
+cargo run --release -- --file <PATH TO SCENE FILE>
+```
+
+## Scene files
+
+Currently the renderer only reads scenes from glTF files (.glTF or .glb).
+It supports most features of the format, with the exception of animations and rigging.
+The next section describes custom properties that may be used to specify properties that glTF does not natively support.
+
+### Custom glTF properties
 
 - Lights:
     - All
