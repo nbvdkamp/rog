@@ -2,7 +2,7 @@ use std::path::Path;
 
 use eframe::{
     egui::{
-        global_dark_light_mode_switch,
+        global_theme_preference_switch,
         load::SizedTexture,
         vec2,
         CentralPanel,
@@ -98,7 +98,7 @@ impl App for ImageInspectorApp {
     fn update(&mut self, ctx: &Context, _: &mut eframe::Frame) {
         TopBottomPanel::top("top_bar").show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
-                global_dark_light_mode_switch(ui);
+                global_theme_preference_switch(ui);
                 if ui.button("Open file...").clicked() {
                     if let Some(path) = rfd::FileDialog::new().add_filter("Image", &["specimg"]).pick_file() {
                         self.try_open_image(path, ctx);
@@ -294,6 +294,7 @@ impl Texture {
             magnification: TextureFilter::Nearest,
             minification: TextureFilter::Linear,
             wrap_mode: TextureWrapMode::ClampToEdge,
+            mipmap_mode: None,
         };
         let s = image.settings.size;
 
@@ -308,6 +309,7 @@ impl Texture {
             magnification: TextureFilter::Nearest,
             minification: TextureFilter::Linear,
             wrap_mode: TextureWrapMode::ClampToEdge,
+            mipmap_mode: None,
         };
         let s = image.settings.size;
 
