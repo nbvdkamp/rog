@@ -328,7 +328,7 @@ impl Wavelength {
     pub fn sample_uniform_visible() -> (Self, f32) {
         (
             Self {
-                index: thread_rng().gen_range(0..RESOLUTION as u8),
+                index: thread_rng().random_range(0..RESOLUTION as u8),
             },
             1.0 / RESOLUTION as f32,
         )

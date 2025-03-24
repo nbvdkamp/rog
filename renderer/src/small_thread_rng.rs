@@ -1,4 +1,4 @@
-use rand::{rngs::SmallRng, RngCore, SeedableRng};
+use rand::{RngCore, SeedableRng, rngs::SmallRng};
 use std::{
     cell::UnsafeCell,
     hash::{DefaultHasher, Hash, Hasher},
@@ -55,10 +55,5 @@ impl RngCore for SmallThreadRng {
     fn fill_bytes(&mut self, dest: &mut [u8]) {
         let rng = unsafe { &mut *self.rng.get() };
         rng.fill_bytes(dest)
-    }
-
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
-        let rng = unsafe { &mut *self.rng.get() };
-        rng.try_fill_bytes(dest)
     }
 }

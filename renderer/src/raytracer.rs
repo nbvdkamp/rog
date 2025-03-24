@@ -4,15 +4,15 @@ use std::{
     io::Write,
     path::Path,
     sync::{
-        mpsc::{Receiver, TryRecvError},
         Arc,
         Mutex,
+        mpsc::{Receiver, TryRecvError},
     },
     thread,
     time::{Duration, Instant},
 };
 
-use cgmath::{point3, vec2, vec3, InnerSpace, Point2, Point3, Vector2, Vector3};
+use cgmath::{InnerSpace, Point2, Point3, Vector2, Vector3, point3, vec2, vec3};
 use crossbeam_deque::{Injector, Steal};
 
 pub mod aabb;
@@ -39,8 +39,8 @@ use crate::{
     util::normal_transform_from_mat4,
 };
 
-use acceleration::{structure::TraceResultMesh, Accel, AccelerationStructures};
-use bsdf::{mis2, Evaluation, Sample};
+use acceleration::{Accel, AccelerationStructures, structure::TraceResultMesh};
+use bsdf::{Evaluation, Sample, mis2};
 use geometry::{ensure_valid_reflection, orthogonal_vector};
 use ray::Ray;
 use sampling::{sample_value_from_slice_uniform, tent_sample};
@@ -435,7 +435,7 @@ impl Raytracer {
 
             let mut mat_sample = material.sample(texture_coordinates, &self.scene.textures);
 
-            if thread_rng().gen::<f32>() > mat_sample.alpha {
+            if thread_rng().random::<f32>() > mat_sample.alpha {
                 // Offset to the back of the triangle
                 ray.origin = hit_pos + ray.direction * 0.0002;
 
@@ -593,7 +593,7 @@ impl Raytracer {
             let continue_probability = (5.0 * max_weight).min(1.0);
 
             if continue_probability < 1.0 {
-                if thread_rng().gen_bool(continue_probability as f64) {
+                if thread_rng().random_bool(continue_probability as f64) {
                     path_weight /= continue_probability;
                 } else {
                     break;
@@ -676,7 +676,7 @@ impl Raytracer {
                 None => 1.0,
             };
 
-            if thread_rng().gen::<f32>() > alpha {
+            if thread_rng().random::<f32>() > alpha {
                 // Cast another ray from slightly further than where we hit
                 let hit_pos = barycentric.interpolate_point(indices.map(|i| verts.positions[i]));
                 let hit_pos = Point3::from_homogeneous(instance.transform * hit_pos.to_homogeneous());

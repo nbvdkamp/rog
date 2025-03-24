@@ -2,7 +2,7 @@ mod fresnel;
 
 use std::f32::consts::FRAC_1_PI;
 
-use cgmath::{vec2, InnerSpace, Vector2, Vector3};
+use cgmath::{InnerSpace, Vector2, Vector3, vec2};
 use lerp::Lerp;
 use rand::Rng;
 
@@ -23,7 +23,7 @@ pub fn mis2(pdf1: f32, pdf2: f32) -> f32 {
 }
 
 mod ggx {
-    use cgmath::{vec3, InnerSpace, Vector2, Vector3};
+    use cgmath::{InnerSpace, Vector2, Vector3, vec3};
     use rand::Rng;
 
     use crate::small_thread_rng::thread_rng;
@@ -58,8 +58,8 @@ mod ggx {
         let bitangent = outgoing_h.cross(tangent);
 
         let mut rng = thread_rng();
-        let r1 = rng.gen::<f32>();
-        let r2 = rng.gen::<f32>();
+        let r1 = rng.random::<f32>();
+        let r2 = rng.random::<f32>();
 
         let radius = r1.sqrt();
         let phi = 2.0 * std::f32::consts::PI * r2;
@@ -367,7 +367,7 @@ pub fn bsdf_sample_specular_transmission(mat: &MaterialSample, outgoing: Vector3
     let incident;
     let weight;
 
-    if thread_rng().gen::<f32>() <= fresnel {
+    if thread_rng().random::<f32>() <= fresnel {
         incident = reflect(outgoing, micronormal);
         let g_i = ggx::smith_shadow_term(incident.z, alpha_squared);
         let n_dot_i = incident.z;
@@ -439,7 +439,7 @@ pub fn bsdf_sample_diffuse_reflection(mat: &MaterialSample, outgoing: Vector3<f3
 pub fn sample(mat: &MaterialSample, outgoing: Vector3<f32>) -> Sample {
     let pdfs = lobe_pdfs(mat);
 
-    let mut r = thread_rng().gen::<f32>();
+    let mut r = thread_rng().random::<f32>();
 
     if r < pdfs.specular_reflection {
         let alpha = calculate_alpha(mat.roughness);

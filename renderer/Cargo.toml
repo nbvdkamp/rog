@@ -2,7 +2,7 @@
 name = "renderer"
 version = "0.1.0"
 authors = ["kamp <nbvdkamp@gmail.com>"]
-edition = "2021"
+edition = "2024"
 
 [features]
 stats = []
@@ -30,7 +30,7 @@ serde_arrays = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 
 [dependencies.rand]
-version = "0.8.5"
+version = "0.9.0"
 default-features = false
 features = ["small_rng"]
 
