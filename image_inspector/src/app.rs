@@ -1,10 +1,9 @@
 use std::path::Path;
 
 use eframe::{
+    App,
+    NativeOptions,
     egui::{
-        global_theme_preference_switch,
-        load::SizedTexture,
-        vec2,
         CentralPanel,
         Color32,
         Context,
@@ -15,6 +14,7 @@ use eframe::{
         SidePanel,
         Slider,
         Stroke,
+        StrokeKind,
         TextStyle,
         TextureFilter,
         TextureOptions,
@@ -22,11 +22,12 @@ use eframe::{
         TopBottomPanel,
         Vec2,
         ViewportBuilder,
+        global_theme_preference_switch,
+        load::SizedTexture,
+        vec2,
     },
     epaint::{ColorImage, TextureHandle},
     run_native,
-    App,
-    NativeOptions,
 };
 use egui_plot::{Bar, BarChart, Plot};
 use renderer::{
@@ -180,7 +181,8 @@ impl App for ImageInspectorApp {
                             Color32::from_rgb(r, g, b)
                         };
                         let (rect, _) = ui.allocate_at_least(Vec2::new(tray_width, color_rect_height), Sense::hover());
-                        ui.painter().rect(rect, 3.0, rect_color, Stroke::NONE);
+                        ui.painter()
+                            .rect(rect, 3.0, rect_color, Stroke::NONE, StrokeKind::Inside);
 
                         let bar = BarChart::new(
                             pixel
