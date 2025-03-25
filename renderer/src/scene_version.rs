@@ -1,7 +1,7 @@
 use std::{fmt, fs::File, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
-use sha2::{digest::DynDigest, Digest, Sha256};
+use sha2::{Digest, Sha256, digest::DynDigest};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SceneVersion {

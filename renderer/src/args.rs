@@ -1,11 +1,11 @@
 use std::{fmt::Display, path::PathBuf, str::FromStr, time::Duration};
 
 use cgmath::vec2;
-use clap::{arg, value_parser, Command};
+use clap::{Command, arg, value_parser};
 use image::ImageFormat;
 
 use crate::{
-    raytracer::{acceleration::Accel, PixelSample},
+    raytracer::{PixelSample, acceleration::Accel},
     render_settings::{ImageSettings, RenderSettings, TerminationCondition},
     scene_version::SceneVersion,
 };

@@ -1,4 +1,4 @@
-use cgmath::{vec2, Vector2};
+use cgmath::{Vector2, vec2};
 use lerp::Lerp;
 use rayon::prelude::*;
 use rgb2spec::RGB2Spec;

@@ -2,7 +2,7 @@ mod structural_similarity;
 use std::{fs::create_dir_all, path::PathBuf};
 
 use cgmath::vec2;
-use clap::{arg, Command};
+use clap::{Command, arg};
 use itertools::Itertools;
 use renderer::{
     color::RGBu8,

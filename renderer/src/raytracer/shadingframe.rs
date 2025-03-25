@@ -1,5 +1,5 @@
 use super::geometry::orthogonal_vector;
-use cgmath::{vec3, InnerSpace, Matrix3, Vector3};
+use cgmath::{InnerSpace, Matrix3, Vector3, vec3};
 
 pub struct ShadingFrame {
     normal: Vector3<f32>,

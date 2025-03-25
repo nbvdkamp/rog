@@ -1,4 +1,4 @@
-use cgmath::{perspective, EuclideanSpace, Matrix4, Point3, Rad, SquareMatrix, Vector3};
+use cgmath::{EuclideanSpace, Matrix4, Point3, Rad, SquareMatrix, Vector3, perspective};
 
 #[derive(Copy, Clone)]
 pub struct PerspectiveCamera {

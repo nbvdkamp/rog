@@ -1,6 +1,6 @@
 use renderer::{
     args::Args,
-    raytracer::{render_and_save, working_image::WorkingImage, Raytracer},
+    raytracer::{Raytracer, render_and_save, working_image::WorkingImage},
     scene::Scene,
 };
 

@@ -4,7 +4,7 @@ use super::statistics::StatisticsStore;
 use crate::{
     barycentric::Barycentric,
     mesh::Instance,
-    raytracer::{triangle::Triangle, Ray},
+    raytracer::{Ray, triangle::Triangle},
 };
 
 pub enum TraceResult {

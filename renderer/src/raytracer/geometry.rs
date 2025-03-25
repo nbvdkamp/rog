@@ -1,4 +1,4 @@
-use cgmath::{vec2, InnerSpace, Vector3};
+use cgmath::{InnerSpace, Vector3, vec2};
 
 pub fn orthogonal_vector(v: Vector3<f32>) -> Vector3<f32> {
     if v.x == 0.0 {

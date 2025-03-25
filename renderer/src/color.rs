@@ -199,11 +199,7 @@ impl RGBf32 {
     pub fn srgb_linear_to_gamma_compressed(&self) -> Self {
         let m = |c: f32| {
             if c <= 0.0031308 {
-                if c < 0.0 {
-                    0.0
-                } else {
-                    c * 12.92
-                }
+                if c < 0.0 { 0.0 } else { c * 12.92 }
             } else {
                 1.055 * c.powf(1.0 / 2.4) - 0.055
             }
@@ -219,11 +215,7 @@ impl RGBf32 {
     pub fn srgb_gamma_compressed_to_linear(&self) -> Self {
         let m = |c| {
             if c <= 0.04045 {
-                if c < 0.0 {
-                    0.0
-                } else {
-                    c / 12.92
-                }
+                if c < 0.0 { 0.0 } else { c / 12.92 }
             } else {
                 let x: f32 = (c + 0.055) / 1.055;
                 x.powf(2.4)

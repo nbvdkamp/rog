@@ -1,8 +1,9 @@
-use cgmath::{vec2, Vector2};
+use cgmath::{Vector2, vec2};
 use glfw::{Action, Key, MouseButton, WindowEvent};
 use luminance::{pipeline::PipelineError, shader::types::Vec2};
 use luminance_derive::{Semantics, UniformInterface, Vertex};
 use luminance_front::{
+    Backend,
     blending::{Blending, Equation, Factor},
     context::GraphicsContext,
     pipeline::{Pipeline, TextureBinding},
@@ -12,7 +13,6 @@ use luminance_front::{
     shading_gate::ShadingGate,
     tess::{Interleaved, Mode, Tess, TessError},
     texture::{Dim2, MagFilter, MinFilter, Sampler, TexelUpload, Texture, Wrap},
-    Backend,
 };
 
 use renderer::color::RGBu8;

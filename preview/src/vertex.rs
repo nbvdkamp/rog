@@ -1,9 +1,9 @@
 use cgmath::Point2;
 use luminance_derive::{Semantics, Vertex};
 use luminance_front::{
+    Backend,
     context::GraphicsContext,
     tess::{Interleaved, Mode, Tess, TessError},
-    Backend,
 };
 use renderer::mesh::{Mesh, VertexIndex};
 

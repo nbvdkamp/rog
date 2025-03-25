@@ -27,15 +27,22 @@ impl fmt::Display for Error {
                 Error::IO(e) => return e.fmt(f),
                 Error::Serde(e) => return e.fmt(f),
                 Error::Postcard(e) => return e.fmt(f),
-                Error::TagMismatch { expected, actual } => format!("wrong binary tag found, expected {expected:?} but got {actual:?}"),
-                Error::FormatVersionMismatch {current, file} =>
+                Error::TagMismatch { expected, actual } =>
+                    format!("wrong binary tag found, expected {expected:?} but got {actual:?}"),
+                Error::FormatVersionMismatch { current, file } =>
                     format!("current format version ({current}) does not match the version of the file ({file})"),
-                Error::SceneMismatch => "hash of provided scene file does not match that of the scene used to render intermediate image".to_string(),
-                Error::ResolutionMismatch{current, file, name} =>
-                    format!("current {name} resolution ({current}) does not match the resolution used when rendering the intermediate image ({file})"),
-                Error::SamplesMismatch {current, file, name} =>
-                    format!("current {name} sample count ({current}) does not match the count used when rendering the intermediate image ({file})"),
-                Error::SectionSizeMismatch  {expected, file, name}  => format!("size of {name} binary data section = {file} does not match the expected value of {expected}"),
+                Error::SceneMismatch =>
+                    "hash of provided scene file does not match that of the scene used to render intermediate image"
+                        .to_string(),
+                Error::ResolutionMismatch { current, file, name } => format!(
+                    "current {name} resolution ({current}) does not match the resolution used when rendering the intermediate image ({file})"
+                ),
+                Error::SamplesMismatch { current, file, name } => format!(
+                    "current {name} sample count ({current}) does not match the count used when rendering the intermediate image ({file})"
+                ),
+                Error::SectionSizeMismatch { expected, file, name } => format!(
+                    "size of {name} binary data section = {file} does not match the expected value of {expected}"
+                ),
             }
         )
     }

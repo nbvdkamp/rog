@@ -5,7 +5,7 @@ use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    raytracer::{acceleration::Accel, PixelSample},
+    raytracer::{PixelSample, acceleration::Accel},
     scene_version::SceneVersion,
 };
 

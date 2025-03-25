@@ -4,15 +4,15 @@ use arrayvec::ArrayVec;
 use cgmath::Point3;
 
 use crate::raytracer::{
+    Ray,
     aabb::{BoundingBox, Intersects},
     axis::Axis,
     triangle::Triangle,
-    Ray,
 };
 
 use super::{
     helpers::{compute_bounding_box, compute_bounding_box_item_indexed, intersect_triangles_indexed},
-    sah::{surface_area_heuristic_bvh, SurfaceAreaHeuristicResultBvh},
+    sah::{SurfaceAreaHeuristicResultBvh, surface_area_heuristic_bvh},
     statistics::{Statistics, StatisticsStore},
     structure::{AccelerationStructure, TraceResult},
 };

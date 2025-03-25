@@ -1,15 +1,15 @@
 use std::{
     path::PathBuf,
     sync::{
-        mpsc::{channel, Sender, TryRecvError},
         Arc,
         Mutex,
+        mpsc::{Sender, TryRecvError, channel},
     },
     thread,
     time::Duration,
 };
 
-use cgmath::{vec2, vec3, Matrix3, Matrix4, Rad, SquareMatrix, Vector2, Vector3};
+use cgmath::{Matrix3, Matrix4, Rad, SquareMatrix, Vector2, Vector3, vec2, vec3};
 
 use glfw::{Action, Context as _, Key, MouseButton, SwapInterval, WindowEvent, WindowMode};
 
@@ -21,8 +21,8 @@ use luminance_front::{
     pixel::{NormRGB8UI, NormRGBA8UI, NormUnsigned},
     render_state::RenderState,
     shader::{
-        types::{Mat33, Mat44, Vec3, Vec4},
         Uniform,
+        types::{Mat33, Mat44, Vec3, Vec4},
     },
     tess::{Interleaved, Tess},
     texture::{Dim2, MagFilter, MinFilter, Sampler, TexelUpload, Texture as LuminanceTexture, Wrap},
@@ -34,7 +34,7 @@ use renderer::{
     camera::PerspectiveCamera,
     color::RGBu8,
     mesh::VertexIndex,
-    raytracer::{render_and_save, working_image::WorkingImage, ImageUpdateReporting, Raytracer, RenderMessage},
+    raytracer::{ImageUpdateReporting, Raytracer, RenderMessage, render_and_save, working_image::WorkingImage},
     render_settings::{ImageSettings, RenderSettings},
     scene::Scene,
     texture::{Format, Texture},
@@ -43,8 +43,8 @@ use renderer::{
 
 use crate::{
     preview_quad::PreviewQuad,
-    util::{mat3_to_shader_type, mat_to_shader_type, vec4_from_rgb},
-    vertex::{mesh_to_tess, LuminanceVertex, VertexSemantics},
+    util::{mat_to_shader_type, mat3_to_shader_type, vec4_from_rgb},
+    vertex::{LuminanceVertex, VertexSemantics, mesh_to_tess},
 };
 
 #[derive(Debug, UniformInterface)]
@@ -247,172 +247,174 @@ impl App {
         let (progress_sender, progress_receiver) = channel();
         let mut cancel_sender: Option<Sender<RenderMessage>> = None;
 
-        thread::scope(|scope| 'app: loop {
-            context.window.glfw.poll_events();
+        thread::scope(|scope| {
+            'app: loop {
+                context.window.glfw.poll_events();
 
-            for (_, event) in glfw::flush_messages(&events) {
-                match event {
-                    WindowEvent::Close => {
-                        if let Some(sender) = cancel_sender {
-                            let _ = sender.send(RenderMessage::Cancel);
-                        }
-
-                        break 'app;
-                    }
-                    WindowEvent::Size(width, height) => {
-                        let ratio = width as f32 / height as f32;
-                        self.camera.aspect_ratio = ratio;
-                        progress_display_quad.set_window_size(vec2(width, height).cast().unwrap());
-                        back_buffer = context.back_buffer().expect("Unable to create new back buffer");
-                    }
-                    WindowEvent::Key(Key::Enter, _, Action::Press, _) => {
-                        let mut rendering = self.rendering.lock().unwrap();
-                        if *rendering {
-                            continue;
-                        }
-                        *rendering = true;
-
-                        self.movement.reset();
-                        progress_display_quad.reset();
-
-                        let (sender, cancel_receiver) = channel();
-                        cancel_sender = Some(sender);
-
-                        let mut raytracer = self.raytracer.lock().unwrap();
-                        raytracer.scene.camera = self.camera;
-
-                        let image_settings = self.image_settings.clone();
-                        let render_settings = self.render_settings.clone();
-                        let output_file = self.output_file.clone();
-                        let raytracer = self.raytracer.clone();
-                        let rendering = self.rendering.clone();
-                        let progress_sender = progress_sender.clone();
-
-                        if let Err(e) = thread::Builder::new()
-                            .name("Main render thread".to_string())
-                            .spawn_scoped(scope, move || {
-                                let raytracer = raytracer.lock().unwrap();
-
-                                let image_update = ImageUpdateReporting {
-                                    update: Box::new(move |image, _| {
-                                        let _ = progress_sender.send(RGBImage {
-                                            pixels: image
-                                                .to_rgb_buffer()
-                                                .iter()
-                                                .map(|c| c.normalized())
-                                                .collect::<Vec<_>>(),
-                                            size: image.settings.size,
-                                        });
-                                    }),
-                                    update_interval: Duration::from_secs(10),
-                                };
-
-                                let image = WorkingImage::new(image_settings);
-
-                                render_and_save(
-                                    &raytracer,
-                                    &render_settings,
-                                    image,
-                                    output_file,
-                                    Some(image_update),
-                                    Some(cancel_receiver),
-                                );
-                                *rendering.lock().unwrap() = false;
-                            })
-                        {
-                            eprintln!("Unable to spawn main render thread: {e}");
-                            std::process::exit(-1);
-                        };
-                    }
-                    e => {
-                        if *self.rendering.lock().unwrap() {
-                            progress_display_quad.handle_event(e);
-                        } else {
-                            self.movement.handle_event(e);
-                        }
-                    }
-                }
-            }
-
-            match progress_receiver.try_recv() {
-                Ok(image) => {
-                    let size = [image.size.x as u32, image.size.y as u32];
-                    progress_display_quad.update_texture(&mut context, size, &image.pixels);
-                }
-                Err(TryRecvError::Empty) => (),
-                Err(TryRecvError::Disconnected) => {
-                    panic!("Receiver disconnected");
-                }
-            }
-
-            if context.window.is_iconified() {
-                continue;
-            }
-
-            let render = context
-                .new_pipeline_gate()
-                .pipeline(
-                    &back_buffer,
-                    &PipelineState::default().set_clear_color(background_color),
-                    |pipeline, mut shd_gate| {
-                        if !*self.rendering.lock().unwrap() {
-                            for instance in &instances {
-                                let tess = &tesses[instance.mesh_index as usize];
-                                let material = &instance.material;
-                                let tex = material.base_color_texture.and_then(|tex| textures[tex.index].as_mut());
-
-                                let bound_tex = match tex {
-                                    Some(Tex::Rgb(rgb)) => Some(BoundTex::Rgb(pipeline.bind_texture(rgb)?)),
-                                    Some(Tex::Rgba(rgba)) => Some(BoundTex::Rgba(pipeline.bind_texture(rgba)?)),
-                                    None => None,
-                                };
-
-                                shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
-                                    iface.set(&unif.u_projection, mat_to_shader_type(self.camera.projection()));
-                                    iface.set(&unif.u_view, mat_to_shader_type(self.camera.view));
-                                    iface.set(&unif.u_model, mat_to_shader_type(instance.transform));
-                                    let normal_transform = normal_transform_from_mat4(instance.transform);
-                                    iface.set(&unif.u_normal_transform, mat3_to_shader_type(normal_transform));
-                                    let uv_transform = instance
-                                        .material
-                                        .base_color_texture
-                                        .map_or(Matrix3::identity(), |tex_ref| tex_ref.transform_matrix());
-                                    iface.set(&unif.u_uv_transform, mat3_to_shader_type(uv_transform));
-                                    iface.set(&unif.u_base_color, vec4_from_rgb(material.base_color));
-                                    iface.set(&unif.u_light_position, light_position);
-
-                                    bound_tex.iter().for_each(|tex| match tex {
-                                        BoundTex::Rgb(t) => iface.set(&unif.u_base_color_texture, t.binding()),
-                                        BoundTex::Rgba(t) => iface.set(&unif.u_base_color_texture, t.binding()),
-                                    });
-
-                                    iface.set(&unif.u_use_texture, bound_tex.is_some());
-
-                                    let render_state = RenderState::default().set_blending(blending);
-
-                                    rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(tess))
-                                })?;
+                for (_, event) in glfw::flush_messages(&events) {
+                    match event {
+                        WindowEvent::Close => {
+                            if let Some(sender) = cancel_sender {
+                                let _ = sender.send(RenderMessage::Cancel);
                             }
-                        } else {
-                            progress_display_quad.render(&mut shd_gate, pipeline)?;
+
+                            break 'app;
                         }
+                        WindowEvent::Size(width, height) => {
+                            let ratio = width as f32 / height as f32;
+                            self.camera.aspect_ratio = ratio;
+                            progress_display_quad.set_window_size(vec2(width, height).cast().unwrap());
+                            back_buffer = context.back_buffer().expect("Unable to create new back buffer");
+                        }
+                        WindowEvent::Key(Key::Enter, _, Action::Press, _) => {
+                            let mut rendering = self.rendering.lock().unwrap();
+                            if *rendering {
+                                continue;
+                            }
+                            *rendering = true;
 
-                        Ok(())
-                    },
-                )
-                .assume();
+                            self.movement.reset();
+                            progress_display_quad.reset();
 
-            if !render.is_ok() {
-                break 'app;
+                            let (sender, cancel_receiver) = channel();
+                            cancel_sender = Some(sender);
+
+                            let mut raytracer = self.raytracer.lock().unwrap();
+                            raytracer.scene.camera = self.camera;
+
+                            let image_settings = self.image_settings.clone();
+                            let render_settings = self.render_settings.clone();
+                            let output_file = self.output_file.clone();
+                            let raytracer = self.raytracer.clone();
+                            let rendering = self.rendering.clone();
+                            let progress_sender = progress_sender.clone();
+
+                            if let Err(e) = thread::Builder::new()
+                                .name("Main render thread".to_string())
+                                .spawn_scoped(scope, move || {
+                                    let raytracer = raytracer.lock().unwrap();
+
+                                    let image_update = ImageUpdateReporting {
+                                        update: Box::new(move |image, _| {
+                                            let _ = progress_sender.send(RGBImage {
+                                                pixels: image
+                                                    .to_rgb_buffer()
+                                                    .iter()
+                                                    .map(|c| c.normalized())
+                                                    .collect::<Vec<_>>(),
+                                                size: image.settings.size,
+                                            });
+                                        }),
+                                        update_interval: Duration::from_secs(10),
+                                    };
+
+                                    let image = WorkingImage::new(image_settings);
+
+                                    render_and_save(
+                                        &raytracer,
+                                        &render_settings,
+                                        image,
+                                        output_file,
+                                        Some(image_update),
+                                        Some(cancel_receiver),
+                                    );
+                                    *rendering.lock().unwrap() = false;
+                                })
+                            {
+                                eprintln!("Unable to spawn main render thread: {e}");
+                                std::process::exit(-1);
+                            };
+                        }
+                        e => {
+                            if *self.rendering.lock().unwrap() {
+                                progress_display_quad.handle_event(e);
+                            } else {
+                                self.movement.handle_event(e);
+                            }
+                        }
+                    }
+                }
+
+                match progress_receiver.try_recv() {
+                    Ok(image) => {
+                        let size = [image.size.x as u32, image.size.y as u32];
+                        progress_display_quad.update_texture(&mut context, size, &image.pixels);
+                    }
+                    Err(TryRecvError::Empty) => (),
+                    Err(TryRecvError::Disconnected) => {
+                        panic!("Receiver disconnected");
+                    }
+                }
+
+                if context.window.is_iconified() {
+                    continue;
+                }
+
+                let render = context
+                    .new_pipeline_gate()
+                    .pipeline(
+                        &back_buffer,
+                        &PipelineState::default().set_clear_color(background_color),
+                        |pipeline, mut shd_gate| {
+                            if !*self.rendering.lock().unwrap() {
+                                for instance in &instances {
+                                    let tess = &tesses[instance.mesh_index as usize];
+                                    let material = &instance.material;
+                                    let tex = material.base_color_texture.and_then(|tex| textures[tex.index].as_mut());
+
+                                    let bound_tex = match tex {
+                                        Some(Tex::Rgb(rgb)) => Some(BoundTex::Rgb(pipeline.bind_texture(rgb)?)),
+                                        Some(Tex::Rgba(rgba)) => Some(BoundTex::Rgba(pipeline.bind_texture(rgba)?)),
+                                        None => None,
+                                    };
+
+                                    shd_gate.shade(&mut program, |mut iface, unif, mut rdr_gate| {
+                                        iface.set(&unif.u_projection, mat_to_shader_type(self.camera.projection()));
+                                        iface.set(&unif.u_view, mat_to_shader_type(self.camera.view));
+                                        iface.set(&unif.u_model, mat_to_shader_type(instance.transform));
+                                        let normal_transform = normal_transform_from_mat4(instance.transform);
+                                        iface.set(&unif.u_normal_transform, mat3_to_shader_type(normal_transform));
+                                        let uv_transform = instance
+                                            .material
+                                            .base_color_texture
+                                            .map_or(Matrix3::identity(), |tex_ref| tex_ref.transform_matrix());
+                                        iface.set(&unif.u_uv_transform, mat3_to_shader_type(uv_transform));
+                                        iface.set(&unif.u_base_color, vec4_from_rgb(material.base_color));
+                                        iface.set(&unif.u_light_position, light_position);
+
+                                        bound_tex.iter().for_each(|tex| match tex {
+                                            BoundTex::Rgb(t) => iface.set(&unif.u_base_color_texture, t.binding()),
+                                            BoundTex::Rgba(t) => iface.set(&unif.u_base_color_texture, t.binding()),
+                                        });
+
+                                        iface.set(&unif.u_use_texture, bound_tex.is_some());
+
+                                        let render_state = RenderState::default().set_blending(blending);
+
+                                        rdr_gate.render(&render_state, |mut tess_gate| tess_gate.render(tess))
+                                    })?;
+                                }
+                            } else {
+                                progress_display_quad.render(&mut shd_gate, pipeline)?;
+                            }
+
+                            Ok(())
+                        },
+                    )
+                    .assume();
+
+                if !render.is_ok() {
+                    break 'app;
+                }
+
+                let frame_end = context.window.glfw.get_time();
+                let frame_time = (frame_end - frame_start) as f32;
+                frame_start = frame_end;
+
+                self.do_movement(frame_time);
+
+                context.window.swap_buffers();
             }
-
-            let frame_end = context.window.glfw.get_time();
-            let frame_time = (frame_end - frame_start) as f32;
-            frame_start = frame_end;
-
-            self.do_movement(frame_time);
-
-            context.window.swap_buffers();
         });
     }
 

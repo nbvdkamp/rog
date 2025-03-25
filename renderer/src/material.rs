@@ -1,5 +1,5 @@
 use super::color::{RGBAf32, RGBf32};
-use cgmath::{point2, vec3, Basis2, InnerSpace, Matrix2, Matrix3, Point2, Rotation, SquareMatrix, Vector2, Vector3};
+use cgmath::{Basis2, InnerSpace, Matrix2, Matrix3, Point2, Rotation, SquareMatrix, Vector2, Vector3, point2, vec3};
 
 use crate::{mesh::TextureCoordinates, raytracer::Textures, spectrum::Spectrumf32, texture::Texture};
 

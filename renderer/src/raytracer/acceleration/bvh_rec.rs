@@ -1,11 +1,11 @@
-use crate::raytracer::{aabb::Intersects, axis::Axis, ray::RayWithInverseDir, triangle::Triangle, Ray};
+use crate::raytracer::{Ray, aabb::Intersects, axis::Axis, ray::RayWithInverseDir, triangle::Triangle};
 
 use cgmath::Point3;
 
 use super::{
     super::aabb::BoundingBox,
     helpers::{compute_bounding_box_item_indexed, intersect_triangles_indexed},
-    sah::{surface_area_heuristic_bvh, SurfaceAreaHeuristicResultBvh},
+    sah::{SurfaceAreaHeuristicResultBvh, surface_area_heuristic_bvh},
     statistics::{Statistics, StatisticsStore},
     structure::{AccelerationStructure, TraceResult},
 };

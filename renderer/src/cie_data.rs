@@ -110,11 +110,7 @@ pub const OBSERVER_1931: [XYZf32; SAMPLES] = [
 
 /// Const version of min since the trait version isn't
 const fn min(a: usize, b: usize) -> usize {
-    if a < b {
-        a
-    } else {
-        b
-    }
+    if a < b { a } else { b }
 }
 
 pub const fn observer_1931_interp(wavelength: f32) -> XYZf32 {

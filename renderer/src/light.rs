@@ -2,7 +2,7 @@ use crate::{
     raytracer::{aabb::BoundingBox, sampling::sample_orthogonal_disk},
     spectrum::Spectrumf32,
 };
-use cgmath::{vec3, InnerSpace, Point3, Vector3};
+use cgmath::{InnerSpace, Point3, Vector3, vec3};
 
 #[derive(Clone)]
 pub struct Light {

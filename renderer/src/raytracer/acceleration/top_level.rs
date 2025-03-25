@@ -9,12 +9,12 @@ use crate::{
 };
 
 use super::{
+    Accel,
     bvh::BoundingVolumeHierarchy,
     bvh_rec::BoundingVolumeHierarchyRec,
     kdtree::KdTree,
     statistics::{Statistics, StatisticsStore},
     structure::{AccelerationStructure, TraceResult, TraceResultMesh},
-    Accel,
 };
 
 pub struct TopLevelBVH {

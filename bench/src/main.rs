@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
-use cgmath::{vec2, Angle, EuclideanSpace, InnerSpace, Matrix4, Rad, Vector3};
-use clap::{arg, value_parser, Command};
+use cgmath::{Angle, EuclideanSpace, InnerSpace, Matrix4, Rad, Vector3, vec2};
+use clap::{Command, arg, value_parser};
 
 use csv::Writer;
 use renderer::{
-    raytracer::{aabb::BoundingBox, acceleration::Accel, working_image::WorkingImage, Raytracer},
+    raytracer::{Raytracer, aabb::BoundingBox, acceleration::Accel, working_image::WorkingImage},
     render_settings::{ImageSettings, RenderSettings, TerminationCondition},
     scene::Scene,
 };
