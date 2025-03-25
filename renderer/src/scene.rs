@@ -1,14 +1,11 @@
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
+    collections::{HashMap, HashSet, hash_map::Entry},
     io::Cursor,
     path::Path,
     time::Instant,
 };
 
 use cgmath::{
-    point2,
-    vec3,
-    vec4,
     InnerSpace,
     Matrix4,
     Point2,
@@ -19,6 +16,9 @@ use cgmath::{
     SquareMatrix,
     Vector3,
     Zero,
+    point2,
+    vec3,
+    vec4,
 };
 use gltf::{camera::Projection, mesh::Mode, scene::Transform};
 use serde::Deserialize;
@@ -30,7 +30,7 @@ use crate::{
     light::{Kind, Light},
     material::{CauchyCoefficients, EmissiveFactor, Material, TextureRef, TextureTransform},
     mesh::{Instance, Mesh, Vertices},
-    raytracer::{aabb::BoundingBox, triangle::Triangle, Textures},
+    raytracer::{Textures, aabb::BoundingBox, triangle::Triangle},
     spectrum::Spectrumf32,
     texture::{Format, Texture},
     util::normal_transform_from_mat4,
@@ -261,14 +261,14 @@ impl Scene {
             instance
                 .material
                 .base_color_texture
-                .map_or(true, |tex| preview_textures[tex.index].format == Format::Rgb)
+                .is_none_or(|tex| preview_textures[tex.index].format == Format::Rgb)
         });
 
         let textures_time = start.elapsed().as_secs_f32();
         let total_time = lib_time + parse_time + textures_time;
         println!(
-                    "Loaded scene in {total_time} seconds ({lib_time} in library, {parse_time} converting scene, {textures_time} converting textures)"
-                );
+            "Loaded scene in {total_time} seconds ({lib_time} in library, {parse_time} converting scene, {textures_time} converting textures)"
+        );
 
         Ok((scene, preview_textures))
     }

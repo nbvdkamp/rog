@@ -99,7 +99,7 @@ impl WorkingImage {
     where
         P: AsRef<Path>,
     {
-        use Error::{Serde, IO};
+        use Error::{IO, Serde};
         let mut file = File::create(path).map_err(IO)?;
 
         let json = serde_json::to_string(self).map_err(Serde)?;
@@ -142,7 +142,7 @@ impl WorkingImage {
     where
         P: AsRef<Path>,
     {
-        use Error::{Serde, IO};
+        use Error::{IO, Serde};
         let mut file = File::open(path).map_err(IO)?;
 
         let _header = FileHeader::from_reader(&mut file)?;
@@ -160,7 +160,7 @@ impl WorkingImage {
                 .settings
                 .scene_version
                 .as_ref()
-                .map_or(true, |v| v.hash != expected.hash)
+                .is_none_or(|v| v.hash != expected.hash)
             {
                 return Err(Error::SceneMismatch);
             }
