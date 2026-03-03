@@ -324,14 +324,13 @@ pub fn eval(mat: &MaterialSample, outgoing: Vector3<f32>, incident: Vector3<f32>
         }
     }
 
-    if upper_hemisphere {
-        if let Evaluation::Evaluation { weight: specular, pdf } =
+    if upper_hemisphere
+        && let Evaluation::Evaluation { weight: specular, pdf } =
             eval_specular_reflection(mat, outgoing, incident, micronormal)
-        {
-            reflectance += specular;
-            forward_pdf += lobe_pdfs.specular_reflection * pdf;
-            // TODO: reverse pdf
-        }
+    {
+        reflectance += specular;
+        forward_pdf += lobe_pdfs.specular_reflection * pdf;
+        // TODO: reverse pdf
     }
 
     Evaluation::Evaluation {

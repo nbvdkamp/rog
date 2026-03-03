@@ -155,15 +155,14 @@ impl WorkingImage {
 
         let mut image = serde_json::from_slice::<WorkingImage>(&json_buffer).map_err(Serde)?;
 
-        if let Some(expected) = expected_scene_version {
-            if image
+        if let Some(expected) = expected_scene_version
+            && image
                 .settings
                 .scene_version
                 .as_ref()
                 .is_none_or(|v| v.hash != expected.hash)
-            {
-                return Err(Error::SceneMismatch);
-            }
+        {
+            return Err(Error::SceneMismatch);
         }
 
         let expected_pixel_count = image.settings.size.x * image.settings.size.y;

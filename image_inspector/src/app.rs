@@ -100,28 +100,26 @@ impl App for ImageInspectorApp {
         TopBottomPanel::top("top_bar").show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
                 global_theme_preference_switch(ui);
-                if ui.button("Open file...").clicked() {
-                    if let Some(path) = rfd::FileDialog::new().add_filter("Image", &["specimg"]).pick_file() {
-                        self.try_open_image(path, ctx);
-                    }
+                if ui.button("Open file...").clicked()
+                    && let Some(path) = rfd::FileDialog::new().add_filter("Image", &["specimg"]).pick_file()
+                {
+                    self.try_open_image(path, ctx);
                 }
 
-                if let Some(ImageData { image, .. }) = &self.image_data {
-                    if ui.button("Save as...").clicked() {
-                        if let Some(path) = rfd::FileDialog::new()
-                            .add_filter("Image", &["png", "bmp", "jpg"])
-                            .save_file()
-                        {
-                            image.save_as_rgb(path);
-                        }
-                    }
+                if let Some(ImageData { image, .. }) = &self.image_data
+                    && ui.button("Save as...").clicked()
+                    && let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Image", &["png", "bmp", "jpg"])
+                        .save_file()
+                {
+                    image.save_as_rgb(path);
                 }
 
                 ctx.input(|i| {
-                    if let Some(file) = i.raw.dropped_files.first() {
-                        if let Some(path) = &file.path {
-                            self.try_open_image(path, ctx);
-                        }
+                    if let Some(file) = i.raw.dropped_files.first()
+                        && let Some(path) = &file.path
+                    {
+                        self.try_open_image(path, ctx);
                     }
                 });
 
@@ -130,22 +128,22 @@ impl App for ImageInspectorApp {
                 ui.separator();
                 ui.add(Slider::new(&mut self.brightness_factor, 0.001..=1000.0).text("brightness"));
 
-                if ui.button("Update brightness").clicked() {
-                    if let Some(ImageData { image, texture, .. }) = &mut self.image_data {
-                        texture.update(&WorkingImage {
-                            pixels: image
-                                .pixels
-                                .iter()
-                                .map(|p| Pixel {
-                                    spectrum: p.spectrum * self.brightness_factor,
-                                    samples: p.samples,
-                                })
-                                .collect(),
-                            settings: image.settings.clone(),
-                            paths_sampled_per_pixel: image.paths_sampled_per_pixel,
-                            seconds_spent_rendering: image.seconds_spent_rendering,
-                        });
-                    }
+                if ui.button("Update brightness").clicked()
+                    && let Some(ImageData { image, texture, .. }) = &mut self.image_data
+                {
+                    texture.update(&WorkingImage {
+                        pixels: image
+                            .pixels
+                            .iter()
+                            .map(|p| Pixel {
+                                spectrum: p.spectrum * self.brightness_factor,
+                                samples: p.samples,
+                            })
+                            .collect(),
+                        settings: image.settings.clone(),
+                        paths_sampled_per_pixel: image.paths_sampled_per_pixel,
+                        seconds_spent_rendering: image.seconds_spent_rendering,
+                    });
                 }
 
                 if let Some((x, y)) = self.hovered_pixel {
@@ -240,26 +238,26 @@ impl App for ImageInspectorApp {
                     let r = ui.image(t);
 
                     self.hovered_pixel = None;
-                    if let Some(pointer_pos) = r.hover_pos() {
-                        if r.rect.contains(pointer_pos) {
-                            let relative_vec =
-                                (pointer_pos - r.rect.left_top()) / (r.rect.right_bottom() - r.rect.left_top());
-                            let pixel_pos = relative_vec * texture.size;
+                    if let Some(pointer_pos) = r.hover_pos()
+                        && r.rect.contains(pointer_pos)
+                    {
+                        let relative_vec =
+                            (pointer_pos - r.rect.left_top()) / (r.rect.right_bottom() - r.rect.left_top());
+                        let pixel_pos = relative_vec * texture.size;
 
-                            let size = image.settings.size;
-                            let x = (pixel_pos.x as usize).clamp(0, size.x - 1);
-                            let y = (pixel_pos.y as usize).clamp(0, size.y - 1);
-                            self.hovered_pixel = Some((x, y));
+                        let size = image.settings.size;
+                        let x = (pixel_pos.x as usize).clamp(0, size.x - 1);
+                        let y = (pixel_pos.y as usize).clamp(0, size.y - 1);
+                        self.hovered_pixel = Some((x, y));
 
-                            if secondary_clicked(ctx) {
-                                let index = y * size.x + x;
-                                let pixel = &image.pixels[index];
-                                println!(
-                                    "x: {x}, y: {y}, samples: {}\nspectrum: {:?}",
-                                    pixel.samples,
-                                    pixel.result_spectrum().data
-                                )
-                            }
+                        if secondary_clicked(ctx) {
+                            let index = y * size.x + x;
+                            let pixel = &image.pixels[index];
+                            println!(
+                                "x: {x}, y: {y}, samples: {}\nspectrum: {:?}",
+                                pixel.samples,
+                                pixel.result_spectrum().data
+                            )
                         }
                     }
                 }

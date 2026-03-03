@@ -140,10 +140,10 @@ impl Scene {
 
         let gltf_scene = document.default_scene().unwrap_or(document.scenes().next().unwrap());
 
-        if let Some(background_node) = gltf_scene.nodes().find(|n| n.name() == Some("background")) {
-            if let Some(environment) = parse_environment(&background_node, &rgb2spec) {
-                scene.environment = environment;
-            }
+        if let Some(background_node) = gltf_scene.nodes().find(|n| n.name() == Some("background"))
+            && let Some(environment) = parse_environment(&background_node, &rgb2spec)
+        {
+            scene.environment = environment;
         }
 
         scene.parse_nodes(

@@ -82,14 +82,14 @@ impl SectionHeader {
         if tag == expected_tag.as_bytes() {
             let size = reader.read_u64::<LittleEndian>().map_err(IO)?;
 
-            if let Some(expected) = expected_size {
-                if size as usize != expected {
-                    return Err(Error::SectionSizeMismatch {
-                        expected,
-                        file: size as usize,
-                        name: expected_tag.to_string(),
-                    });
-                }
+            if let Some(expected) = expected_size
+                && size as usize != expected
+            {
+                return Err(Error::SectionSizeMismatch {
+                    expected,
+                    file: size as usize,
+                    name: expected_tag.to_string(),
+                });
             }
 
             Ok(Self {

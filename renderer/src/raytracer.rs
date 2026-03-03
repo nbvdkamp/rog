@@ -300,17 +300,17 @@ impl Raytracer {
                     }
                 }
 
-                if let Some(reporting) = &image_reporting {
-                    if current_sample_finished {
-                        let should_update = match last_image_update {
-                            None => true,
-                            Some(i) => i.elapsed() > reporting.update_interval,
-                        };
+                if let Some(reporting) = &image_reporting
+                    && current_sample_finished
+                {
+                    let should_update = match last_image_update {
+                        None => true,
+                        Some(i) => i.elapsed() > reporting.update_interval,
+                    };
 
-                        if should_update {
-                            (reporting.update)(&image.lock().unwrap(), *current_sample);
-                            last_image_update = Some(Instant::now());
-                        }
+                    if should_update {
+                        (reporting.update)(&image.lock().unwrap(), *current_sample);
+                        last_image_update = Some(Instant::now());
                     }
                 }
 
@@ -556,11 +556,11 @@ impl Raytracer {
                 }
             }
 
-            if let WavelengthState::Undecided = wavelength {
-                if self.image_settings.always_sample_single_wavelength {
-                    let (value, _) = Wavelength::sample_uniform_visible();
-                    wavelength = WavelengthState::Sampled { value };
-                }
+            if let WavelengthState::Undecided = wavelength
+                && self.image_settings.always_sample_single_wavelength
+            {
+                let (value, _) = Wavelength::sample_uniform_visible();
+                wavelength = WavelengthState::Sampled { value };
             }
 
             result += path_weight * nee_result;
