@@ -44,7 +44,7 @@ impl TraceResult {
         }
     }
 
-    pub fn with_instance(self, instance: &Instance) -> TraceResultMesh {
+    pub fn with_instance<'a>(self, instance: &'a Instance) -> TraceResultMesh<'a> {
         match self {
             Self::Miss => TraceResultMesh::Miss,
             Self::Hit {

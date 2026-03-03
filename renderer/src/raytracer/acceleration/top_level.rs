@@ -140,7 +140,7 @@ impl<'a> TopLevelBVH {
         }
     }
 
-    pub fn intersect(&self, ray: &Ray, meshes: &[Mesh]) -> TraceResultMesh {
+    pub fn intersect<'b>(&'b self, ray: &Ray, meshes: &[Mesh]) -> TraceResultMesh<'b> {
         self.stats.count_ray();
 
         match &self.tree_root {

@@ -691,7 +691,7 @@ impl Raytracer {
         false
     }
 
-    fn trace(&self, ray: &Ray, accel: Accel) -> TraceResultMesh {
+    fn trace<'a>(&'a self, ray: &Ray, accel: Accel) -> TraceResultMesh<'a> {
         self.accel_structures.get(accel).intersect(ray, &self.scene.meshes)
     }
 }
