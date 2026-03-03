@@ -394,11 +394,10 @@ impl Scene {
             let ior = mat.ior().unwrap_or(1.5);
 
             let cauchy_coefficients = if let Some(extras) = extras {
-                if extras.cauchy_a.is_some() && extras.cauchy_b.is_some() {
-                    CauchyCoefficients {
-                        a: extras.cauchy_a.unwrap(),
-                        b: extras.cauchy_b.unwrap(),
-                    }
+                if let Some(a) = extras.cauchy_a
+                    && let Some(b) = extras.cauchy_b
+                {
+                    CauchyCoefficients { a, b }
                 } else {
                     CauchyCoefficients::approx_from_ior(ior)
                 }

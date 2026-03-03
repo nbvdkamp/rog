@@ -57,6 +57,7 @@ impl TryRng for SmallThreadRng {
 
     fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Self::Error> {
         let rng = unsafe { &mut *self.rng.get() };
-        Ok(rng.fill_bytes(dst))
+        rng.fill_bytes(dst);
+        Ok(())
     }
 }
