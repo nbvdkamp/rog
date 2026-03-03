@@ -1,7 +1,6 @@
 #![feature(test)]
 #![feature(iter_partition_in_place)]
 #![feature(allocator_api)]
-#![feature(let_chains)]
 #[macro_use]
 extern crate impl_ops;
 extern crate static_assertions;
