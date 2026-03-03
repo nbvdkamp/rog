@@ -1,7 +1,7 @@
 use std::f32::consts::PI;
 
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3, point3};
-use rand::Rng;
+use rand::RngExt;
 
 use super::geometry::orthogonal_vector;
 use crate::small_thread_rng::thread_rng;

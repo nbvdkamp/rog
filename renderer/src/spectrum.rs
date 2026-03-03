@@ -6,7 +6,7 @@ use std::{
 
 use itertools::Itertools;
 use lerp::Lerp;
-use rand::Rng;
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 
 use crate::{

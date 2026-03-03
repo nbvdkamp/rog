@@ -30,9 +30,8 @@ serde_arrays = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 
 [dependencies.rand]
-version = "0.9.0"
+version = "0.10.0"
 default-features = false
-features = ["small_rng"]
 
 [dependencies.cgmath]
 workspace = true

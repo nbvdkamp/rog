@@ -185,6 +185,7 @@ impl App for ImageInspectorApp {
                             .rect(rect, 3.0, rect_color, Stroke::NONE, StrokeKind::Inside);
 
                         let bar = BarChart::new(
+                            "spectrum".to_string(),
                             pixel
                                 .result_spectrum()
                                 .data

@@ -1,4 +1,5 @@
-use rand::{RngCore, SeedableRng, rngs::SmallRng};
+use core::convert::Infallible;
+use rand::{Rng, SeedableRng, TryRng, rngs::SmallRng};
 use std::{
     cell::UnsafeCell,
     hash::{DefaultHasher, Hash, Hasher},
@@ -39,21 +40,23 @@ pub fn seed_thread_rng(seed: u64) {
     });
 }
 
-impl RngCore for SmallThreadRng {
+impl TryRng for SmallThreadRng {
+    type Error = Infallible;
+
     #[inline(always)]
-    fn next_u32(&mut self) -> u32 {
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
         let rng = unsafe { &mut *self.rng.get() };
-        rng.next_u32()
+        Ok(rng.next_u32())
     }
 
     #[inline(always)]
-    fn next_u64(&mut self) -> u64 {
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
         let rng = unsafe { &mut *self.rng.get() };
-        rng.next_u64()
+        Ok(rng.next_u64())
     }
 
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
+    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Self::Error> {
         let rng = unsafe { &mut *self.rng.get() };
-        rng.fill_bytes(dest)
+        Ok(rng.fill_bytes(dst))
     }
 }

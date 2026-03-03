@@ -4,7 +4,7 @@ use std::f32::consts::FRAC_1_PI;
 
 use cgmath::{InnerSpace, Vector2, Vector3, vec2};
 use lerp::Lerp;
-use rand::Rng;
+use rand::RngExt;
 
 use crate::{material::MaterialSample, small_thread_rng::thread_rng, spectrum::Spectrumf32};
 
@@ -24,7 +24,7 @@ pub fn mis2(pdf1: f32, pdf2: f32) -> f32 {
 
 mod ggx {
     use cgmath::{InnerSpace, Vector2, Vector3, vec3};
-    use rand::Rng;
+    use rand::RngExt;
 
     use crate::small_thread_rng::thread_rng;
 
